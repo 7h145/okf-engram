@@ -21,6 +21,13 @@ npm test
 node scripts/engram.mjs --help
 ```
 
+Artifact ingest follows the documented
+[concept-compilation protocol](references/compilation-protocol.md): explicit
+coverage closure, mixed-format extraction, source/claim provenance, conservative
+status, conditional integration, and post-ingest retrieval review. The sanitized
+M2 fixture and evaluator live under `tests/fixtures/m2-semantic/` and
+`tests/behavior/`.
+
 The default project bundle is:
 
 ```text

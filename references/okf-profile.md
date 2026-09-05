@@ -42,8 +42,19 @@ Engram recognizes:
 - normal URLs;
 - `urn:okf-engram:conversation:<id>` for conversation evidence.
 
-Local sources may carry the additive field `digest: sha256:<hex>`. Source drift
-is reported, never silently re-ingested.
+Local sources may carry the additive field `digest: sha256:<hex>`. Material
+sources should have a unique `id` used by nearby Markdown footnotes. They may
+also carry a narrow navigation hint:
+
+```yaml
+selector:
+  kind: heading # heading | lines | page | sheet
+  value: Event delivery
+```
+
+Selectors help a reader locate supporting material but do not prove byte
+identity. Source drift is reported, never silently re-ingested. Read-only Git
+identity and deterministic selector resolution are M2b work.
 
 ## Trust boundary
 

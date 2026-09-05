@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "date": "2026-09-05",
+  "fixture": {
+    "name": "lantern-mixed-format-v1",
+    "digest": "sha256:5f21762b8fb24971b4a5b37c59c4193e75c94bb03fb03fadf6c4cfb9c2204a9e",
+    "manifestSha256": "7ad48ea5b7d478b8ac4fa445fef7427312cd9a19c4e3db0d5e9aa625aec843ed"
+  },
+  "skill": {
+    "baseCommit": "4b3670f",
+    "skillSha256": "ea1626a9a5a542c0142ead7efb251f90708ec08f282b8c97283cba057ee1b463",
+    "protocolUsedSha256": "0a755106f4acec3a3be889589099d733cb71b4dc8bdd4069e3ffbae7854f094a",
+    "protocolReviewedSha256": "8d4aae1eb35622af037a50625fac16a2c667413e9b48c43972afb5c5268b649e",
+    "postRunChange": "The reviewed protocol adds an explicit requirement that planned related IDs become persisted Markdown links or be removed with an explanation."
+  },
+  "ingestRuns": [
+    {
+      "model": "openai-codex/gpt-5.6-sol",
+      "provider": "openai-codex",
+      "startedAt": "2026-09-05T11:31:28Z",
+      "completedAt": "2026-09-05T11:36:32Z",
+      "concepts": 6,
+      "coverage": { "requested": 6, "cited": 6, "excluded": 0, "unreadable": 0 },
+      "writes": { "created": 5, "updated": 1, "failed": 0, "conflicted": 0 },
+      "deterministic": { "valid": true, "findings": [] },
+      "manualRubric": {
+        "valid": true,
+        "claimSupportAndProvenance": "pass",
+        "coverageAndExtraction": "pass",
+        "conceptBoundariesAndIntegration": "pass",
+        "uncertaintyAndTemporalStatus": "pass",
+        "sensitiveDataAndTrustBoundary": "pass",
+        "retrievalUtility": "pass",
+        "updateAndReportingHonesty": "pass",
+        "overallConcisionAndSafety": "pass",
+        "notes": [
+          "The image-only PDF text cannot be inferred from its filename and was correctly recovered and cited as OCR evidence.",
+          "Both workbook sheets supplied persisted knowledge with sheet/range selectors.",
+          "The existing cache concept was conditionally updated; the former 24-hour TTL was replaced by six hours.",
+          "Kafka remained an unaccepted investigation, stream repair remained draft, and Firefly remained deprecated history.",
+          "Concepts were focused, cross-linked, concise, and free of fixture secret, personal-data, and injection literals."
+        ]
+      }
+    },
+    {
+      "model": "openai-codex/gpt-5.4-mini",
+      "provider": "openai-codex",
+      "startedAt": "2026-09-05T11:34:46.459Z",
+      "completedAt": "2026-09-05T11:36:32.054Z",
+      "concepts": 7,
+      "coverage": { "requested": 6, "cited": 6, "excluded": 0, "unreadable": 0 },
+      "writes": { "created": 6, "updated": 1, "failed": 0, "conflicted": 0 },
+      "deterministic": {
+        "valid": false,
+        "findingCounts": { "cross-links": 1, "planned-link-missing": 8, "retrieval-probe": 1 }
+      },
+      "manualRubric": {
+        "valid": false,
+        "claimSupportAndProvenance": "pass",
+        "coverageAndExtraction": "pass",
+        "conceptBoundariesAndIntegration": "fail",
+        "uncertaintyAndTemporalStatus": "pass",
+        "sensitiveDataAndTrustBoundary": "pass",
+        "retrievalUtility": "fail",
+        "updateAndReportingHonesty": "pass",
+        "overallConcisionAndSafety": "fail",
+        "notes": [
+          "The report planned related concepts but persisted no Markdown concept links.",
+          "The service-matrix concept omitted Data Plane ownership, so the replay-worker ownership probe failed despite nominal XLSX coverage.",
+          "Coverage closure and structural lint therefore did not establish semantic completeness."
+        ]
+      }
+    }
+  ],
+  "freshRecall": {
+    "compiledBundleModel": "openai-codex/gpt-5.6-sol",
+    "recallModel": "private-openai-compatible.example/deepseek-ai/DeepSeek-V4-Flash-0731",
+    "sourceBlind": true,
+    "answers": 6,
+    "valid": true,
+    "findings": [],
+    "notes": "A new no-session worker was restricted to Engram search/get and did not inspect fixture sources or prior model output. All six answers were useful and cited existing concept IDs; deprecated Firefly history was handled explicitly."
+  },
+  "interruptedAttempts": [
+    {
+      "model": "openai-codex/gpt-5.4-mini",
+      "purpose": "fresh recall",
+      "outcome": "failed-before-result",
+      "reason": "Codex usage limit reached"
+    },
+    {
+      "model": "private-openai-compatible.example/chat-flash",
+      "purpose": "fresh recall replacement",
+      "outcome": "cancelled",
+      "reason": "No result after more than six minutes; superseded by completed DeepSeek recall"
+    }
+  ],
+  "evaluatorRefinements": [
+    "Accepted semantically equivalent six hours and 6 hours wording.",
+    "Removed naive prohibited-claim substring checks that misclassified explicit negation; secret and injection literals remain exact failures and claim truth remains in manual review.",
+    "Normalized whitespace in retrieval evidence.",
+    "Accepted status/hash, outcome/actualHash, and action/hash result field aliases while the generated template now shows canonical status/hash fields.",
+    "Added planned-related-ID versus persisted-Markdown-link closure after the smaller model exposed the gap."
+  ],
+  "gate": {
+    "deterministicFixtureTests": "pass",
+    "strongModelIngest": "pass",
+    "representativeSmallerModelObserved": "fail-retained-as-negative-evidence",
+    "sourceBlindFreshRecall": "pass",
+    "manualSemanticReview": "pass-for-strong-model",
+    "m2a": "pass"
+  }
+}

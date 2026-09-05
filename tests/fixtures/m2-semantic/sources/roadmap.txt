@@ -1,0 +1,10 @@
+Lantern delivery roadmap — planning notes
+
+TODO: evaluate Kafka as a possible future replacement for JetStream if retained
+stream volume exceeds the edge test envelope. This is an investigation only; no
+migration decision has been accepted. Current deployments continue to use
+JetStream.
+
+The stream-repair feature remains experimental until packet-loss and duplicate
+delivery tests pass. Its presence in example configuration does not approve it
+for production.

@@ -27,6 +27,13 @@
 - Add bounded lock-contention, SIGKILL stale-lock recovery, independent-writer,
   and kill-before/after-persistence tests with old/new-complete outcomes and
   repairable derived-state verification.
+- Add the mandatory concept-compilation protocol covering inventory/coverage,
+  mixed-format extraction, split/merge and stable IDs, claim provenance,
+  conditional integration, uncertainty, sensitive-data handling, links, partial
+  outcomes, and post-ingest semantic/retrieval review.
+- Add a reproducible sanitized text/XLSX/text-PDF/OCR-PDF fixture, deterministic
+  ingest and source-blind recall evaluators, manual rubric, and checked comparison
+  evidence retaining both a strong-model pass and a smaller-model semantic failure.
 - Add project-local OKF bundle initialization and discovery.
 - Add validated, conditional, atomic concept writes with bundle locking.
 - Add unified concept search, generated indexes, lint, source drift, deprecation,
