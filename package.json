@@ -1,0 +1,49 @@
+{
+  "name": "okf-engram",
+  "version": "0.0.1",
+  "description": "Project knowledge and memory as an agent-maintained OKF bundle",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "pi-package",
+    "agent-skill",
+    "okf",
+    "memory",
+    "knowledge"
+  ],
+  "files": [
+    "SKILL.md",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "prompts",
+    "references",
+    "scripts"
+  ],
+  "pi": {
+    "skills": [
+      "./SKILL.md"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint:code": "eslint scripts tests eslint.config.js",
+    "check": "npm run lint:code && node --check scripts/engram.mjs && node --test"
+  },
+  "dependencies": {
+    "proper-lockfile": "^4.1.2",
+    "write-file-atomic": "^5.0.1",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1",
+    "globals": "^17.11.0"
+  }
+}
