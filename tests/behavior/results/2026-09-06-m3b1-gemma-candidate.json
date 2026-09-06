@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "date": "2026-09-06",
+  "purpose": "M3b1 opportunistic inferred-memory candidate control",
+  "model": "openrouter/google/gemma-4-31b-it",
+  "implementation": {
+    "commit": "8b8f0814cf7997e9b2ff8ca7b601ca4d12938758",
+    "skillSha256": "413aebca1e48e49fff8627dbcbdc4d577351deeb0864995c475647b1a70c12af",
+    "jobsModuleSha256": "9488700ce71220604d5ae295a7889cccf1567ac4e717c871393381c8081b16e2"
+  },
+  "isolation": {
+    "freshProject": true,
+    "freshNoSessionWorker": true,
+    "extensionsDisabled": true,
+    "contextFilesDisabled": true,
+    "explicitSkill": true,
+    "thinking": "off",
+    "candidateOrigin": "foreground",
+    "completeTranscriptEmbedded": false,
+    "opaqueContextReferences": 1,
+    "workerTraceReturnedByFlush": false,
+    "workerTraceReturnedByDelivery": false,
+    "rawEventsCommitted": false,
+    "note": "The isolated process shares the caller's OS identity and is not a security sandbox. Raw model events were not inspected for the passing run."
+  },
+  "request": {
+    "kind": "inferred-memory",
+    "candidateId": "candidate-sha256:09c4586306453b6275245710208795991103fcbdb016fddb25ba0798e3e5b7f8",
+    "claim": "The replay repair workflow assigns the incident commander as the sole replay owner, and retries require a recorded checkpoint.",
+    "evidenceSha256": "fcaf61cb5ea827081a7a21d034652191e77ef0e896a5116b3fdb792ce1b50e7e",
+    "policyGeneration": 1,
+    "runtimeLimitSeconds": 300,
+    "eventLimitBytes": 1048576,
+    "reportLimitBytes": 65536
+  },
+  "run": {
+    "startedAt": "2026-09-06T16:43:40.474Z",
+    "completedAt": "2026-09-06T16:44:36.446Z",
+    "durationSeconds": 55.972,
+    "exitCode": 0,
+    "terminalState": "completed",
+    "disposition": "stored",
+    "changes": 1,
+    "eventBytes": 164438,
+    "eventsTruncated": false,
+    "stderrBytes": 0
+  },
+  "result": {
+    "created": [
+      {
+        "id": "memories/replay-repair-workflow",
+        "hash": "c01f80734709e0fc2795f50ff154b4dbe625d8ca713327e672993e5d17417d87"
+      }
+    ],
+    "candidateNote": "Stored as durable project memory regarding replay repair workflow ownership and checkpoint requirements.",
+    "bundleValidation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 0,
+      "indexDrift": 0
+    },
+    "deliveryPending": true,
+    "deliveryContainsClaimOrEvidence": false,
+    "privateJobDirectoryMode": "0700",
+    "privateJobFileModes": "0600"
+  },
+  "semanticReview": {
+    "valid": true,
+    "findings": [],
+    "notes": "The result is one type Memory concept with capture inferred, exact capsule resource/digest provenance, a nearby candidate-evidence footnote, concise retrieval-oriented wording, and no unrelated content.",
+    "retrievalProbes": [
+      {
+        "query": "incident commander replay owner",
+        "topId": "memories/replay-repair-workflow",
+        "score": 21
+      },
+      {
+        "query": "recorded checkpoint retries",
+        "topId": "memories/replay-repair-workflow",
+        "score": 3
+      },
+      {
+        "query": "replay repair workflow",
+        "topId": "memories/replay-repair-workflow",
+        "score": 89
+      }
+    ]
+  },
+  "pilotFinding": {
+    "observed": true,
+    "terminalState": "needs-review",
+    "description": "An earlier fresh-project pilot produced semantically correct text but used a singular source field instead of the required sources list and omitted the mandatory candidate disposition note. Structural lint remained valid with one provenance warning; deterministic completion verification rejected both defects.",
+    "resolution": "The observed singular-source/missing-note shape replaced a synthetic provenance test as an exact regression. The worker prompt now includes the required plural sources YAML and states that every disposition needs a note. A fresh run from the committed implementation then passed."
+  },
+  "deterministicAndPackageChecks": {
+    "node26Cases": 92,
+    "node20Version": "20.0.0",
+    "node20NpmVersion": "9.9.4",
+    "node20Cases": 92,
+    "packedEngineStrictInstall": true,
+    "packedRuntimeInitAndPolicyStatus": true,
+    "productionAuditVulnerabilities": 0,
+    "dryRunPackageFiles": 29
+  },
+  "integrity": {
+    "capsuleSha256": "cf920563c25a830fc3bf9b8983066b1b7828d64b4384b9b7d7f7a977c3c10675",
+    "resultSha256": "80538b69eb849bdba8ef619a9961325ea0d9933c7e64aec6a5dcbddba187bc5c",
+    "workerReportSha256": "bd9dd93f8ad3a4be18f0b2a81a1a65a8c22cfa4aee44894b6b62efb5ed9a3a74",
+    "conceptSha256": "c01f80734709e0fc2795f50ff154b4dbe625d8ca713327e672993e5d17417d87",
+    "rawEventsRetainedOnlyInDisposablePrivateEvaluationRoot": true
+  }
+}
