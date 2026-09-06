@@ -114,8 +114,9 @@ const draft = path.join(os.tmpdir(), "engram-inferred-missing-source-" + capsule
 fs.writeFileSync(draft, [
   "---", "type: Memory", "title: Missing candidate provenance",
   "description: A candidate write with incorrect evidence provenance.", "capture: inferred",
-  "source: " + capsule.request.source.resource,
-  "---", "# Missing candidate provenance", "", "A durable claim.", "",
+  "sources:", "  - id: wrong-candidate-evidence", "    resource: urn:okf-engram:conversation:wrong",
+  "---", "# Missing candidate provenance", "", "A durable claim.[^wrong-candidate-evidence]", "",
+  "[^wrong-candidate-evidence]: Incorrect candidate evidence.", "",
 ].join("\n"));
 const put = JSON.parse(cp.execFileSync(process.execPath, [
   process.env.OKF_ENGRAM_HELPER, "put", id, "--from", draft, "--automatic-memory",
@@ -240,7 +241,7 @@ test("M3b1 compiler stores only a verified inferred Memory through the generatio
   assert.equal(concept.data.sources[0].resource, inspected.capsule.request.source.resource);
 });
 
-test("M3b1 rejects the observed singular-source and missing-note worker defect", async (t) => {
+test("M3b1 rejects wrong candidate provenance and the observed missing-note worker defect", async (t) => {
   const root = await project(t);
   const policy = await enable(root);
   const queued = parse(await enqueueCandidate(root, policy.generation));

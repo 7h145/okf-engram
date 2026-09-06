@@ -216,7 +216,8 @@ On “remember that…” or `/engram remember`:
    store.
 2. Search for the same knowledge.
 3. Draft/update `memories/<slug>` with `type: Memory`, `capture: explicit`, and
-   the shortest useful evidence quote.
+   the shortest useful evidence quote. A non-empty `sources` frontmatter list is
+   mandatory; a body-only “Source” label does not satisfy provenance.
 4. Use an opaque source such as
    `urn:okf-engram:conversation:<UTC-time>-<random>`; never copy a transcript.
 5. Put, lint, and report the stored ID.

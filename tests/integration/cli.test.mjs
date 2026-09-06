@@ -137,6 +137,30 @@ test("project vertical slice: init, put, search, replace, drift, lint, deprecate
   assert.equal(JSON.parse(result.stdout).deleted, true);
 });
 
+test("M4 put rejects newly authored source-less Memory provenance", async (t) => {
+  const root = await tempProject(t, "engram memory provenance ");
+  let result = await run(["init", "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  const draft = path.join(root, "source-less.md");
+  await fs.writeFile(draft, `---
+type: Memory
+title: Source-less memory
+description: A body label cannot replace source frontmatter.
+capture: explicit
+---
+# Source-less memory
+
+Source: urn:okf-engram:conversation:body-only
+`);
+  result = await run([
+    "put", "memories/source-less", "--from", draft, "--project-root", root, "--json",
+  ]);
+  assert.equal(result.code, 4);
+  assert.match(result.stderr, /provenance source/i);
+  result = await run(["get", "memories/source-less", "--project-root", root, "--json"]);
+  assert.equal(result.code, 7);
+});
+
 test("supports a symlinked .agents data root but rejects bundle-internal symlinks", async (t) => {
   const root = await tempProject(t, "engram symlink ");
   await fs.mkdir(path.join(root, ".pi"));

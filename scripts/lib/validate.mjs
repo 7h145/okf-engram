@@ -150,7 +150,7 @@ export function validateConcept(concept, { authoring = true } = {}) {
       profileIssue(issues, authoring, "memory-capture", "Memory capture must be explicit or inferred");
     }
     if (!Array.isArray(data.sources) || data.sources.length === 0) {
-      issue(issues, "profile", "memory-source", "Memory has no conversation provenance source", "warning");
+      profileIssue(issues, authoring, "memory-source", "Memory has no conversation provenance source");
     }
   } else if (data.capture !== undefined) {
     issue(issues, "profile", "capture-type", "capture is normally used only on Memory concepts", "warning");

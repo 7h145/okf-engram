@@ -38,3 +38,14 @@ test("Memory requires explicit or inferred capture", () => {
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((item) => item.includes("capture")));
 });
+
+test("M4 authored Memory requires provenance while legacy source-less Memory remains readable", () => {
+  const concept = parseConcept(`---\ntype: Memory\ntitle: T\ndescription: D\ncapture: explicit\n---\nbody\n`);
+  const authored = validateConcept(concept);
+  assert.equal(authored.valid, false);
+  assert.ok(authored.errors.some((item) => item.includes("provenance source")));
+
+  const consumed = validateConcept(concept, { authoring: false });
+  assert.equal(consumed.valid, true);
+  assert.ok(consumed.warnings.some((item) => item.includes("provenance source")));
+});
