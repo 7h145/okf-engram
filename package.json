@@ -1,6 +1,6 @@
 {
   "name": "okf-engram",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Project knowledge and memory as an agent-maintained OKF bundle",
   "type": "module",
   "license": "MIT",

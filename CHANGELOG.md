@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-09-06
 
 - Reject newly authored source-less Memory concepts while retaining warning-only
   consumption of legacy/hand-edited entries. This closes a defect observed in a

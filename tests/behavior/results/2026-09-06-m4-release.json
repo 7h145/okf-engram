@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-09-06T22:54:22Z",
+  "recordedAt": "2026-09-06T23:09:15Z",
   "milestone": "M4 v0.1 release hardening",
-  "result": "pass-pending-release-approval",
+  "result": "pass",
   "scope": {
     "release": "0.1.0",
     "projectOnly": true,
@@ -46,10 +46,10 @@
   },
   "package": {
     "filename": "okf-engram-0.1.0.tgz",
-    "sha256": "6f36d2c82ade3ff5896cddabf1d4905bedb7eff057009a4f5ece5e3a86fb5162",
-    "npmSha1": "9d4ce0e3317153c5563a767e76c840c56efff7b8",
-    "npmIntegrity": "sha512-8+SfMLlcSjFRTSau6KX99AzLs0HVT5tI08bWkR2WXfckwwDmsmyy0hWctXB45K0jS4+lZgV9WwH+AzeVCFU9Fg==",
-    "bytes": 61843,
+    "sha256": "60b3a6ebd476724ac85068de906625acdda64d01ea6238995ff126f97c4b1a3b",
+    "npmSha1": "de01f86a161c1d48365e46693daf95d8c67b0f4f",
+    "npmIntegrity": "sha512-aEBXPGi1Kk0P8vcS/exnksBoSQN3h+VwcRguzXiNJ3BL8U5sY/xc/FhWYMYt6Farc/1xPXalKamkFUGaDHSXDg==",
+    "bytes": 61846,
     "unpackedBytes": 236146,
     "files": 29,
     "reproducibleSecondPack": true,
@@ -210,7 +210,7 @@
     "parseErrors": 0,
     "indexDrift": 0,
     "lintValid": true,
-    "knownBrokenComparisonLinks": 22,
+    "knownNamespaceLinkWarnings": 22,
     "sourceResources": 54,
     "sourceReferences": 103,
     "localUnchangedResources": 50,
@@ -230,15 +230,14 @@
     "Exact source reopening depends on locally retained Git objects; digest-only sources cannot be reconstructed.",
     "Deferred jobs need an agent-owned runner or explicit blocking flush; no resident daemon is installed.",
     "The local private-provider Gemma serving/tool-loop timeout remains unresolved; OpenRouter evidence does not establish provider equivalence.",
-    "The live side-by-side comparison namespace retains 22 known broken links and was not modified during M4."
+    "The live evaluation bundle keeps network-56sol and network-dsv4 side by side. All 22 link warnings are stale /network/... paths in network-56sol whose targets exist at the corresponding /network-56sol/... paths; M4 did not modify that separately authorized namespace cleanup."
   ],
-  "releaseActions": {
-    "versionPrepared": true,
-    "releaseCommitCreated": false,
-    "tagCreated": false,
-    "published": false,
-    "projectInstructionsModified": false,
-    "liveNamespaceModified": false,
-    "requiresExplicitApproval": true
+  "releaseApproval": {
+    "version": "0.1.0",
+    "releaseCommit": true,
+    "annotatedTag": "v0.1.0",
+    "npmPublication": false,
+    "projectInstructionsModification": false,
+    "liveNamespaceModification": false
   }
 }
