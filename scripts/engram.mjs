@@ -12,6 +12,9 @@ import { captureSource, resolvePinnedSource } from "./lib/git-sources.mjs";
 import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
 import { getAutoMemoryStatus, setAutoMemory } from "./lib/settings.mjs";
+import {
+  enqueueIngestJob, inspectJobs, cancelJob, retryJob, flushJobs,
+} from "./lib/jobs.mjs";
 
 const HELP = `okf-engram ${VERSION}
 
@@ -31,6 +34,11 @@ Commands:
   capture-source RESOURCE      snapshot bytes and optional exact Git identity
   resolve-source ID SOURCE_ID  reopen and verify a pinned source without checkout
   check-sources [ID]           report local source and immutable-object state
+  enqueue ingest RESOURCE...   persist one bounded explicit artifact-ingest job
+  jobs [JOB_ID]                inspect compact durable job state/results
+  cancel JOB_ID                cancel queued work or request running cancellation
+  retry JOB_ID                 safely requeue unchanged failed/cancelled work
+  flush [--job JOB_ID]         run queued work through one isolated Pi worker
   lint [--fix]                 validate and optionally rebuild indexes
   reindex                      rebuild generated indexes
   deprecate ID --reason TEXT   mark a concept deprecated
@@ -46,6 +54,12 @@ Common options:
   --selector-value VALUE       selector value tied to captured bytes
   --ref REVISION               capture an explicit locally available Git revision
   --automatic-memory           mark an inferred-memory write for policy gating
+  --instruction TEXT           bounded self-contained queued ingest request
+  --model PROVIDER/MODEL       explicit isolated-worker model
+  --thinking LEVEL             isolated-worker thinking level (default: off)
+  --runtime-seconds N          worker bound from 30 through 1200 seconds
+  --job JOB_ID                 flush only one queued job
+  --state STATE                filter job listing by lifecycle state
   --json                       machine-readable output
   --help                       show help
 `;
@@ -224,6 +238,48 @@ async function main(rawArgs = process.argv.slice(2)) {
       const id = args.shift();
       if (args.length) throw errors.usage("check-sources accepts at most one concept ID");
       result = await checkSources(context, id);
+      break;
+    }
+    case "enqueue": {
+      const kind = args.shift();
+      const instruction = option(args, "--instruction");
+      const model = option(args, "--model");
+      const thinking = option(args, "--thinking");
+      const runtimeRaw = option(args, "--runtime-seconds");
+      if (kind !== "ingest" || !args.length) {
+        throw errors.usage("enqueue requires ingest and one or more project: or file: resources");
+      }
+      const runtimeSeconds = runtimeRaw === undefined ? undefined : Number(runtimeRaw);
+      if (runtimeRaw !== undefined && !Number.isInteger(runtimeSeconds)) {
+        throw errors.usage("--runtime-seconds must be an integer");
+      }
+      result = await enqueueIngestJob(context, args, { instruction, model, thinking, runtimeSeconds });
+      break;
+    }
+    case "jobs": {
+      const state = option(args, "--state");
+      const id = args.shift();
+      if (args.length) throw errors.usage("jobs accepts at most one job ID plus --state");
+      if (id && state) throw errors.usage("--state filters listings and cannot be combined with a job ID");
+      result = await inspectJobs(context, id, { state });
+      break;
+    }
+    case "cancel": {
+      const id = args.shift();
+      if (!id || args.length) throw errors.usage("cancel requires exactly one job ID");
+      result = await cancelJob(context, id);
+      break;
+    }
+    case "retry": {
+      const id = args.shift();
+      if (!id || args.length) throw errors.usage("retry requires exactly one job ID");
+      result = await retryJob(context, id);
+      break;
+    }
+    case "flush": {
+      const jobId = option(args, "--job");
+      if (args.length) throw errors.usage("flush accepts only optional --job JOB_ID");
+      result = await flushJobs(context, { jobId });
       break;
     }
     case "lint": {

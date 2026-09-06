@@ -35,9 +35,15 @@ export async function resolveLocalResource(resource, projectRoot) {
   throw errors.usage(`Digest is supported only for project: and file: resources: ${resource}`);
 }
 
-export async function digestResource(resource, projectRoot) {
+export async function digestResource(resource, projectRoot, { maxBytes = Infinity } = {}) {
   const file = await resolveLocalResource(resource, projectRoot);
   const stat = await fs.stat(file);
   if (!stat.isFile()) throw errors.usage(`Source is not a regular file: ${resource}`);
-  return { resource, path: file, digest: `sha256:${await sha256File(file)}` };
+  if (stat.size > maxBytes) throw errors.validation(`Source exceeds ${maxBytes} bytes: ${resource}`);
+  try {
+    return { resource, path: file, digest: `sha256:${await sha256File(file, { maxBytes })}` };
+  } catch (error) {
+    if (error.code === "FILE_TOO_LARGE") throw errors.validation(`Source exceeds ${maxBytes} bytes: ${resource}`);
+    throw error;
+  }
 }
