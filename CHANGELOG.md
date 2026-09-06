@@ -2,6 +2,12 @@
 
 ## 0.0.1 — unreleased prototype
 
+- Add one explicit bounded artifact-ingest job lifecycle with versioned private
+  capsules, source/bundle integrity binding, active/unresolved deduplication,
+  per-bundle isolated Pi execution, compact verified results, cancellation,
+  conservative retry/recovery, deterministic post-worker lint/index closure, and
+  explicit terminal-record cleanup. Worker traces remain outside foreground
+  results; automatic conversation observation is still deferred.
 - Add project-local `auto-memory status|on|off` with exact `auto` shorthand,
   default-off policy persistence, and lock-ordered gating for automatic inferred-
   memory writes.

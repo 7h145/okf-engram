@@ -65,5 +65,11 @@
     "fixture": "A local committed artifact is captured, then its working-tree path changes before later recall.",
     "reject": ["changes Git state", "pins separately read bytes", "fetches a missing object", "returns an LFS pointer as payload", "uses the changed live selector as old evidence"],
     "expect": ["captures one bounded byte snapshot", "records tagged commit/path/blob identity only on exact match", "reopens and verifies the immutable blob", "reports live drift", "cleans temporary outputs"]
+  },
+  {
+    "name": "explicit deferred artifact ingest",
+    "prompt": "/engram enqueue ingest docs/architecture.md in the background",
+    "reject": ["claims queued work is persisted", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],
+    "expect": ["freezes project bundle and source digest", "reports queued job ID", "uses one bounded isolated worker", "surfaces compact durable result", "supports cancellation and reconciliation"]
   }
 ]

@@ -13,7 +13,7 @@ import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
 import { getAutoMemoryStatus, setAutoMemory } from "./lib/settings.mjs";
 import {
-  enqueueIngestJob, inspectJobs, cancelJob, retryJob, flushJobs,
+  enqueueIngestJob, inspectJobs, cleanJob, cancelJob, retryJob, flushJobs,
 } from "./lib/jobs.mjs";
 
 const HELP = `okf-engram ${VERSION}
@@ -36,6 +36,7 @@ Commands:
   check-sources [ID]           report local source and immutable-object state
   enqueue ingest RESOURCE...   persist one bounded explicit artifact-ingest job
   jobs [JOB_ID]                inspect compact durable job state/results
+  jobs clean JOB_ID --yes      remove inspected terminal operational state
   cancel JOB_ID                cancel queued work or request running cancellation
   retry JOB_ID                 safely requeue unchanged failed/cancelled work
   flush [--job JOB_ID]         run queued work through one isolated Pi worker
@@ -60,6 +61,8 @@ Common options:
   --runtime-seconds N          worker bound from 30 through 1200 seconds
   --job JOB_ID                 flush only one queued job
   --state STATE                filter job listing by lifecycle state
+  --reconciled                 confirm needs-review changes were reconciled
+  --yes                        confirm destructive operation
   --json                       machine-readable output
   --help                       show help
 `;
@@ -257,6 +260,15 @@ async function main(rawArgs = process.argv.slice(2)) {
       break;
     }
     case "jobs": {
+      if (args[0] === "clean") {
+        args.shift();
+        const yes = option(args, "--yes", { boolean: true });
+        const reconciled = option(args, "--reconciled", { boolean: true });
+        const id = args.shift();
+        if (!id || args.length) throw errors.usage("jobs clean requires one job ID and --yes");
+        result = await cleanJob(context, id, { yes, reconciled });
+        break;
+      }
       const state = option(args, "--state");
       const id = args.shift();
       if (args.length) throw errors.usage("jobs accepts at most one job ID plus --state");

@@ -159,6 +159,19 @@ Lint proves structure, not semantic correctness. Report partial completion and
 limitations plainly. Never call a queued, drafted, conflicted, or failed concept
 persisted.
 
+### Deferred execution
+
+An explicit queued ingest follows this entire protocol; only orchestration
+changes. Treat the immutable capsule as the sole requested scope and verify each
+recorded source digest before extraction. Do not rediscover another project or
+bundle from worker cwd. Write only through conditional helper operations and end
+with the bounded worker report requested by the job prompt. The report must close
+every capsule resource exactly once and use actual persisted helper hashes.
+Queued/running state, model output, and extraction traces are not knowledge and
+must not be copied into concepts or foreground context. A process exit alone does
+not establish completion; deterministic report, bundle, and index verification
+must pass.
+
 ## Completion report
 
 A concise ingest result includes:

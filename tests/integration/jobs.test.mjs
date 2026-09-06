@@ -75,15 +75,90 @@ console.log(JSON.stringify({ type: "agent_start" }));
 setInterval(() => {}, 1000);
 `;
 
+const reportOnlyWorker = String.raw`
+const fs = require("node:fs");
+const prompt = process.argv[process.argv.indexOf("-p") + 1];
+const capsule = JSON.parse(prompt.match(/<engram-job-capsule>\n([\s\S]*?)\n<\/engram-job-capsule>/)[1]);
+const reportPath = prompt.match(/<engram-worker-report-path>\n([\s\S]*?)\n<\/engram-worker-report-path>/)[1];
+fs.appendFileSync(process.env.WORKER_INVOCATIONS, capsule.jobId + "\n");
+setTimeout(() => {
+  fs.writeFileSync(reportPath, JSON.stringify({
+    version: 1, jobId: capsule.jobId,
+    coverage: capsule.request.resources.map((item) => ({
+      resource: item.resource, status: "excluded", conceptIds: [], note: "No durable knowledge selected.",
+    })),
+    outcomes: [], warnings: [],
+  }) + "\n", { mode: 0o600, flag: "wx" });
+}, 1000);
+`;
+
+const missingProvenanceWorker = String.raw`
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const cp = require("node:child_process");
+const prompt = process.argv[process.argv.indexOf("-p") + 1];
+const capsule = JSON.parse(prompt.match(/<engram-job-capsule>\n([\s\S]*?)\n<\/engram-job-capsule>/)[1]);
+const reportPath = prompt.match(/<engram-worker-report-path>\n([\s\S]*?)\n<\/engram-worker-report-path>/)[1];
+const id = "decisions/missing-provenance";
+const draft = path.join(os.tmpdir(), "engram-missing-provenance-" + capsule.jobId + ".md");
+fs.writeFileSync(draft, [
+  "---", "type: Decision", "title: Missing provenance", "description: Structurally valid but uncited.", "status: stable", "---",
+  "# Missing provenance", "", "This claim has no frontmatter source entry.", "",
+].join("\n"));
+const put = JSON.parse(cp.execFileSync(process.execPath, [
+  process.env.OKF_ENGRAM_HELPER, "put", id, "--from", draft,
+  "--project-root", capsule.scope.projectRoot, "--json",
+], { encoding: "utf8" }));
+fs.writeFileSync(reportPath, JSON.stringify({
+  version: 1, jobId: capsule.jobId,
+  coverage: capsule.request.resources.map((item) => ({ resource: item.resource, status: "cited", conceptIds: [id] })),
+  outcomes: [{ id, status: "created", hash: put.hash }], warnings: [],
+}) + "\n", { mode: 0o600, flag: "wx" });
+`;
+
+const malformedReportWorker = String.raw`
+const fs = require("node:fs");
+const prompt = process.argv[process.argv.indexOf("-p") + 1];
+const reportPath = prompt.match(/<engram-worker-report-path>\n([\s\S]*?)\n<\/engram-worker-report-path>/)[1];
+fs.writeFileSync(reportPath, "{malformed\n", { mode: 0o600, flag: "wx" });
+`;
+
+const overflowingWorker = String.raw`
+process.stdout.write("x".repeat(1024 * 1024 + 4096));
+setInterval(() => {}, 1000);
+`;
+
+const invalidBundleWorker = String.raw`
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const prompt = process.argv[process.argv.indexOf("-p") + 1];
+const capsule = JSON.parse(prompt.match(/<engram-job-capsule>\n([\s\S]*?)\n<\/engram-job-capsule>/)[1]);
+const reportPath = prompt.match(/<engram-worker-report-path>\n([\s\S]*?)\n<\/engram-worker-report-path>/)[1];
+const id = "broken/direct-write";
+const target = path.join(capsule.scope.bundle, id + ".md");
+fs.mkdirSync(path.dirname(target), { recursive: true });
+const bytes = "---\ntitle: malformed without required type\n---\n# Broken\n";
+fs.writeFileSync(target, bytes);
+fs.writeFileSync(reportPath, JSON.stringify({
+  version: 1, jobId: capsule.jobId,
+  coverage: capsule.request.resources.map((item) => ({ resource: item.resource, status: "cited", conceptIds: [id] })),
+  outcomes: [{ id, status: "created", hash: crypto.createHash("sha256").update(bytes).digest("hex") }], warnings: [],
+}) + "\n", { mode: 0o600, flag: "wx" });
+`;
+
 const crashAfterWriteWorker = successWorker.replace(
   /fs\.writeFileSync\(reportPath,[\s\S]*?console\.log\(JSON\.stringify\(\{ type: "message_end"[\s\S]*?\}\)\);/,
   "process.exit(17);",
 );
 
 async function enqueue(root, extra = []) {
+  const instruction = extra.includes("--instruction")
+    ? []
+    : ["--instruction", "Compile the durable queue decision."];
   return run([
-    "enqueue", "ingest", "project:docs/decision.md",
-    "--instruction", "Compile the durable queue decision.",
+    "enqueue", "ingest", "project:docs/decision.md", ...instruction,
     "--project-root", root, "--json", ...extra,
   ]);
 }
@@ -163,6 +238,7 @@ test("M3a flush runs one isolated Pi backend and exposes only compact verified r
   assert.match(inspected.result.changes[0].hash, /^[0-9a-f]{64}$/);
   assert.equal(JSON.stringify(inspected.result).includes("SECRET_WORKER_TRACE"), false);
   assert.match(await fs.readFile(path.join(queued.jobDir, "events.jsonl"), "utf8"), /SECRET_WORKER_TRACE/);
+  assert.equal((await fs.stat(path.join(queued.jobDir, "worker-report.json"))).mode & 0o777, 0o600);
 });
 
 test("M3a source drift before execution becomes needs-review without invoking Pi", async (t) => {
@@ -213,6 +289,166 @@ test("M3a a worker crash after persistence becomes needs-review and cannot be bl
   assert.match(result.stderr, /manual reconciliation/i);
   const get = await run(["get", "decisions/background-queue", "--project-root", root, "--json"]);
   assert.equal(get.code, 0, get.stderr);
+  const duplicate = await enqueue(root);
+  assert.equal(duplicate.code, 0, duplicate.stderr);
+  assert.equal(parse(duplicate).jobId, queued.jobId);
+  assert.equal(parse(duplicate).reviewRequired, true);
+});
+
+test("M3a concurrent flushes serialize one semantic worker per bundle", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  const fake = await fakePi(t, reportOnlyWorker);
+  const invocations = path.join(root, "worker-invocations.log");
+  const env = { ...fake.env, WORKER_INVOCATIONS: invocations };
+  const results = await Promise.all([
+    run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], { env }),
+    run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], { env }),
+  ]);
+  assert.deepEqual(results.map((item) => item.code).sort((a, b) => a - b), [0, 6]);
+  assert.equal((await fs.readFile(invocations, "utf8")).trim().split("\n").length, 1);
+  const terminal = await waitForState(root, queued.jobId, "completed");
+  assert.equal(terminal.result.bundleValidation.valid, true);
+});
+
+test("M3a orphaned running state is recovered without replay", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  const capsule = JSON.parse(await fs.readFile(path.join(queued.jobDir, "capsule.json"), "utf8"));
+  const statePath = path.join(queued.jobDir, "state.json");
+  const state = JSON.parse(await fs.readFile(statePath, "utf8"));
+  await fs.writeFile(statePath, `${JSON.stringify({
+    ...state, state: "running", startedAt: new Date().toISOString(),
+    heartbeatAt: new Date(0).toISOString(), beforeSnapshot: capsule.bundleSnapshot,
+  }, null, 2)}\n`, { mode: 0o600 });
+  const fake = await fakePi(t, "require('node:fs').writeFileSync(process.env.SHOULD_NOT_RUN, 'ran')");
+  const marker = path.join(root, "ran");
+  const result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], {
+    env: { ...fake.env, SHOULD_NOT_RUN: marker },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "failed");
+  assert.equal(parse(result).processed[0].reason, "worker-disappeared");
+  await assert.rejects(() => fs.access(marker), { code: "ENOENT" });
+});
+
+test("M3a result-first persistence recovers terminal state without replay", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  const statePath = path.join(queued.jobDir, "state.json");
+  const state = JSON.parse(await fs.readFile(statePath, "utf8"));
+  const finishedAt = new Date().toISOString();
+  await fs.writeFile(path.join(queued.jobDir, "result.json"), `${JSON.stringify({
+    version: 1, jobId: queued.jobId, state: "completed", attempt: state.attempt,
+    finishedAt, changes: [], coverage: [], warnings: [], reason: "already-persisted",
+  }, null, 2)}\n`, { mode: 0o600 });
+  const fake = await fakePi(t, "require('node:fs').writeFileSync(process.env.SHOULD_NOT_RUN, 'ran')");
+  const marker = path.join(root, "ran");
+  const result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], {
+    env: { ...fake.env, SHOULD_NOT_RUN: marker },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "completed");
+  assert.equal(parse(result).processed[0].recovered, true);
+  await assert.rejects(() => fs.access(marker), { code: "ENOENT" });
+  const inspected = parse(await run(["jobs", queued.jobId, "--project-root", root, "--json"])).job;
+  assert.equal(inspected.state.state, "completed");
+  assert.ok(inspected.state.recoveredAt);
+  assert.equal(inspected.result.reason, "already-persisted");
+});
+
+test("M3a completed requires deterministic bundle and generated-index closure", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  const fake = await fakePi(t, invalidBundleWorker);
+  const result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], { env: fake.env });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "needs-review");
+  const inspected = parse(await run(["jobs", queued.jobId, "--project-root", root, "--json"])).job;
+  assert.equal(inspected.result.bundleValidation.valid, false);
+  assert.match(inspected.result.review.problems.join("\n"), /bundle validation|index closure/i);
+});
+
+test("M3a cited coverage requires exact frontmatter provenance and source-ID footnotes", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  const fake = await fakePi(t, missingProvenanceWorker);
+  const result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], { env: fake.env });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "needs-review");
+  const inspected = parse(await run(["jobs", queued.jobId, "--project-root", root, "--json"])).job;
+  assert.match(inspected.result.review.problems.join("\n"), /frontmatter provenance/i);
+  assert.equal(inspected.result.bundleValidation.valid, true);
+});
+
+test("M3a malformed reports and oversized event streams fail within bounded private output", async (t) => {
+  const root = await project(t);
+  let queued = parse(await enqueue(root));
+  let fake = await fakePi(t, malformedReportWorker);
+  let result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], { env: fake.env });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "failed");
+  assert.equal(parse(result).processed[0].reason, "invalid-worker-report");
+
+  result = await enqueue(root, ["--instruction", "A distinct bounded-output test."]);
+  assert.equal(result.code, 0, result.stderr);
+  queued = parse(result);
+  fake = await fakePi(t, overflowingWorker);
+  result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], { env: fake.env });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "failed");
+  assert.equal(parse(result).processed[0].reason, "worker-output-limit");
+  assert.equal((await fs.stat(path.join(queued.jobDir, "events.jsonl"))).size, 1024 * 1024);
+});
+
+test("M3a enqueue rejects sources beyond the explicit hashing bound", async (t) => {
+  const root = await project(t);
+  const oversized = path.join(root, "docs", "oversized.bin");
+  await fs.writeFile(oversized, "x");
+  await fs.truncate(oversized, 64 * 1024 * 1024 + 1);
+  const result = await run([
+    "enqueue", "ingest", "project:docs/oversized.bin", "--instruction", "Do not hash beyond the bound.",
+    "--project-root", root, "--json",
+  ]);
+  assert.equal(result.code, 4);
+  assert.match(result.stderr, /exceeds/i);
+});
+
+test("M3a terminal records are retained until explicit safe cleanup", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  await fs.writeFile(path.join(root, "docs", "decision.md"), "drift requiring review\n");
+  let result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "needs-review");
+
+  result = await run(["jobs", "clean", queued.jobId, "--yes", "--project-root", root, "--json"]);
+  assert.equal(result.code, 8);
+  assert.match(result.stderr, /needs review/i);
+  assert.ok(await fs.stat(queued.jobDir));
+
+  result = await run(["jobs", "clean", queued.jobId, "--yes", "--reconciled", "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).cleaned, true);
+  await assert.rejects(() => fs.access(queued.jobDir), { code: "ENOENT" });
+});
+
+test("M3a immutable capsules are integrity-checked and bound to their canonical project", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  const capsulePath = path.join(queued.jobDir, "capsule.json");
+  const capsule = JSON.parse(await fs.readFile(capsulePath, "utf8"));
+  capsule.scope.projectRoot = os.tmpdir();
+  capsule.request.instruction = "tampered scope and task";
+  await fs.writeFile(capsulePath, `${JSON.stringify(capsule, null, 2)}\n`, { mode: 0o600 });
+  const fake = await fakePi(t, "require('node:fs').writeFileSync(process.env.SHOULD_NOT_RUN, 'ran')");
+  const marker = path.join(root, "ran");
+  const result = await run(["flush", "--job", queued.jobId, "--project-root", root, "--json"], {
+    env: { ...fake.env, SHOULD_NOT_RUN: marker },
+  });
+  assert.equal(result.code, 4);
+  assert.match(result.stderr, /invalid capsule|integrity/i);
+  await assert.rejects(() => fs.access(marker), { code: "ENOENT" });
 });
 
 test("M3a malformed or symlinked job state is rejected without following it", async (t) => {

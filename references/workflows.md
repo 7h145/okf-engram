@@ -24,6 +24,28 @@ automatically deserve its own summary page. After conditional writes, close
 coverage from persisted state, lint, review provenance/security/concept
 boundaries, and run focused and broad retrieval probes.
 
+## Explicit deferred ingest
+
+Only an explicit user request or accepted proposal changes synchronous ingest to
+a job. `enqueue ingest` freezes one to sixteen `project:`/`file:` pointers,
+SHA-256 digests, the canonical project/bundle, bounded instruction, model,
+runtime, and pre-work bundle hashes. It stores no source bytes or transcript.
+A queued acknowledgement is not a persistence claim.
+
+Run the returned command with an agent-owned background runner when available;
+`flush --job` is the blocking portable fallback. One worker per bundle uses the
+same compilation protocol and conditional helper. The worker is context-isolated,
+not sandboxed. Keep its JSONL/stderr private and surface only `jobs` state and the
+compact result. Source drift, scope drift, malformed reports, invalid/index-stale
+bundles, unreported writes, cancellation after writes, and orphaned workers become
+failed or `needs-review` without blind replay. Result persistence precedes terminal
+state so restart recovery can finish delivery without rerunning semantics.
+
+Use `retry` only when its unchanged-bundle reconciliation check passes. Terminal
+records are retained until explicit `jobs clean <id> --yes`; cleaning
+`needs-review` additionally requires `--reconciled` after manual inspection.
+Automatic turn observation and inferred-memory jobs are not implemented.
+
 ## Explicit memory
 
 Search for an existing concept, then create or update `memories/<slug>` with

@@ -59,7 +59,9 @@ or ingesting concepts.
 Interpret `/engram` arguments or equivalent natural language:
 
 - `init` → initialize after showing destination.
-- `ingest <artifacts>` → compile artifact knowledge.
+- `ingest <artifacts>` → compile artifact knowledge synchronously unless the user explicitly requests deferred/background work.
+- `enqueue ingest <artifacts>` → persist one explicit bounded artifact-ingest job and acknowledge it as queued, not stored.
+- `jobs [<job-id>]`, `cancel <job-id>`, or `retry <job-id>` → inspect or control explicit deferred work.
 - `remember <knowledge>` → store explicit project memory.
 - `recall <question>` → search/read and answer with citations.
 - `auto-memory status|on|off` (or `auto status|on|off`) → inspect or change
@@ -71,8 +73,9 @@ Interpret `/engram` arguments or equivalent natural language:
 - `forget <id>` → explicit current-tree deletion with history warning.
 - no action → report status and concise available actions.
 
-Only the actions above are implemented. Jobs and background observation are
-planned, not current capabilities. Do not advertise them as working commands.
+Explicit artifact-ingest jobs are implemented. Automatic turn observation,
+inferred-memory detection, and extension-driven notification are not; never
+advertise passive observation or automatic background memory as working.
 
 ## Initialization
 
@@ -161,6 +164,44 @@ does not automatically need a `Source` page. Delete temporary captures/extracts
 after successful compilation or when abandoning the ingest; never place them in
 the bundle. Report partial completion honestly; structural lint alone does not
 establish semantic quality.
+
+## Explicit deferred artifact ingest
+
+Use this only when the user explicitly asks to queue/defer an artifact ingest or
+when they accept that proposal. Synchronous ingest remains the portable default.
+Freeze one to sixteen local source pointers and their digests without embedding
+source bytes:
+
+```bash
+node <skill-dir>/scripts/engram.mjs enqueue ingest \
+  project:docs/architecture.md project:docs/runbook.md \
+  --instruction "Compile the accepted architecture and operational constraints." \
+  --model <provider/model> --thinking off --runtime-seconds 900 --json
+```
+
+Report the returned job ID and `queued` state; this is not completed persistence.
+Use the returned `workerCommand` through an available agent-owned background
+process mechanism such as boxed-tmux. Do not use an invisible untracked shell
+process. If no managed background runner is available, leave the durable job
+queued and explain that `flush --job <id>` is the explicit blocking fallback.
+Only one semantic worker runs per canonical bundle.
+
+Inspect compact state/results with `jobs [<id>] --json`. Do not read or inject
+`events*.jsonl` or `stderr*.log` into the foreground conversation unless the user
+explicitly requests private debugging. `cancel` acknowledges a running request
+only after its worker exits. `failed`/`cancelled` work may use `retry`; a changed
+bundle or source requires reconciliation, and `needs-review` is never blindly
+replayed. Terminal records persist until explicitly cleaned:
+
+```bash
+node <skill-dir>/scripts/engram.mjs jobs clean <job-id> --yes
+# needs-review only, after manual reconciliation:
+node <skill-dir>/scripts/engram.mjs jobs clean <job-id> --yes --reconciled
+```
+
+The isolated Pi process is context-separated, not an OS security sandbox. It
+uses the same compilation protocol and deterministic conditional-write helper.
+Automatic/inferred-memory jobs remain unavailable.
 
 ## Explicit memory
 
