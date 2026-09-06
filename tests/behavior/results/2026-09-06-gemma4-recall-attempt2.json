@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "date": "2026-09-06",
+  "purpose": "Second Gemma 4 source-blind recall attempt",
+  "model": "google/gemma-4-31B-it",
+  "providerAlias": "private-openai-compatible.example/chat-flash",
+  "compiledBundleModel": "openai-codex/gpt-5.6-sol",
+  "skill": {
+    "commit": "598b87b3d377e41ff0d77dc1df96192acfabcdb7",
+    "skillSha256": "a5d54507b2c0cf444b1cf038a8f8a5473bce5627d81b634e13a8a6117eeff7c0"
+  },
+  "isolation": {
+    "freshNoSession": true,
+    "sourceBlind": true,
+    "rootContents": "A copied six-concept bundle only; no fixture sources, manifest, evaluator, or prior recall output",
+    "bundleTreeSha256": "c5451338928af2c355fafd10cb8bb5c8bc580411614a8eb6017c177bddcb4edc",
+    "promptSha256": "b5b5d15c760edbfc155f1a104f56cdba6ad76e782a9fa7118299befc7194dab9",
+    "extensionsDisabled": true,
+    "contextFilesDisabled": true,
+    "explicitSkill": true
+  },
+  "run": {
+    "startedAt": "2026-09-06T07:23:55Z",
+    "completedAt": "2026-09-06T07:43:55Z",
+    "timeoutSeconds": 1200,
+    "exitCode": 124,
+    "stdoutBytes": 0,
+    "reportCreated": false
+  },
+  "outcome": "timed-out-before-result",
+  "deterministic": {
+    "valid": false,
+    "findings": [
+      {
+        "code": "recall-report",
+        "message": "The requested recall JSON was not created"
+      }
+    ]
+  },
+  "integrity": {
+    "bundleUnchanged": true,
+    "concepts": 6,
+    "indexDrift": 0,
+    "indexIssues": 0
+  },
+  "operatorObservation": "The provider appeared alive; its dashboard showed roughly 500 requests and values mostly around 25k tokens by visual estimate, but the agent did not converge or emit a result before the bound.",
+  "interpretation": "This is valid negative operational evidence about the end-to-end Pi tool-use recall path, not a semantic recall result and not evidence that the underlying vLLM endpoint is unhealthy."
+}

@@ -95,6 +95,14 @@
       "purpose": "fresh recall replacement",
       "outcome": "cancelled",
       "reason": "No result after more than six minutes; superseded by completed DeepSeek recall"
+    },
+    {
+      "model": "private-openai-compatible.example/chat-flash",
+      "resolvedModel": "google/gemma-4-31B-it",
+      "purpose": "second source-blind fresh recall attempt",
+      "outcome": "timed-out-before-result",
+      "reason": "A bounded 20-minute fresh no-session run emitted no stdout and created no recall report",
+      "details": "2026-09-06-gemma4-recall-attempt2.json"
     }
   ],
   "evaluatorRefinements": [
