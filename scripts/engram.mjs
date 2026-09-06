@@ -11,9 +11,11 @@ import { digestResource } from "./lib/sources.mjs";
 import { captureSource, resolvePinnedSource } from "./lib/git-sources.mjs";
 import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
-import { getAutoMemoryStatus, setAutoMemory } from "./lib/settings.mjs";
+import { getAutoMemoryStatus } from "./lib/settings.mjs";
 import {
-  enqueueIngestJob, inspectJobs, cleanJob, cancelJob, retryJob, flushJobs,
+  enqueueIngestJob, enqueueMemoryCandidate, inspectJobs, cleanJob, cancelJob,
+  retryJob, flushJobs, setAutoMemoryPolicy, inspectPendingDeliveries,
+  acknowledgeDelivery,
 } from "./lib/jobs.mjs";
 
 const HELP = `okf-engram ${VERSION}
@@ -35,7 +37,10 @@ Commands:
   resolve-source ID SOURCE_ID  reopen and verify a pinned source without checkout
   check-sources [ID]           report local source and immutable-object state
   enqueue ingest RESOURCE...   persist one bounded explicit artifact-ingest job
+  enqueue candidate            queue one bounded inferred-memory candidate
   jobs [JOB_ID]                inspect compact durable job state/results
+  jobs pending [JOB_ID]        list unacknowledged inferred-memory outcomes
+  jobs acknowledge JOB_ID      acknowledge one presented inferred outcome
   jobs clean JOB_ID --yes      remove inspected terminal operational state
   cancel JOB_ID                cancel queued work or request running cancellation
   retry JOB_ID                 safely requeue unchanged failed/cancelled work
@@ -55,6 +60,11 @@ Common options:
   --selector-value VALUE       selector value tied to captured bytes
   --ref REVISION               capture an explicit locally available Git revision
   --automatic-memory           mark an inferred-memory write for policy gating
+  --policy-generation N        bind inferred candidate/write to visible policy
+  --claim TEXT                 concise inferred-memory candidate claim
+  --evidence TEXT              concise evidence supporting a candidate
+  --context-ref REF            repeatable opaque session/entry reference
+  --origin ORIGIN              foreground or automatic-review
   --instruction TEXT           bounded self-contained queued ingest request
   --model PROVIDER/MODEL       explicit isolated-worker model
   --thinking LEVEL             isolated-worker thinking level (default: off)
@@ -74,6 +84,17 @@ function option(args, name, { boolean = false } = {}) {
   if (boolean) return true;
   if (index >= args.length) throw errors.usage(`${name} requires a value`);
   return args.splice(index, 1)[0];
+}
+
+function options(args, name) {
+  const values = [];
+  for (;;) {
+    const index = args.indexOf(name);
+    if (index < 0) return values;
+    args.splice(index, 1);
+    if (index >= args.length) throw errors.usage(`${name} requires a value`);
+    values.push(args.splice(index, 1)[0]);
+  }
 }
 
 function printResult(result, { json = false, command } = {}) {
@@ -149,7 +170,7 @@ async function main(rawArgs = process.argv.slice(2)) {
       }
       result = action === "status"
         ? await getAutoMemoryStatus(context, { tolerateInvalid: true })
-        : await setAutoMemory(context, action);
+        : await setAutoMemoryPolicy(context, action);
       break;
     }
     case "list": {
@@ -181,13 +202,33 @@ async function main(rawArgs = process.argv.slice(2)) {
       const from = option(args, "--from");
       const ifMatch = option(args, "--if-match");
       const automaticMemory = option(args, "--automatic-memory", { boolean: true });
+      const policyGenerationRaw = option(args, "--policy-generation");
+      const policyGeneration = policyGenerationRaw === undefined ? undefined : Number(policyGenerationRaw);
+      if (policyGenerationRaw !== undefined
+          && (!Number.isSafeInteger(policyGeneration) || policyGeneration < 0)) {
+        throw errors.usage("--policy-generation must be a non-negative safe integer");
+      }
+      if (policyGeneration !== undefined && !automaticMemory) {
+        throw errors.usage("--policy-generation requires --automatic-memory");
+      }
+      const coordinatedGenerationRaw = process.env.OKF_ENGRAM_JOB_POLICY_GENERATION;
+      if (coordinatedGenerationRaw !== undefined) {
+        const coordinatedGeneration = Number(coordinatedGenerationRaw);
+        if (!automaticMemory || policyGeneration !== coordinatedGeneration) {
+          throw errors.autoMemoryDisabled(
+            context.logicalBundle,
+            "inferred-memory worker writes must use their coordinator policy generation",
+            { expectedGeneration: coordinatedGeneration, generation: policyGeneration },
+          );
+        }
+      }
       if (!id || !from || args.length) throw errors.usage("put requires ID and --from FILE");
       const draftText = await fs.readFile(from, "utf8").catch((error) => {
         if (error.code === "ENOENT") throw errors.notFound(`Draft ${from}`);
         throw error;
       });
       result = await putConcept(context, id, draftText, {
-        ifMatch, source: from, automaticMemory,
+        ifMatch, source: from, automaticMemory, policyGeneration,
       });
       break;
     }
@@ -249,17 +290,49 @@ async function main(rawArgs = process.argv.slice(2)) {
       const model = option(args, "--model");
       const thinking = option(args, "--thinking");
       const runtimeRaw = option(args, "--runtime-seconds");
-      if (kind !== "ingest" || !args.length) {
-        throw errors.usage("enqueue requires ingest and one or more project: or file: resources");
-      }
       const runtimeSeconds = runtimeRaw === undefined ? undefined : Number(runtimeRaw);
       if (runtimeRaw !== undefined && !Number.isInteger(runtimeSeconds)) {
         throw errors.usage("--runtime-seconds must be an integer");
       }
-      result = await enqueueIngestJob(context, args, { instruction, model, thinking, runtimeSeconds });
-      break;
+      if (kind === "ingest") {
+        if (!args.length) throw errors.usage("enqueue ingest requires one or more project: or file: resources");
+        result = await enqueueIngestJob(context, args, { instruction, model, thinking, runtimeSeconds });
+        break;
+      }
+      if (kind === "candidate") {
+        if (instruction !== undefined) throw errors.usage("enqueue candidate does not accept --instruction");
+        const claim = option(args, "--claim");
+        const evidence = option(args, "--evidence");
+        const contextRefs = options(args, "--context-ref");
+        const origin = option(args, "--origin");
+        const generationRaw = option(args, "--policy-generation");
+        const policyGeneration = generationRaw === undefined ? undefined : Number(generationRaw);
+        if (!claim || !evidence || generationRaw === undefined || args.length
+            || !Number.isSafeInteger(policyGeneration) || policyGeneration < 0) {
+          throw errors.usage("enqueue candidate requires --claim, --evidence, and a non-negative --policy-generation");
+        }
+        result = await enqueueMemoryCandidate(context, { claim, evidence }, {
+          contextRefs, origin, policyGeneration, model, thinking, runtimeSeconds,
+        });
+        break;
+      }
+      throw errors.usage("enqueue requires ingest resources or a bounded candidate");
     }
     case "jobs": {
+      if (args[0] === "pending") {
+        args.shift();
+        const id = args.shift();
+        if (args.length) throw errors.usage("jobs pending accepts at most one job ID");
+        result = await inspectPendingDeliveries(context, id);
+        break;
+      }
+      if (args[0] === "acknowledge") {
+        args.shift();
+        const id = args.shift();
+        if (!id || args.length) throw errors.usage("jobs acknowledge requires exactly one job ID");
+        result = await acknowledgeDelivery(context, id);
+        break;
+      }
       if (args[0] === "clean") {
         args.shift();
         const yes = option(args, "--yes", { boolean: true });

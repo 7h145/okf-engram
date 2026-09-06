@@ -52,13 +52,14 @@ test("R1 auto-memory defaults off, persists opt-in, and gates automatic writes",
     projectRoot: root,
     settings: path.join(root, ".agents", "data", "okf-engram", "settings.json"),
     autoMemory: "off",
+    generation: 0,
     configured: false,
     valid: true,
   });
 
   result = await run([
     "put", "memories/blocked", "--from", draft, "--automatic-memory",
-    "--project-root", root, "--json",
+    "--policy-generation", "0", "--project-root", root, "--json",
   ]);
   assert.equal(result.code, 4);
   assert.match(result.stderr, /AUTO_MEMORY_DISABLED/);
@@ -68,15 +69,25 @@ test("R1 auto-memory defaults off, persists opt-in, and gates automatic writes",
   assert.equal(result.code, 0, result.stderr);
   const enabled = JSON.parse(result.stdout);
   assert.equal(enabled.autoMemory, "on");
+  assert.equal(enabled.generation, 1);
   assert.equal(enabled.configured, true);
 
   const settings = path.join(root, ".agents", "data", "okf-engram", "settings.json");
-  assert.deepEqual(JSON.parse(await fs.readFile(settings, "utf8")), { version: 1, autoMemory: "on" });
+  assert.deepEqual(JSON.parse(await fs.readFile(settings, "utf8")), {
+    version: 2, autoMemory: "on", generation: 1,
+  });
   assert.equal((await fs.stat(settings)).mode & 0o777, 0o600);
 
   result = await run([
-    "put", "memories/allowed", "--from", draft, "--automatic-memory",
+    "put", "memories/missing-generation", "--from", draft, "--automatic-memory",
     "--project-root", root, "--json",
+  ]);
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /policy-generation/i);
+
+  result = await run([
+    "put", "memories/allowed", "--from", draft, "--automatic-memory",
+    "--policy-generation", "1", "--project-root", root, "--json",
   ]);
   assert.equal(result.code, 0, result.stderr);
 
@@ -87,11 +98,12 @@ test("R1 auto-memory defaults off, persists opt-in, and gates automatic writes",
   result = await run(["auto-memory", "off", "--project-root", root, "--json"]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).autoMemory, "off");
+  assert.equal(JSON.parse(result.stdout).generation, 2);
 
   await fs.writeFile(draft, inferredDraft("Blocked after opt-out"));
   result = await run([
     "put", "memories/blocked-after-off", "--from", draft, "--automatic-memory",
-    "--project-root", root, "--json",
+    "--policy-generation", "1", "--project-root", root, "--json",
   ]);
   assert.equal(result.code, 4);
 
@@ -118,6 +130,23 @@ test("R1 auto is an exact shorthand for auto-memory", async (t) => {
   assert.equal(JSON.parse(result.stdout).autoMemory, "off");
 });
 
+test("M3b1 legacy version-1 policy reads as generation zero and migrates atomically", async (t) => {
+  const root = await tempProject(t, "engram policy migration ");
+  assert.equal((await run(["init", "--project-root", root])).code, 0);
+  const settings = path.join(root, ".agents", "data", "okf-engram", "settings.json");
+  await fs.writeFile(settings, '{"version":1,"autoMemory":"on"}\n', { mode: 0o600 });
+
+  let result = await run(["auto-memory", "status", "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).generation, 0);
+  result = await run(["auto-memory", "off", "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).generation, 1);
+  assert.deepEqual(JSON.parse(await fs.readFile(settings, "utf8")), {
+    version: 2, autoMemory: "off", generation: 1,
+  });
+});
+
 test("R1 invalid settings fail closed without being overwritten", async (t) => {
   const root = await tempProject(t);
   assert.equal((await run(["init", "--project-root", root])).code, 0);
@@ -141,7 +170,7 @@ test("R1 invalid settings fail closed without being overwritten", async (t) => {
   await fs.writeFile(draft, inferredDraft());
   result = await run([
     "put", "memories/blocked-invalid", "--from", draft, "--automatic-memory",
-    "--project-root", root, "--json",
+    "--policy-generation", "0", "--project-root", root, "--json",
   ]);
   assert.equal(result.code, 4);
   assert.equal(await fs.readFile(settings, "utf8"), invalid);
@@ -177,7 +206,7 @@ test("R1 automatic-write marker only accepts inferred Memory and no explicit bun
   await fs.writeFile(explicit, explicitDraft());
   let result = await run([
     "put", "memories/not-inferred", "--from", explicit, "--automatic-memory",
-    "--project-root", root, "--json",
+    "--policy-generation", "1", "--project-root", root, "--json",
   ]);
   assert.equal(result.code, 2);
 

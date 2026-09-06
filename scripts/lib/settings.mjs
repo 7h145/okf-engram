@@ -6,7 +6,7 @@ import { rejectInternalSymlinks } from "./paths.mjs";
 import { withBundleLock } from "./lock.mjs";
 
 const SETTINGS_FILE = "settings.json";
-const SETTINGS_VERSION = 1;
+const SETTINGS_VERSION = 2;
 const VALID_AUTO_MEMORY = new Set(["on", "off"]);
 
 async function assertInitialized(context) {
@@ -39,17 +39,18 @@ function validateSettings(value, file) {
     });
   }
   const keys = Object.keys(value).sort();
-  if (keys.length !== 2 || keys[0] !== "autoMemory" || keys[1] !== "version") {
+  const legacy = value.version === 1 && keys.length === 2
+    && keys[0] === "autoMemory" && keys[1] === "version";
+  const current = value.version === SETTINGS_VERSION && keys.length === 3
+    && keys[0] === "autoMemory" && keys[1] === "generation" && keys[2] === "version";
+  if ((!legacy && !current) || !VALID_AUTO_MEMORY.has(value.autoMemory)
+      || (current && (!Number.isSafeInteger(value.generation) || value.generation < 0))) {
     throw errors.validation(`Auto-memory is disabled because settings are invalid: ${file}`, {
-      path: file, effective: "off", reason: "expected only version and autoMemory",
+      path: file, effective: "off",
+      reason: "expected version 2 with autoMemory on or off and a non-negative generation",
     });
   }
-  if (value.version !== SETTINGS_VERSION || !VALID_AUTO_MEMORY.has(value.autoMemory)) {
-    throw errors.validation(`Auto-memory is disabled because settings are invalid: ${file}`, {
-      path: file, effective: "off", reason: "expected version 1 and autoMemory on or off",
-    });
-  }
-  return value;
+  return { autoMemory: value.autoMemory, generation: legacy ? 0 : value.generation };
 }
 
 async function readSettings(context) {
@@ -59,7 +60,9 @@ async function readSettings(context) {
   try {
     text = await fs.readFile(paths.file, "utf8");
   } catch (error) {
-    if (error.code === "ENOENT") return { paths, configured: false, autoMemory: "off" };
+    if (error.code === "ENOENT") return {
+      paths, configured: false, autoMemory: "off", generation: 0,
+    };
     throw errors.validation(`Auto-memory is disabled because settings cannot be read: ${paths.logicalFile}`, {
       path: paths.logicalFile, effective: "off", reason: error.message,
     });
@@ -72,8 +75,8 @@ async function readSettings(context) {
       path: paths.logicalFile, effective: "off", reason: error.message,
     });
   }
-  validateSettings(value, paths.logicalFile);
-  return { paths, configured: true, autoMemory: value.autoMemory };
+  const validated = validateSettings(value, paths.logicalFile);
+  return { paths, configured: true, ...validated };
 }
 
 function publicStatus(context, state) {
@@ -81,6 +84,7 @@ function publicStatus(context, state) {
     projectRoot: context.projectRoot,
     settings: state.paths.logicalFile,
     autoMemory: state.autoMemory,
+    generation: state.generation,
     configured: state.configured,
     valid: true,
   };
@@ -98,6 +102,7 @@ export async function getAutoMemoryStatus(context, {
       projectRoot: context.projectRoot,
       settings: paths.logicalFile,
       autoMemory: "off",
+      generation: 0,
       configured: false,
       valid: true,
       available: false,
@@ -113,6 +118,7 @@ export async function getAutoMemoryStatus(context, {
       projectRoot: context.projectRoot,
       settings: paths.logicalFile,
       autoMemory: "off",
+      generation: undefined,
       configured: await pathExists(paths.file),
       valid: false,
       issue: error.message,
@@ -120,20 +126,27 @@ export async function getAutoMemoryStatus(context, {
   }
 }
 
-export async function setAutoMemory(context, value) {
+export async function setAutoMemory(context, value, { afterPersistLocked } = {}) {
   await assertInitialized(context);
   assertDefaultProjectContext(context);
   if (!VALID_AUTO_MEMORY.has(value)) throw errors.usage("auto-memory requires status, on, or off");
   return withBundleLock(context.bundle, async () => {
     const current = await readSettings(context);
-    const rendered = `${JSON.stringify({ version: SETTINGS_VERSION, autoMemory: value }, null, 2)}\n`;
+    const generation = current.autoMemory === value ? current.generation : current.generation + 1;
+    const rendered = `${JSON.stringify({
+      version: SETTINGS_VERSION, autoMemory: value, generation,
+    }, null, 2)}\n`;
     await rejectInternalSymlinks(current.paths.stateRoot, current.paths.file);
     await atomicWrite(current.paths.file, rendered);
-    return publicStatus(context, { ...current, configured: true, autoMemory: value });
+    const status = publicStatus(context, {
+      ...current, configured: true, autoMemory: value, generation,
+    });
+    if (afterPersistLocked) await afterPersistLocked(status);
+    return status;
   });
 }
 
-export async function requireAutoMemoryEnabledLocked(context) {
+export async function requireAutoMemoryEnabledLocked(context, expectedGeneration) {
   assertDefaultProjectContext(context);
   let state;
   try {
@@ -147,4 +160,12 @@ export async function requireAutoMemoryEnabledLocked(context) {
   if (state.autoMemory !== "on") {
     throw errors.autoMemoryDisabled(state.paths.logicalFile);
   }
+  if (expectedGeneration !== undefined && state.generation !== expectedGeneration) {
+    throw errors.autoMemoryDisabled(
+      state.paths.logicalFile,
+      `policy generation changed from ${expectedGeneration} to ${state.generation}`,
+      { expectedGeneration, generation: state.generation },
+    );
+  }
+  return publicStatus(context, state);
 }

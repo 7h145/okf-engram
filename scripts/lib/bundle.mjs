@@ -149,8 +149,14 @@ export async function putConcept(context, id, draftText, options = {}) {
   if (options.automaticMemory && !(concept.data.type === "Memory" && concept.data.capture === "inferred")) {
     throw errors.usage("--automatic-memory requires a Memory concept with capture: inferred");
   }
+  if (options.automaticMemory
+      && (!Number.isSafeInteger(options.policyGeneration) || options.policyGeneration < 0)) {
+    throw errors.usage("--automatic-memory requires --policy-generation from auto-memory status");
+  }
   return withBundleLock(context.bundle, async () => {
-    if (options.automaticMemory) await requireAutoMemoryEnabledLocked(context);
+    if (options.automaticMemory) {
+      await requireAutoMemoryEnabledLocked(context, options.policyGeneration);
+    }
     return writeConceptLocked(context, id, concept, options);
   });
 }

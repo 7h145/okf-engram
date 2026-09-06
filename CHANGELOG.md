@@ -2,6 +2,12 @@
 
 ## 0.0.1 — unreleased prototype
 
+- Add the M3b1 extension-neutral inferred-memory candidate API on the M3a worker
+  lifecycle: bounded claim/evidence capsules, stable cross-origin identity,
+  policy generations, default-off acceptance and write gates, queued/running
+  opt-out invalidation, verified stored/discarded/review dispositions, common-
+  secret rejection, and durable compact pending/acknowledged delivery. Stale
+  generations remain invalid after re-enable; process cancellation is cooperative.
 - Distinguish included skill-only **opportunistic memory inference** from the
   planned optional **automatic conversation review** Pi extension. Both use one
   project policy/corpus; extension installation never enables automatic memory.

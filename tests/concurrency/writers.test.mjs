@@ -60,7 +60,7 @@ test("R1 opt-out and automatic writes share one ordering lock", async (t) => {
     run(["auto-memory", "off", ...projectArgs(root)]),
     run([
       "put", "memories/policy-race", "--from", candidate,
-      "--automatic-memory", ...projectArgs(root),
+      "--automatic-memory", "--policy-generation", "1", ...projectArgs(root),
     ]),
   ]);
 
@@ -72,7 +72,7 @@ test("R1 opt-out and automatic writes share one ordering lock", async (t) => {
 
   const after = await run([
     "put", "memories/after-off", "--from", candidate,
-    "--automatic-memory", ...projectArgs(root),
+    "--automatic-memory", "--policy-generation", "1", ...projectArgs(root),
   ]);
   assert.equal(after.code, 4, after.stderr);
   assert.match(after.stderr, /AUTO_MEMORY_DISABLED/);

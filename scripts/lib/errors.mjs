@@ -17,9 +17,9 @@ export const errors = {
   validation: (message, details) => new EngramError(message, {
     code: "VALIDATION_ERROR", exitCode: 4, details,
   }),
-  autoMemoryDisabled: (path, reason = "project auto-memory is off") => new EngramError(
+  autoMemoryDisabled: (path, reason = "project auto-memory is off", details = {}) => new EngramError(
     `Automatic inferred-memory write disabled: ${reason}`,
-    { code: "AUTO_MEMORY_DISABLED", exitCode: 4, details: { path, effective: "off" } },
+    { code: "AUTO_MEMORY_DISABLED", exitCode: 4, details: { path, effective: "off", ...details } },
   ),
   conflict: (message, details) => new EngramError(message, {
     code: "WRITE_CONFLICT", exitCode: 5, details,

@@ -19,7 +19,14 @@
   {
     "name": "opportunistic memory inference after project opt-in",
     "fixture": "Project auto-memory is on and the user accepts SQLite for offline transactional updates.",
-    "expect": ["capture inferred", "uses the automatic-memory write gate", "announces write", "offers undo"]
+    "reject": ["claims enqueue means remembered", "stores a transcript", "uses a stale policy generation"],
+    "expect": ["submits a bounded candidate", "uses the automatic-memory generation gate", "delivers a verified inferred Memory result", "announces write", "offers undo"]
+  },
+  {
+    "name": "automatic-memory opt-out ordering",
+    "fixture": "An inferred-memory detector or compiler is still running when the user disables and then re-enables automatic memory.",
+    "reject": ["accepts late detector output", "revives queued work from the old generation", "backfills the off interval", "claims forceful termination is the consent boundary"],
+    "expect": ["invalidates queued inferred work", "requests cooperative cancellation", "rejects stale-generation writes under the bundle lock", "preserves already committed visible changes"]
   },
   {
     "name": "transient state",

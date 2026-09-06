@@ -44,8 +44,8 @@ state so restart recovery can finish delivery without rerunning semantics.
 Use `retry` only when its unchanged-bundle reconciliation check passes. Terminal
 records are retained until explicit `jobs clean <id> --yes`; cleaning
 `needs-review` additionally requires `--reconciled` after manual inspection.
-M3b1 inferred-memory candidate jobs and the M3b2 automatic conversation review
-extension are not implemented.
+M3b1 inferred-memory candidate jobs reuse this backend. M3b2 automatic
+conversation review is not implemented.
 
 ## Explicit memory
 
@@ -56,20 +56,33 @@ stored concept ID.
 ## Opportunistic memory inference — project opt-in only
 
 Skill activation and store initialization are not consent. Query `auto-memory
-status --json` before considering inferred capture. Missing, off, invalid, or
-unavailable policy means no candidate detection or inferred write; explicit
-remember/recall and user-requested maintenance remain available.
+status --json` before considering inferred capture and retain its `generation`.
+Missing, off, invalid, unavailable, or stale policy means no candidate acceptance
+or inferred write; explicit remember/recall and user-requested maintenance remain
+available.
 
-When enabled and Engram is active during the foreground response, capture only
+When enabled and Engram is active during the foreground response, consider only
 established, durable, project-scoped, non-sensitive knowledge. This skill-only
 path is opportunistic and does not promise to review every completed exchange.
-Use `capture: inferred` and pass `--automatic-memory` to `put` so the
-helper rechecks policy under the bundle lock. Never omit the flag for an automatic
-write. Announce successful writes and offer undo. Ask/review when uncertain and
-discard sensitive candidates. Automatic conversation review—the planned optional
-Pi extension—will consider each new eligible completed exchange, but still cannot
-guarantee that every useful fact is found. Do not claim that behavior while only
-the skill is active. Global automatic inference remains disabled.
+Submit one concise claim/evidence pair with `enqueue candidate`, optional opaque
+`--context-ref` values, and the observed `--policy-generation`. The API rejects
+obvious credential patterns, bounds private input, uses claim identity to
+deduplicate foreground/future-extension overlap, and returns queued—not stored.
+Use the returned managed-runner command or explicit `flush --job` fallback.
+
+The shared compiler searches before writing and returns stored, discarded, or
+`needs-review`. A stored outcome must be exactly one `capture: inferred` Memory
+with exact candidate-source provenance; every put uses `--automatic-memory` and
+the capsule generation. Use `jobs pending` for compact at-least-once delivery,
+announce a stored ID/hash and offer undo, then `jobs acknowledge <id>`. Keep
+private capsules and worker traces out of foreground results. Opt-out invalidates
+queued candidates, cooperatively cancels running work, discards late output, and
+prevents stale-generation writes after re-enable.
+
+Automatic conversation review—the planned optional Pi extension—will consider
+each new eligible completed exchange, but still cannot guarantee that every useful
+fact is found. Do not claim that behavior while only the skill is active. Global
+automatic inference remains disabled.
 
 ## Recall
 

@@ -61,7 +61,8 @@ Interpret `/engram` arguments or equivalent natural language:
 - `init` → initialize after showing destination.
 - `ingest <artifacts>` → compile artifact knowledge synchronously unless the user explicitly requests deferred/background work.
 - `enqueue ingest <artifacts>` → persist one explicit bounded artifact-ingest job and acknowledge it as queued, not stored.
-- `jobs [<job-id>]`, `cancel <job-id>`, or `retry <job-id>` → inspect or control explicit deferred work.
+- `enqueue candidate ...` → internal M3b1 path for one bounded opted-in inferred-memory candidate.
+- `jobs [<job-id>]`, `jobs pending`, `jobs acknowledge <job-id>`, `cancel <job-id>`, or `retry <job-id>` → inspect, deliver, or control deferred work.
 - `remember <knowledge>` → store explicit project memory.
 - `recall <question>` → search/read and answer with citations.
 - `auto-memory status|on|off` (or `auto status|on|off`) → inspect or change
@@ -73,10 +74,10 @@ Interpret `/engram` arguments or equivalent natural language:
 - `forget <id>` → explicit current-tree deletion with history warning.
 - no action → report status and concise available actions.
 
-Explicit artifact-ingest jobs and skill-only opportunistic memory inference are
-implemented. Automatic conversation review and extension-driven notification are
-not; never advertise systematic exchange review or automatic background memory
-as working.
+Explicit artifact-ingest jobs and M3b1 skill-only opportunistic memory inference
+are implemented. Automatic conversation review and extension-driven notification
+are not; never advertise systematic exchange review or automatic background
+memory as working.
 
 ## Initialization
 
@@ -202,7 +203,8 @@ node <skill-dir>/scripts/engram.mjs jobs clean <job-id> --yes --reconciled
 
 The isolated Pi process is context-separated, not an OS security sandbox. It
 uses the same compilation protocol and deterministic conditional-write helper.
-Automatic/inferred-memory jobs remain unavailable.
+Inferred-memory candidates use the same queue/worker backend but a separate
+bounded candidate contract below.
 
 ## Explicit memory
 
@@ -234,8 +236,10 @@ queue, or write inferred memories. Do not repeatedly prompt the user to enable i
 Explicit remember, recall, correction, deprecation, and forgetting remain
 available while automatic memory is off.
 
-When enabled and this skill is active in the foreground turn, opportunistically
-remember knowledge only when all are true:
+Record the returned `generation`; it is the visible consent boundary for any
+candidate considered from this foreground exchange. When enabled and this skill
+is active in the foreground turn, opportunistically consider knowledge only when
+all are true:
 
 - durable across sessions;
 - clearly project-scoped;
@@ -249,18 +253,39 @@ constraints, approved tradeoffs, and why current code is shaped a certain way.
 Ask instead of writing when scope, durability, or conflict is uncertain. Discard
 sensitive candidates.
 
-For an automatic write, use `capture: inferred` and the gated helper path:
+Do not compile the memory in the foreground. Submit only one concise claim, its
+shortest useful evidence, and optional opaque entry references, using the exact
+policy generation observed before considering it:
 
 ```bash
-node <skill-dir>/scripts/engram.mjs put <concept-id> --from <draft-file> \
-  --automatic-memory
+node <skill-dir>/scripts/engram.mjs enqueue candidate \
+  --claim "One durable project claim." \
+  --evidence "The concise statement or decision supporting it." \
+  --context-ref "session:opaque/entry:opaque" \
+  --policy-generation "$GENERATION" --json
 ```
 
-The helper rechecks opt-in while holding the bundle lock. Never omit the flag for
-an automatic write. On success, announce the ID and offer undo. This is best-
-effort opportunistic inference, not systematic review of each completed exchange.
-Automatic conversation review requires the planned optional extension. Global
-automatic inference is disabled.
+Set `GENERATION` to the integer from the immediately preceding status result.
+The candidate API rechecks opt-in under the bundle lock, rejects stale generations,
+deduplicates normalized claims across foreground and future extension origins,
+and returns `queued`, not remembered. Run its returned worker command through an
+agent-owned background runner when available; otherwise leave it queued or use an
+explicit blocking `flush --job <id>`. The compiler searches first and either
+stores exactly one verified `capture: inferred` Memory, discards the candidate,
+or returns `needs-review`. Every worker write uses both `--automatic-memory` and
+the capsule policy generation; the helper rechecks them under the bundle lock.
+
+At a suitable later boundary, use `jobs pending --json`. Announce successful
+storage with the concept ID/hash and offer undo; surface review outcomes briefly;
+do not expose worker traces or repeat discarded candidate text. Then mark the
+presented result with `jobs acknowledge <job-id>`. Missing acknowledgement remains
+pending for crash-safe at-least-once delivery. `auto-memory off` invalidates queued
+inferred work, cooperatively cancels running work, and makes late generations and
+writes fail; re-enabling never revives the prior generation.
+
+This remains best-effort opportunistic inference, not systematic review of each
+completed exchange. Automatic conversation review requires the planned optional
+extension. Global automatic inference is disabled.
 
 ## Draft and write
 

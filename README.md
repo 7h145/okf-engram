@@ -8,9 +8,10 @@ The Agent Skill is `okf-engram`; the user-facing command is `/engram` on Pi.
 The prototype is project-local and not yet release-ready. Automatic inference is
 off by default and requires `/engram auto-memory on` for the resolved project;
 explicit remember/recall remain available while off. Exact local Git source
-capture/reopening is read-only and opportunistic. One explicit bounded artifact-
-ingest job path is available. The skill can perform opportunistic memory inference;
-automatic conversation review remains a planned optional Pi extension.
+capture/reopening is read-only and opportunistic. Bounded artifact-ingest and
+inferred-memory candidate jobs are available. The skill can perform opportunistic
+memory inference; automatic conversation review remains a planned optional Pi
+extension.
 
 ## Memory capture
 
@@ -34,7 +35,9 @@ while Pi is running in an initialized project with automatic memory enabled. It
 does not review or later backfill off intervals. Installing the extension will
 not itself enable automatic memory. Both inference paths are project-only,
 exclude complete transcripts and tool/thinking output, share deduplication and
-policy gates, and never fall back to a future global store.
+policy gates, and never fall back to a future global store. A monotonic policy
+generation prevents work accepted before an off/on boundary from writing after
+re-enable.
 
 ## Development
 
@@ -79,8 +82,34 @@ runner. Worker traces remain private job files; foreground results contain only
 state, affected concept IDs/hashes, coverage, warnings, and review/error reasons.
 Jobs are source- and bundle-bound, serialized per bundle, bounded, cancellable,
 and never blindly replay `needs-review` changes. Terminal records remain until
-explicit `jobs clean <job-id> --yes` (plus `--reconciled` for reviewed changes).
-A worker process provides context isolation, not an OS sandbox.
+explicit `jobs clean <job-id> --yes` (plus `--reconciled` for reviewed changes,
+and prior delivery acknowledgement for inferred outcomes). A worker process
+provides context isolation, not an OS sandbox.
+
+Opportunistic inference uses the same worker lifecycle without storing a
+transcript. The active foreground model first checks policy, then submits only a
+bounded claim, concise evidence, and optional opaque context references:
+
+```bash
+node scripts/engram.mjs auto-memory status --json
+# Set GENERATION to the integer returned above.
+node scripts/engram.mjs enqueue candidate \
+  --claim "SQLite is the approved durable local store." \
+  --evidence "The user approved SQLite for offline transactional updates." \
+  --context-ref session:opaque/entry:opaque \
+  --policy-generation "$GENERATION" --json
+node scripts/engram.mjs jobs pending --json
+node scripts/engram.mjs jobs acknowledge <job-id> --json
+```
+
+The generation must come from the preceding status result. Acceptance and every
+worker write recheck it under the bundle lock. Disabling automatic memory
+invalidates queued inferred work and requests cooperative cancellation of running
+work; late output is discarded and stale generations cannot write even after
+re-enable. Candidate compilation produces one verified inferred Memory, a bounded
+discard disposition, or `needs-review`. Pending compact results remain durable
+until acknowledged; private candidate capsules and worker traces are not returned
+by the delivery command.
 
 Engram never initializes or commits Git repositories automatically. Source
 capture and reopening are also read-only: no fetch, checkout, index update, or
