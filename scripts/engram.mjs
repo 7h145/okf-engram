@@ -8,6 +8,7 @@ import {
   deleteConcept,
 } from "./lib/bundle.mjs";
 import { digestResource } from "./lib/sources.mjs";
+import { captureSource, resolvePinnedSource } from "./lib/git-sources.mjs";
 import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
 import { getAutoMemoryStatus, setAutoMemory } from "./lib/settings.mjs";
@@ -27,7 +28,9 @@ Commands:
   get ID                       read a concept and current hash
   put ID --from FILE           create or conditionally replace a concept
   digest RESOURCE              hash a project: or file: source
-  check-sources [ID]           report local source drift
+  capture-source RESOURCE      snapshot bytes and optional exact Git identity
+  resolve-source ID SOURCE_ID  reopen and verify a pinned source without checkout
+  check-sources [ID]           report local source and immutable-object state
   lint [--fix]                 validate and optionally rebuild indexes
   reindex                      rebuild generated indexes
   deprecate ID --reason TEXT   mark a concept deprecated
@@ -37,6 +40,11 @@ Common options:
   --project-root PATH          explicit project root
   --bundle PATH                explicit bundle path
   --if-match SHA256            required for replacement/deletion
+  --to FILE                    exclusive transient output for source bytes
+  --region-to FILE             exclusive selected-region text output
+  --selector-kind KIND         heading, lines, page, or sheet
+  --selector-value VALUE       selector value tied to captured bytes
+  --ref REVISION               capture an explicit locally available Git revision
   --automatic-memory           mark an inferred-memory write for policy gating
   --json                       machine-readable output
   --help                       show help
@@ -170,6 +178,46 @@ async function main(rawArgs = process.argv.slice(2)) {
       const resource = args.shift();
       if (!resource || args.length) throw errors.usage("digest requires exactly one resource");
       result = await digestResource(resource, context.projectRoot);
+      break;
+    }
+    case "capture-source": {
+      const resource = args.shift();
+      const output = option(args, "--to");
+      const ref = option(args, "--ref");
+      const selectorKind = option(args, "--selector-kind");
+      const selectorValue = option(args, "--selector-value");
+      const regionOutput = option(args, "--region-to");
+      if (!resource || !output || args.length || Boolean(selectorKind) !== Boolean(selectorValue)) {
+        throw errors.usage("capture-source requires RESOURCE and --to FILE; selector kind/value must be supplied together");
+      }
+      if (regionOutput && !selectorKind) throw errors.usage("--region-to requires a selector");
+      result = await captureSource(context, resource, {
+        output, ref, regionOutput,
+        selector: selectorKind ? { kind: selectorKind, value: selectorValue } : undefined,
+      });
+      break;
+    }
+    case "resolve-source": {
+      const id = args.shift();
+      const sourceId = args.shift();
+      const output = option(args, "--to");
+      const regionOutput = option(args, "--region-to");
+      if (!id || !sourceId || !output || args.length) {
+        throw errors.usage("resolve-source requires ID SOURCE_ID and --to FILE");
+      }
+      const concept = await getConcept(context, id);
+      const matches = Array.isArray(concept.data.sources)
+        ? concept.data.sources.filter((item) => item?.id === sourceId)
+        : [];
+      if (matches.length !== 1) {
+        throw matches.length
+          ? errors.validation(`Concept ${id} has duplicate source ID ${sourceId}`)
+          : errors.notFound(`Source ${sourceId} in concept ${id}`);
+      }
+      if (regionOutput && matches[0].selector === undefined) {
+        throw errors.usage("--region-to requires selector metadata on the chosen source");
+      }
+      result = await resolvePinnedSource(context, matches[0], { output, regionOutput });
       break;
     }
     case "check-sources": {

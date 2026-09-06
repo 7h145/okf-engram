@@ -1,5 +1,7 @@
 import { VALID_CAPTURE, VALID_STATUS } from "./constants.mjs";
 import { isIsoDateTime } from "./time.mjs";
+import { validateSelector } from "./selectors.mjs";
+import { validateGitIdentity } from "./git-sources.mjs";
 
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -86,6 +88,7 @@ export function validateConcept(concept, { authoring = true } = {}) {
     if (!Array.isArray(data.sources)) {
       profileIssue(issues, authoring, "sources-shape", "sources must be a list");
     } else {
+      const sourceIds = new Set();
       data.sources.forEach((source, index) => {
         const field = `sources[${index}]`;
         if (!source || typeof source !== "object" || Array.isArray(source)) {
@@ -97,12 +100,37 @@ export function validateConcept(concept, { authoring = true } = {}) {
         }
         if (source.id !== undefined && !nonEmptyString(source.id)) {
           profileIssue(issues, authoring, "source-id", `${field}.id must be a non-empty string`);
+        } else if (source.id !== undefined) {
+          if (sourceIds.has(source.id)) {
+            profileIssue(issues, authoring, "source-id-duplicate", `${field}.id duplicates another source ID`);
+          }
+          sourceIds.add(source.id);
         }
         if (source.author !== undefined && !nonEmptyString(source.author)) {
           profileIssue(issues, authoring, "source-author", `${field}.author must be a non-empty string`);
         }
         if (source.digest !== undefined && !/^sha256:[0-9a-f]{64}$/.test(source.digest)) {
           profileIssue(issues, authoring, "source-digest", `${field}.digest must be sha256:<64 lowercase hex characters>`);
+        }
+        if (source.selector !== undefined) {
+          try {
+            validateSelector(source.selector);
+          } catch (error) {
+            profileIssue(issues, authoring, "source-selector", `${field}.${error.message}`);
+          }
+        }
+        if (source.git !== undefined) {
+          if (!nonEmptyString(source.id)) {
+            profileIssue(issues, authoring, "source-git-id", `${field}.id is required for pinned-source resolution`);
+          }
+          if (!/^sha256:[0-9a-f]{64}$/.test(source.digest ?? "")) {
+            profileIssue(issues, authoring, "source-git-digest", `${field}.digest is required for pinned-source verification`);
+          }
+          try {
+            validateGitIdentity(source.git);
+          } catch (error) {
+            profileIssue(issues, authoring, "source-git", `${field}.${error.message}`);
+          }
         }
         if (source.last_modified !== undefined && !isIsoDateTime(source.last_modified)) {
           profileIssue(issues, authoring, "source-last-modified", `${field}.last_modified must be an ISO 8601 datetime with offset`);

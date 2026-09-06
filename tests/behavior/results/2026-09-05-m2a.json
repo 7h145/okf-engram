@@ -75,6 +75,7 @@
   "freshRecall": {
     "compiledBundleModel": "openai-codex/gpt-5.6-sol",
     "recallModel": "private-openai-compatible.example/deepseek-ai/DeepSeek-V4-Flash-0731",
+    "providerAlias": "private-openai-compatible.example/chat",
     "sourceBlind": true,
     "answers": 6,
     "valid": true,
@@ -90,6 +91,7 @@
     },
     {
       "model": "private-openai-compatible.example/chat-flash",
+      "resolvedModel": "google/gemma-4-31B-it",
       "purpose": "fresh recall replacement",
       "outcome": "cancelled",
       "reason": "No result after more than six minutes; superseded by completed DeepSeek recall"

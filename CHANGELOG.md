@@ -34,6 +34,11 @@
 - Add a reproducible sanitized text/XLSX/text-PDF/OCR-PDF fixture, deterministic
   ingest and source-blind recall evaluators, manual rubric, and checked comparison
   evidence retaining both a strong-model pass and a smaller-model semantic failure.
+- Add bounded exact-source capture, heading/line/PDF-page/XLSX-range selection,
+  optional tagged SHA-1/SHA-256 Git commit/path/blob identities, immutable local
+  reopening, and live-versus-pinned drift reporting without fetching or altering
+  Git state. Dirty, untracked, filtered, shallow/missing-object, no-Git, and LFS
+  cases fall back or fail honestly without producing false exact evidence.
 - Add project-local OKF bundle initialization and discovery.
 - Add validated, conditional, atomic concept writes with bundle locking.
 - Add unified concept search, generated indexes, lint, source drift, deprecation,

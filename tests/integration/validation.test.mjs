@@ -157,3 +157,45 @@ Body.
   result = await run(["put", "authored-invalid-time", "--from", draft, "--project-root", root, "--json"]);
   assert.equal(result.code, 4);
 });
+
+test("M2b malformed selectors, Git identities, and duplicate source IDs are profile diagnostics", async (t) => {
+  const { root, bundle } = await project(t);
+  const invalid = `---
+type: Note
+title: Invalid source identity
+description: Malformed M2b source metadata.
+sources:
+  - id: duplicate
+    resource: project:source.md
+    digest: sha256:${"1".repeat(64)}
+    selector: { kind: lines, value: 0-2 }
+    git:
+      repository: project:.
+      remote: https://example.invalid/repository.git
+      commit: { algorithm: sha1, oid: ${"2".repeat(40)} }
+      path: ../escape.md
+      blob: { algorithm: sha256, oid: ${"3".repeat(64)} }
+  - id: duplicate
+    resource: project:other.md
+---
+# Note
+
+Body.
+`;
+  await fs.writeFile(path.join(bundle, "invalid-source-identity.md"), invalid);
+
+  let result = await run(["lint", "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  const issues = JSON.parse(result.stdout).issues;
+  for (const code of ["source-selector", "source-git", "source-id-duplicate"]) {
+    assert.ok(issues.some((issue) => (
+      issue.code === code && issue.category === "profile" && issue.severity === "warning"
+    )), code);
+  }
+
+  const draft = path.join(root, "invalid-source.md");
+  await fs.writeFile(draft, invalid);
+  result = await run(["put", "invalid-authored-source", "--from", draft, "--project-root", root, "--json"]);
+  assert.equal(result.code, 4);
+  assert.equal(JSON.parse(result.stderr).error, "VALIDATION_ERROR");
+});

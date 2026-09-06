@@ -13,6 +13,7 @@ import {
 } from "./index.mjs";
 import { searchConcepts } from "./search.mjs";
 import { digestResource } from "./sources.mjs";
+import { resolvePinnedSource } from "./git-sources.mjs";
 import { gitTrackingState } from "./project.mjs";
 import { getAutoMemoryStatus, requireAutoMemoryEnabledLocked } from "./settings.mjs";
 
@@ -236,17 +237,27 @@ export async function checkSources(context, id) {
         });
         continue;
       }
+      let gitState;
+      let gitError;
+      if (source.git !== undefined) {
+        const immutable = await resolvePinnedSource(context, source, { verifyOnly: true });
+        gitState = immutable.state === "resolved" ? "verified" : immutable.reason;
+        gitError = immutable.error;
+      }
       try {
         const actual = (await digestResource(source.resource, context.projectRoot)).digest;
         results.push({
-          id: item.id, resource: source.resource, expected: source.digest, actual,
+          id: item.id, sourceId: source.id, resource: source.resource,
+          expected: source.digest, actual,
           state: actual === source.digest ? "unchanged" : "changed",
+          gitState, gitError,
         });
       } catch (error) {
         results.push({
-          id: item.id, resource: source.resource, expected: source.digest,
+          id: item.id, sourceId: source.id, resource: source.resource,
+          expected: source.digest,
           state: error.code === "NOT_FOUND" ? "missing" : "unresolvable",
-          error: error.message,
+          error: error.message, gitState, gitError,
         });
       }
     }
@@ -278,6 +289,13 @@ export async function lintBundle(context, { fix = false } = {}) {
       message: item.state === "invalid"
         ? item.error
         : `${item.resource} is ${item.state}`,
+    }));
+    sources.filter((item) => item.gitState && item.gitState !== "verified").forEach((item) => issues.push({
+      severity: "warning",
+      category: "profile",
+      code: "source-git-unavailable",
+      id: item.id,
+      message: `${item.resource} immutable Git source is ${item.gitState}`,
     }));
     return { concepts, drift, issues };
   };
@@ -322,7 +340,11 @@ export async function statusBundle(context) {
     allowExplicitBundle: true,
   });
   const sourceStates = {};
-  for (const item of sources) sourceStates[item.state] = (sourceStates[item.state] ?? 0) + 1;
+  const gitSourceStates = {};
+  for (const item of sources) {
+    sourceStates[item.state] = (sourceStates[item.state] ?? 0) + 1;
+    if (item.gitState) gitSourceStates[item.gitState] = (gitSourceStates[item.gitState] ?? 0) + 1;
+  }
   const byType = {};
   for (const item of concepts) byType[item.envelope.type] = (byType[item.envelope.type] ?? 0) + 1;
   return {
@@ -335,6 +357,7 @@ export async function statusBundle(context) {
     indexDrift: drift.length,
     indexIssues,
     sourceStates,
+    gitSourceStates,
     autoMemory,
     git,
   };
