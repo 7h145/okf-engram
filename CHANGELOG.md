@@ -2,6 +2,9 @@
 
 ## 0.0.1 — unreleased prototype
 
+- Distinguish included skill-only **opportunistic memory inference** from the
+  planned optional **automatic conversation review** Pi extension. Both use one
+  project policy/corpus; extension installation never enables automatic memory.
 - Add one explicit bounded artifact-ingest job lifecycle with versioned private
   capsules, source/bundle integrity binding, active/unresolved deduplication,
   per-bundle isolated Pi execution, compact verified results, cancellation,

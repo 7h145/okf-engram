@@ -44,7 +44,8 @@ state so restart recovery can finish delivery without rerunning semantics.
 Use `retry` only when its unchanged-bundle reconciliation check passes. Terminal
 records are retained until explicit `jobs clean <id> --yes`; cleaning
 `needs-review` additionally requires `--reconciled` after manual inspection.
-Automatic turn observation and inferred-memory jobs are not implemented.
+M3b1 inferred-memory candidate jobs and the M3b2 automatic conversation review
+extension are not implemented.
 
 ## Explicit memory
 
@@ -52,19 +53,23 @@ Search for an existing concept, then create or update `memories/<slug>` with
 `type: Memory`, `capture: explicit`, and a short evidence quote. Report the
 stored concept ID.
 
-## Inferred memory — project opt-in only
+## Opportunistic memory inference — project opt-in only
 
 Skill activation and store initialization are not consent. Query `auto-memory
 status --json` before considering inferred capture. Missing, off, invalid, or
 unavailable policy means no candidate detection or inferred write; explicit
 remember/recall and user-requested maintenance remain available.
 
-When enabled, capture only established, durable, project-scoped, non-sensitive
-knowledge. Use `capture: inferred` and pass `--automatic-memory` to `put` so the
+When enabled and Engram is active during the foreground response, capture only
+established, durable, project-scoped, non-sensitive knowledge. This skill-only
+path is opportunistic and does not promise to review every completed exchange.
+Use `capture: inferred` and pass `--automatic-memory` to `put` so the
 helper rechecks policy under the bundle lock. Never omit the flag for an automatic
 write. Announce successful writes and offer undo. Ask/review when uncertain and
-discard sensitive candidates. Do not claim passive observation while the skill
-is inactive. Global automatic inference remains disabled.
+discard sensitive candidates. Automatic conversation review—the planned optional
+Pi extension—will consider each new eligible completed exchange, but still cannot
+guarantee that every useful fact is found. Do not claim that behavior while only
+the skill is active. Global automatic inference remains disabled.
 
 ## Recall
 

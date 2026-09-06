@@ -73,9 +73,10 @@ Interpret `/engram` arguments or equivalent natural language:
 - `forget <id>` → explicit current-tree deletion with history warning.
 - no action → report status and concise available actions.
 
-Explicit artifact-ingest jobs are implemented. Automatic turn observation,
-inferred-memory detection, and extension-driven notification are not; never
-advertise passive observation or automatic background memory as working.
+Explicit artifact-ingest jobs and skill-only opportunistic memory inference are
+implemented. Automatic conversation review and extension-driven notification are
+not; never advertise systematic exchange review or automatic background memory
+as working.
 
 ## Initialization
 
@@ -219,7 +220,7 @@ On “remember that…” or `/engram remember`:
 Explicit persistence intent does not prove descriptive truth. Phrase assumptions
 honestly and surface conflict with current sources.
 
-## Inferred memory — project opt-in only
+## Opportunistic memory inference — project opt-in only
 
 Loading the skill or initializing the bundle is not consent. Before considering
 inferred capture, query the resolved project's policy:
@@ -233,7 +234,8 @@ queue, or write inferred memories. Do not repeatedly prompt the user to enable i
 Explicit remember, recall, correction, deprecation, and forgetting remain
 available while automatic memory is off.
 
-When enabled, automatically remember knowledge only when all are true:
+When enabled and this skill is active in the foreground turn, opportunistically
+remember knowledge only when all are true:
 
 - durable across sessions;
 - clearly project-scoped;
@@ -255,9 +257,10 @@ node <skill-dir>/scripts/engram.mjs put <concept-id> --from <draft-file> \
 ```
 
 The helper rechecks opt-in while holding the bundle lock. Never omit the flag for
-an automatic write. On success, announce the ID and offer undo. Do not claim this
-portable skill observes turns when it is inactive. Global automatic inference
-is disabled.
+an automatic write. On success, announce the ID and offer undo. This is best-
+effort opportunistic inference, not systematic review of each completed exchange.
+Automatic conversation review requires the planned optional extension. Global
+automatic inference is disabled.
 
 ## Draft and write
 

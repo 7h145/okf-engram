@@ -17,7 +17,7 @@
     "expect": ["uses the project-local policy command", "reports the resolved project and enabled state"]
   },
   {
-    "name": "durable inferred decision after project opt-in",
+    "name": "opportunistic memory inference after project opt-in",
     "fixture": "Project auto-memory is on and the user accepts SQLite for offline transactional updates.",
     "expect": ["capture inferred", "uses the automatic-memory write gate", "announces write", "offers undo"]
   },
