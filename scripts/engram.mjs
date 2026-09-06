@@ -4,8 +4,8 @@ import process from "node:process";
 import { resolveProject } from "./lib/project.mjs";
 import {
   initializeBundle, getConcept, putConcept, listConcepts, searchBundle,
-  lintBundle, reindexBundle, statusBundle, checkSources, deprecateConcept,
-  deleteConcept,
+  lintBundle, reindexBundle, statusBundle, checkSources, summarizeSources,
+  deprecateConcept, deleteConcept,
 } from "./lib/bundle.mjs";
 import { digestResource } from "./lib/sources.mjs";
 import { captureSource, resolvePinnedSource } from "./lib/git-sources.mjs";
@@ -35,7 +35,7 @@ Commands:
   digest RESOURCE              hash a project: or file: source
   capture-source RESOURCE      snapshot bytes and optional exact Git identity
   resolve-source ID SOURCE_ID  reopen and verify a pinned source without checkout
-  check-sources [ID]           report local source and immutable-object state
+  check-sources [ID]           report source claims; --summary groups all references
   enqueue ingest RESOURCE...   persist one bounded explicit artifact-ingest job
   enqueue candidate            queue one bounded inferred-memory candidate
   jobs [JOB_ID]                inspect compact durable job state/results
@@ -72,6 +72,7 @@ Common options:
   --job JOB_ID                 flush only one queued job
   --state STATE                filter job listing by lifecycle state
   --reconciled                 confirm needs-review changes were reconciled
+  --summary                    group all referenced sources into an inventory
   --yes                        confirm destructive operation
   --json                       machine-readable output
   --help                       show help
@@ -124,6 +125,20 @@ function printResult(result, { json = false, command } = {}) {
     if (result.bundle !== result.logicalBundle) console.log(`Canonical bundle: ${result.bundle}`);
     console.log(`Discovery: ${result.method}`);
     console.log(`Initialized: ${result.initialized ? "yes" : "no"}`);
+    return;
+  }
+  if (command === "check-sources" && result?.resources && result?.totals) {
+    console.log("STATE\tGIT\tREFS\tRESOURCE\tCONCEPTS");
+    for (const item of result.resources) {
+      console.log([
+        item.state,
+        item.gitState,
+        item.referenceCount,
+        JSON.stringify(item.resource),
+        JSON.stringify(item.conceptIds),
+      ].join("\t"));
+    }
+    console.log(`${result.totals.resources} resources; ${result.totals.references} references; ${result.totals.invalidClaims} invalid claims`);
     return;
   }
   if (typeof result === "string") console.log(result);
@@ -279,9 +294,10 @@ async function main(rawArgs = process.argv.slice(2)) {
       break;
     }
     case "check-sources": {
+      const summary = option(args, "--summary", { boolean: true });
       const id = args.shift();
-      if (args.length) throw errors.usage("check-sources accepts at most one concept ID");
-      result = await checkSources(context, id);
+      if (args.length) throw errors.usage("check-sources accepts at most one concept ID plus --summary");
+      result = summary ? await summarizeSources(context, id) : await checkSources(context, id);
       break;
     }
     case "enqueue": {

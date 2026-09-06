@@ -225,6 +225,22 @@ test("M2b resolves a recorded blob, verifies every identity component, and repor
   ]));
   assert.equal(checked[0].state, "changed");
   assert.equal(checked[0].gitState, "verified");
+  const summary = parse(await run([
+    "check-sources", "evidence/guide", "--summary", "--project-root", root, "--json",
+  ]));
+  assert.equal(summary.resources[0].state, "changed");
+  assert.equal(summary.resources[0].gitState, "verified");
+  assert.equal(summary.resources[0].gitReferenceCount, 1);
+  assert.deepEqual(summary.resources[0].gitStates, ["verified"]);
+
+  await putConcept(context, "evidence/live-only", conceptDraft({ ...entry, git: undefined }));
+  const aggregate = parse(await run([
+    "check-sources", "--summary", "--project-root", root, "--json",
+  ])).resources[0];
+  assert.equal(aggregate.referenceCount, 2);
+  assert.equal(aggregate.gitReferenceCount, 1);
+  assert.equal(aggregate.gitState, "partial");
+  assert.deepEqual(aggregate.gitStates, ["verified"]);
 
   await fs.rm(source);
   const missingLive = parse(await run([

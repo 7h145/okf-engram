@@ -127,6 +127,34 @@ Captured outputs are exclusive temporary files outside the bundle and must be
 removed after use. Digest-only fallback is first-class when exact Git objects are
 not available.
 
+## Source status
+
+As a skill user, request the existing claim-level check or the grouped inventory:
+
+```text
+/engram check-sources
+/engram check-sources --summary
+/engram check-sources decisions/storage --summary
+```
+
+Bare `check-sources` remains backward compatible: it emits one row per local,
+digest-bearing concept/source claim and can therefore repeat a resource. The
+`--summary` view groups exact resource strings across the bundle and includes
+total/digest-bearing/digestless/Git reference counts, concept/source IDs,
+expected digests, selectors, current-byte state, and aggregate immutable Git
+state. URLs, conversation URNs, and digestless resources
+are shown as `not-checkable`; Engram never fetches them. Malformed claims and
+conflicting expected digests are explicit rather than silently omitted.
+
+For direct machine-readable output:
+
+```bash
+node scripts/engram.mjs check-sources --summary --json
+```
+
+The operation is read-only. States are `unchanged`, `changed`, `missing`,
+`unresolvable`, `not-checkable`, `conflicting`, or `invalid`.
+
 ## Acknowledgements
 
 Inspired by Andrej Karpathy's LLM Wiki pattern. Storage follows Open Knowledge

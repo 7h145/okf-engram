@@ -16,6 +16,7 @@ import { digestResource } from "./sources.mjs";
 import { resolvePinnedSource } from "./git-sources.mjs";
 import { gitTrackingState } from "./project.mjs";
 import { getAutoMemoryStatus, requireAutoMemoryEnabledLocked } from "./settings.mjs";
+import { validateSelector } from "./selectors.mjs";
 
 async function assertBundle(context) {
   if (!context.initialized || !(await pathExists(context.bundle))) {
@@ -269,6 +270,207 @@ export async function checkSources(context, id) {
     }
   }
   return results;
+}
+
+const SUMMARY_STATES = [
+  "unchanged", "changed", "missing", "unresolvable", "not-checkable", "conflicting", "invalid",
+];
+
+function compareText(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort(compareText).map((key) => [key, canonicalValue(value[key])]));
+  }
+  return value;
+}
+
+function uniqueValues(values) {
+  const encoded = new Map();
+  for (const value of values) encoded.set(JSON.stringify(canonicalValue(value)), canonicalValue(value));
+  return [...encoded.entries()].sort(([left], [right]) => compareText(left, right)).map(([, value]) => value);
+}
+
+function sourceMetadataIssues(source, conceptId, sourceIndex) {
+  const issues = [];
+  const add = (code, error) => issues.push({ conceptId, sourceIndex, code, error });
+  if (source.id !== undefined && (typeof source.id !== "string" || !source.id.trim())) {
+    add("source-id", "source id must be a non-empty string");
+  }
+  if (source.digest !== undefined && !/^sha256:[0-9a-f]{64}$/.test(source.digest)) {
+    add("source-digest", "source digest must be sha256:<64 lowercase hex characters>");
+  }
+  if (source.selector !== undefined) {
+    try {
+      validateSelector(source.selector);
+    } catch (error) {
+      add("source-selector", error.message);
+    }
+  }
+  return issues;
+}
+
+async function inspectSummaryGit(context, claims) {
+  const states = [];
+  const issues = [];
+  for (const claim of claims.filter(({ source }) => source.git !== undefined)) {
+    const immutable = await resolvePinnedSource(context, claim.source, { verifyOnly: true });
+    const state = immutable.state === "resolved" ? "verified" : immutable.reason;
+    states.push(state);
+    if (state === "invalid-identity") {
+      issues.push({
+        conceptId: claim.conceptId,
+        sourceIndex: claim.sourceIndex,
+        code: "source-git",
+        error: immutable.error ?? "source Git identity is invalid",
+      });
+    }
+  }
+  const gitStates = [...new Set(states)].sort(compareText);
+  const gitReferenceCount = claims.filter(({ source }) => source.git !== undefined).length;
+  let gitState = "none";
+  if (gitStates.length > 1) gitState = "mixed";
+  else if (gitReferenceCount && gitReferenceCount < claims.length) gitState = "partial";
+  else if (gitStates.length === 1) [gitState] = gitStates;
+  return { gitState, gitStates, gitReferenceCount, issues };
+}
+
+async function inspectSummaryLive(context, resource, expectedDigests) {
+  const local = /^(?:project:|file:)/.test(resource);
+  if (!local) return { state: "not-checkable", reason: "non-local" };
+  if (!expectedDigests.length) return { state: "not-checkable", reason: "digest-missing" };
+  try {
+    const actual = (await digestResource(resource, context.projectRoot)).digest;
+    return {
+      state: expectedDigests.includes(actual) ? "unchanged" : "changed",
+      actual,
+    };
+  } catch (error) {
+    return {
+      state: error.code === "NOT_FOUND" ? "missing" : "unresolvable",
+      error: error.message,
+    };
+  }
+}
+
+export async function summarizeSources(context, id) {
+  await assertBundle(context);
+  const { concepts } = await scanBundle(context.bundle);
+  const selected = id ? concepts.filter((item) => item.id === id) : concepts;
+  if (id && !selected.length) throw errors.notFound(`Concept ${id}`);
+
+  const grouped = new Map();
+  const invalidClaims = [];
+  for (const item of selected) {
+    const sources = item.concept.data.sources;
+    if (sources === undefined) continue;
+    if (!Array.isArray(sources)) {
+      invalidClaims.push({
+        conceptId: item.id,
+        sourceIndex: null,
+        state: "invalid",
+        error: "sources must be a list",
+      });
+      continue;
+    }
+    sources.forEach((source, sourceIndex) => {
+      if (!source || typeof source !== "object" || Array.isArray(source)) {
+        invalidClaims.push({
+          conceptId: item.id, sourceIndex, state: "invalid", error: "source entry must be a mapping",
+        });
+        return;
+      }
+      if (typeof source.resource !== "string" || !source.resource.trim()) {
+        invalidClaims.push({
+          conceptId: item.id, sourceIndex, state: "invalid",
+          error: "source resource must be a non-empty string",
+        });
+        return;
+      }
+      const claim = { conceptId: item.id, sourceIndex, source };
+      const group = grouped.get(source.resource) ?? [];
+      group.push(claim);
+      grouped.set(source.resource, group);
+    });
+  }
+
+  const resources = [];
+  for (const [resource, claims] of [...grouped.entries()].sort(([left], [right]) => compareText(left, right))) {
+    const expectedDigests = [...new Set(claims.map(({ source }) => source.digest).filter((value) => (
+      typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value)
+    )))].sort(compareText);
+    const issues = claims.flatMap(({ source, conceptId, sourceIndex }) => (
+      sourceMetadataIssues(source, conceptId, sourceIndex)
+    ));
+    const live = await inspectSummaryLive(context, resource, expectedDigests);
+    const git = await inspectSummaryGit(context, claims);
+    issues.push(...git.issues);
+
+    let state = live.state;
+    let reason = live.reason;
+    if (issues.length) {
+      state = "invalid";
+      reason = "invalid-source-metadata";
+    } else if (expectedDigests.length > 1) {
+      state = "conflicting";
+      reason = "expected-digest-conflict";
+    }
+
+    const summary = {
+      resource,
+      referenceCount: claims.length,
+      digestReferenceCount: claims.filter(({ source }) => (
+        typeof source.digest === "string" && /^sha256:[0-9a-f]{64}$/.test(source.digest)
+      )).length,
+      digestlessReferenceCount: claims.filter(({ source }) => source.digest === undefined).length,
+      gitReferenceCount: git.gitReferenceCount,
+      conceptIds: [...new Set(claims.map(({ conceptId }) => conceptId))].sort(compareText),
+      sourceIds: [...new Set(claims.map(({ source }) => source.id).filter((value) => (
+        typeof value === "string" && value.trim()
+      )))].sort(compareText),
+      expectedDigests,
+      selectors: uniqueValues(claims.flatMap(({ source }) => {
+        if (source.selector === undefined) return [];
+        try {
+          const selector = validateSelector(source.selector);
+          return [{ kind: selector.kind, value: selector.value }];
+        } catch {
+          return [];
+        }
+      })),
+      state,
+    };
+    if (reason) summary.reason = reason;
+    if (live.state !== state && !["invalid", "conflicting"].includes(live.state)) summary.liveState = live.state;
+    if (live.actual) summary.actual = live.actual;
+    if (live.error) summary.error = live.error;
+    summary.gitState = git.gitState;
+    summary.gitStates = git.gitStates;
+    summary.issues = issues.sort((left, right) => (
+      compareText(left.conceptId, right.conceptId) || left.sourceIndex - right.sourceIndex || compareText(left.code, right.code)
+    ));
+    resources.push(summary);
+  }
+
+  invalidClaims.sort((left, right) => (
+    compareText(left.conceptId, right.conceptId) || (left.sourceIndex ?? -1) - (right.sourceIndex ?? -1)
+  ));
+  const states = Object.fromEntries(SUMMARY_STATES.map((state) => [
+    state, resources.filter((item) => item.state === state).length,
+  ]));
+  return {
+    resources,
+    invalidClaims,
+    totals: {
+      resources: resources.length,
+      references: resources.reduce((sum, item) => sum + item.referenceCount, 0),
+      invalidClaims: invalidClaims.length,
+      states,
+    },
+  };
 }
 
 export async function lintBundle(context, { fix = false } = {}) {

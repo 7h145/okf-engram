@@ -94,6 +94,16 @@ materialize and verify the recorded blob and selector outside the bundle. Report
 live drift separately. Never treat unavailable repositories/objects, identity
 mismatches, or LFS pointers as resolved evidence, and clean up temporary outputs.
 
+## Source inventory
+
+Use bare `check-sources [concept-id]` for backward-compatible, claim-level local
+digest/Git checks. Use `check-sources [concept-id] --summary` for a grouped view
+of every exact resource string, including non-local and digestless references.
+The summary reports reference/concept/source IDs, expected-digest set, normalized
+selectors, live state, and aggregate Git state. It does not fetch URL/URN values.
+Keep conflicting digests, malformed metadata, and ungroupable invalid claims
+visible; do not interpret `not-checkable` as missing or unchanged.
+
 ## Correction and forgetting
 
 Replace only with the current content hash. Use canonical `status: deprecated`

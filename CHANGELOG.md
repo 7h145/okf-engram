@@ -2,6 +2,10 @@
 
 ## 0.0.1 — unreleased prototype
 
+- Add read-only `check-sources --summary`, grouping all referenced resource strings
+  with claim counts/IDs, digest sets, selectors, current-byte and immutable Git
+  state. Non-local/digestless, conflicting, and invalid claims remain visible;
+  URLs are never fetched and bare `check-sources` remains claim-level compatible.
 - Add the M3b1 extension-neutral inferred-memory candidate API on the M3a worker
   lifecycle: bounded claim/evidence capsules, stable cross-origin identity,
   policy generations, default-off acceptance and write gates, queued/running
