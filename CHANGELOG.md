@@ -13,7 +13,7 @@
   secret rejection, and durable compact pending/acknowledged delivery. Stale
   generations remain invalid after re-enable; process cancellation is cooperative.
 - Distinguish included skill-only **opportunistic memory inference** from the
-  planned optional **automatic conversation review** Pi extension. Both use one
+  optional post-v0.1 **automatic conversation review** Pi extension. Both use one
   project policy/corpus; extension installation never enables automatic memory.
 - Add one explicit bounded artifact-ingest job lifecycle with versioned private
   capsules, source/bundle integrity binding, active/unresolved deduplication,

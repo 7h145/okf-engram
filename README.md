@@ -10,8 +10,43 @@ off by default and requires `/engram auto-memory on` for the resolved project;
 explicit remember/recall remain available while off. Exact local Git source
 capture/reopening is read-only and opportunistic. Bounded artifact-ingest and
 inferred-memory candidate jobs are available. The skill can perform opportunistic
-memory inference; automatic conversation review remains a planned optional Pi
-extension.
+memory inference; automatic conversation review is an optional post-v0.1 Pi
+extension and is not part of this release.
+
+## Installation and first use
+
+After v0.1.0 is published, install the pinned Pi package:
+
+```bash
+pi install npm:okf-engram@0.1.0
+```
+
+For a reviewed local checkout, install dependencies in that checkout and point Pi
+at its absolute directory:
+
+```bash
+cd /path/to/okf-engram && npm ci
+pi install /path/to/okf-engram
+```
+
+Pi packages and skills can execute code with the agent's permissions; review the
+package before installation. Engram requires Node.js 20 or newer. It ships no Pi
+extension and does not edit project instructions.
+
+From the intended project directory, initialize deliberately and then use either
+the friendly prompt or standard skill command:
+
+```text
+/engram init
+/engram remember this project targets Python 3.13
+/engram recall which Python version does this project target?
+/engram check-sources --summary
+/skill:okf-engram status
+```
+
+Initialization creates `<project-root>/.agents/data/okf-engram/bundle/`. Running
+`/engram` without arguments reports status; loading the skill does not initialize
+a bundle or enable automatic memory.
 
 ## Memory capture
 
@@ -24,7 +59,7 @@ ways knowledge can enter it:
    active during a foreground response, the model may notice and capture durable
    project knowledge. This is best effort: the skill may not be activated and the
    model may not notice every candidate.
-3. **Automatic conversation review — optional Pi extension, planned** — after
+3. **Automatic conversation review — optional post-v0.1 Pi extension** — after
    each completed exchange, an extension considers only the new eligible user
    and assistant messages and can queue candidates through the same memory API.
    It improves coverage; it does not guarantee that every useful fact is found.
@@ -35,8 +70,9 @@ while Pi is running in an initialized project with automatic memory enabled. It
 does not review or later backfill off intervals. Installing the extension will
 not itself enable automatic memory. Both inference paths are project-only,
 exclude complete transcripts and tool/thinking output, share deduplication and
-policy gates, and never fall back to a future global store. A monotonic policy
-generation prevents work accepted before an off/on boundary from writing after
+policy gates, and never fall back to the planned v0.2 global store. A monotonic
+policy generation prevents work accepted before an off/on boundary from writing
+after
 re-enable.
 
 ## Development
@@ -154,6 +190,50 @@ node scripts/engram.mjs check-sources --summary --json
 
 The operation is read-only. States are `unchanged`, `changed`, `missing`,
 `unresolvable`, `not-checkable`, `conflicting`, or `invalid`.
+
+## Privacy and persistence boundaries
+
+- The bundle contains durable project knowledge. Decide explicitly whether your
+  project should track it in Git; Engram never stages or commits it.
+- Original sources stay in place and are not copied into the bundle. A digest can
+  detect drift but cannot recover vanished bytes. Git reopening also depends on
+  the recorded local object remaining available; Engram never fetches it.
+- Explicit and inferred memories retain short evidence and opaque conversation
+  URNs, not full transcripts, thinking, or tool output. Do not ask Engram to store
+  credentials, secret values, or incidental personal data.
+- Job capsules, compact results, and capped worker logs live in access-restricted
+  operational state outside the OKF bundle and persist until safe explicit cleanup.
+  A worker is context-isolated but is not an OS sandbox. Its configured model
+  provider receives the bounded job request and source content needed for ingest.
+- Exact source outputs are caller-selected, exclusive mode-0600 temporary files
+  outside the bundle/source/Git state. The caller must remove them after use.
+- Project operations never fall back to global memory. Global explicit memory is
+  planned for v0.2; global automatic inference is not planned.
+
+## Recovery, troubleshooting, and migration
+
+- `NOT_INITIALIZED`: run `/engram init` only if you intend to create the displayed
+  project store.
+- Invalid automatic-memory settings fail closed as off and are never overwritten
+  silently. Correct `.agents/data/okf-engram/settings.json`, then check status.
+  Legacy version-1 settings remain readable as generation zero and migrate to
+  version 2 on the next explicit `auto-memory on|off` write.
+- `PERSISTED_INDEX_STALE` means the concept mutation did persist but generated
+  index maintenance failed. Do not blindly repeat the mutation; inspect the
+  returned ID/hash or deletion and run `/engram lint --fix` to reconcile indexes.
+- `changed`, `missing`, or unavailable Git objects are provenance warnings, not
+  permission to rewrite concepts. Compare current and recorded evidence before a
+  conditional update.
+- Inspect queued work with `/engram jobs <job-id>`. Use `retry` only for an
+  unchanged failed/cancelled job. Reconcile `needs-review` manually; acknowledge
+  inferred outcomes before cleanup.
+- Bundle-internal symlinks and unsafe project paths are rejected. A deliberately
+  symlinked project `.agents` root is canonicalized and supported.
+
+v0.1 uses OKF v0.2 concepts and settings schema version 2. Unknown concept
+frontmatter is preserved. There is no automatic content migration, raw-source
+archive, global-store migration, or Git-history purge. Back up or commit the
+bundle according to project policy before manual transformations.
 
 ## Acknowledgements
 

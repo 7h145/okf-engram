@@ -77,9 +77,9 @@ Interpret `/engram` arguments or equivalent natural language:
 - no action → report status and concise available actions.
 
 Explicit artifact-ingest jobs and M3b1 skill-only opportunistic memory inference
-are implemented. Automatic conversation review and extension-driven notification
-are not; never advertise systematic exchange review or automatic background
-memory as working.
+are implemented. Post-v0.1 automatic conversation review and extension-driven
+notification are not; never advertise systematic exchange review or automatic
+background memory as working.
 
 ## Initialization
 
@@ -286,7 +286,7 @@ inferred work, cooperatively cancels running work, and makes late generations an
 writes fail; re-enabling never revives the prior generation.
 
 This remains best-effort opportunistic inference, not systematic review of each
-completed exchange. Automatic conversation review requires the planned optional
+completed exchange. Automatic conversation review requires the optional post-v0.1
 extension. Global automatic inference is disabled.
 
 ## Draft and write

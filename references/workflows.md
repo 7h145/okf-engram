@@ -44,8 +44,8 @@ state so restart recovery can finish delivery without rerunning semantics.
 Use `retry` only when its unchanged-bundle reconciliation check passes. Terminal
 records are retained until explicit `jobs clean <id> --yes`; cleaning
 `needs-review` additionally requires `--reconciled` after manual inspection.
-M3b1 inferred-memory candidate jobs reuse this backend. M3b2 automatic
-conversation review is not implemented.
+M3b1 inferred-memory candidate jobs reuse this backend. The optional post-v0.1
+M3b2 automatic conversation review extension is not implemented.
 
 ## Explicit memory
 
@@ -79,7 +79,7 @@ private capsules and worker traces out of foreground results. Opt-out invalidate
 queued candidates, cooperatively cancels running work, discards late output, and
 prevents stale-generation writes after re-enable.
 
-Automatic conversation review—the planned optional Pi extension—will consider
+Automatic conversation review—the optional post-v0.1 Pi extension—may consider
 each new eligible completed exchange, but still cannot guarantee that every useful
 fact is found. Do not claim that behavior while only the skill is active. Global
 automatic inference remains disabled.
