@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "date": "2026-09-06",
+  "purpose": "M3a explicit bounded background-ingest control",
+  "model": "openrouter/google/gemma-4-31b-it",
+  "implementation": {
+    "commit": "afffbbff13c84430adc2f18f53d357b68f1169bc",
+    "skillSha256": "7a786406caa3c33b929695d2f6579c5291a8de5f7ca095fddee75c7449fcba50",
+    "jobsModuleSha256": "841a87aebe6211dd1da1e0f5a86b08412890833f7e13df3c5b561a2d6a680d4f"
+  },
+  "isolation": {
+    "freshProject": true,
+    "freshNoSessionWorker": true,
+    "extensionsDisabled": true,
+    "contextFilesDisabled": true,
+    "explicitSkill": true,
+    "thinking": "off",
+    "sourceFiles": 1,
+    "sourceBytesEmbeddedInCapsule": false,
+    "workerTraceReturnedByFlush": false,
+    "rawEventsCommitted": false,
+    "note": "The isolated process shares the caller's OS identity and is not a security sandbox."
+  },
+  "request": {
+    "kind": "artifact-ingest",
+    "source": "project:docs/replay-decision.md",
+    "sourceSha256": "c90e7868c3e08f1a43da8177baa1b2ac90c2c0e6f50cc1c536bba240c83a4d35",
+    "instruction": "Compile the accepted replay ownership, threshold, and historical-name constraint into retrieval-oriented durable project knowledge.",
+    "runtimeLimitSeconds": 600,
+    "eventLimitBytes": 1048576,
+    "reportLimitBytes": 65536
+  },
+  "run": {
+    "startedAt": "2026-09-06T09:04:52.832Z",
+    "completedAt": "2026-09-06T09:05:11.344Z",
+    "durationSeconds": 18.512,
+    "exitCode": 0,
+    "terminalState": "completed",
+    "changes": 1,
+    "eventBytes": 211880,
+    "eventsTruncated": false,
+    "stderrBytes": 0,
+    "toolCalls": {
+      "total": 10,
+      "read": 3,
+      "bash": 5,
+      "write": 2
+    },
+    "usageAcrossTurns": {
+      "input": 26552,
+      "output": 902,
+      "cacheRead": 59136,
+      "totalTokens": 86590,
+      "costUsd": 0.00565316
+    }
+  },
+  "result": {
+    "coverage": {
+      "requested": 1,
+      "cited": 1,
+      "excluded": 0,
+      "unreadable": 0
+    },
+    "created": [
+      {
+        "id": "replay/ownership",
+        "hash": "f5f893f69a5c7f71d03a4573cb231d464a82ed8d45c00c38d23c8d74e38b132a"
+      }
+    ],
+    "warnings": [],
+    "bundleValidation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 0,
+      "indexDrift": 0
+    },
+    "sourceUnchangedAfterRun": true,
+    "privateJobDirectoryMode": "0700",
+    "privateJobFileModes": "0600"
+  },
+  "semanticReview": {
+    "valid": true,
+    "findings": [],
+    "notes": "The concept correctly records Reliability ownership, the greater-than-six-hours replay threshold, and the prohibition on current Firefly naming. It has exact frontmatter resource/digest provenance and nearby source-ID footnotes. Concept is a generic but acceptable OKF type for these integrated operational facts.",
+    "retrievalProbes": [
+      {
+        "query": "who owns retained stream replay",
+        "topId": "replay/ownership"
+      },
+      {
+        "query": "consumer gap six hours",
+        "topId": "replay/ownership"
+      },
+      {
+        "query": "Firefly current operations",
+        "topId": "replay/ownership"
+      }
+    ]
+  },
+  "pilotFinding": {
+    "observed": true,
+    "description": "An immediately preceding current-schema pilot produced semantically correct text but used only a body link/digest instead of a frontmatter sources entry. Structural lint passed, exposing that completion verification did not yet prove provenance closure.",
+    "resolution": "M3a now verifies every cited coverage concept has the exact capsule resource and digest in frontmatter plus a matching source-ID footnote. A deterministic negative regression was added, the worker prompt was clarified, and this fresh rerun passed."
+  },
+  "integrity": {
+    "capsuleSha256": "36fce141b441bcb3f110422141648f5c088ae85ab773d09dba2e9fe8666d39da",
+    "resultSha256": "b27084fea10f160db9e938851b0f9d6b071e3fcb6853c6dbec8b3e2d4173b977",
+    "conceptSha256": "f5f893f69a5c7f71d03a4573cb231d464a82ed8d45c00c38d23c8d74e38b132a",
+    "rawEventsRetainedOnlyInDisposablePrivateEvaluationRoot": true
+  }
+}
