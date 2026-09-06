@@ -5,9 +5,9 @@ Engram is an agent-maintained project knowledge corpus and memory, stored as
 Markdown.
 
 The Agent Skill is `okf-engram`; the user-facing command is `/engram` on Pi.
-The prototype is project-local and not yet release-ready. Automatic inference is
-off by default and requires `/engram auto-memory on` for the resolved project;
-explicit remember/recall remain available while off. Exact local Git source
+v0.1 is project-local. Automatic inference is off by default and requires
+`/engram auto-memory on` for the resolved project; explicit remember/recall
+remain available while off. Exact local Git source
 capture/reopening is read-only and opportunistic. Bounded artifact-ingest and
 inferred-memory candidate jobs are available. The skill can perform opportunistic
 memory inference; automatic conversation review is an optional post-v0.1 Pi
@@ -190,6 +190,21 @@ node scripts/engram.mjs check-sources --summary --json
 
 The operation is read-only. States are `unchanged`, `changed`, `missing`,
 `unresolvable`, `not-checkable`, `conflicting`, or `invalid`.
+
+## Known limitations
+
+- v0.1 has one project bundle and no global store, named-bundle registry,
+  embeddings/vector search, or automatic contradiction detection.
+- Opportunistic inference runs only when the skill is active and may miss useful
+  knowledge. Systematic automatic conversation review is post-v0.1.
+- Deferred work needs an agent-owned runner or explicit blocking `flush`; Engram
+  does not install a resident daemon.
+- Exact historical reopening is local and conditional: digest-only sources cannot
+  be reconstructed, and Git-enhanced sources still depend on local objects.
+- Source URLs are provenance labels, not a network retrieval service.
+- Current-tree deletion cannot erase Git history, sessions, backups, remotes, or
+  clones. The deferred private-provider Gemma serving/tool-loop timeout remains documented;
+  OpenRouter controls do not prove provider equivalence.
 
 ## Privacy and persistence boundaries
 

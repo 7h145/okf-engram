@@ -1,7 +1,10 @@
 # Changelog
 
-## 0.0.1 — unreleased prototype
+## 0.1.0 — unreleased
 
+- Reject newly authored source-less Memory concepts while retaining warning-only
+  consumption of legacy/hand-edited entries. This closes a defect observed in a
+  packed-install Gemma control where provenance appeared only in the body.
 - Add read-only `check-sources --summary`, grouping all referenced resource strings
   with claim counts/IDs, digest sets, selectors, current-byte and immutable Git
   state. Non-local/digestless, conflicting, and invalid claims remain visible;
