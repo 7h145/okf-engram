@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "date": "2026-09-06",
+  "purpose": "OpenRouter control for Gemma 4 source-blind recall",
+  "model": "openrouter/google/gemma-4-31b-it",
+  "compiledBundleModel": "openai-codex/gpt-5.6-sol",
+  "skill": {
+    "commit": "7d2d330815f29d07b26c3f2bdd5f9e4134e5ee04",
+    "skillSha256": "a5d54507b2c0cf444b1cf038a8f8a5473bce5627d81b634e13a8a6117eeff7c0"
+  },
+  "isolation": {
+    "freshNoSession": true,
+    "sourceBlind": true,
+    "rootContents": "A copied six-concept bundle only; no fixture sources, manifest, evaluator, or prior recall output",
+    "bundleTreeSha256": "c5451338928af2c355fafd10cb8bb5c8bc580411614a8eb6017c177bddcb4edc",
+    "promptSha256": "043b6d7a3e12b8bbc487c51164eb77b66d5fe3d07ff2db11208c31bc74cb29b0",
+    "extensionsDisabled": true,
+    "contextFilesDisabled": true,
+    "explicitSkill": true,
+    "forbiddenAccessesObserved": 0
+  },
+  "run": {
+    "startedAt": "2026-09-06T08:13:49Z",
+    "completedAt": "2026-09-06T08:15:09Z",
+    "durationSeconds": 80,
+    "timeoutSeconds": 1200,
+    "exitCode": 0,
+    "reportCreated": true,
+    "reportSha256": "595b600ea3b67501318d8b870e1def76b82782329ad68f3016196ce28fb3779b",
+    "toolCalls": {
+      "total": 23,
+      "read": 1,
+      "bash": 21,
+      "write": 1
+    },
+    "usage": {
+      "input": 47298,
+      "output": 4757,
+      "cacheRead": 191552,
+      "totalTokensAcrossTurns": 243607,
+      "costUsd": 0.0154518
+    }
+  },
+  "recallReport": {
+    "model": "openrouter/google/gemma-4-31b-it",
+    "answers": [
+      {
+        "number": 1,
+        "answer": "JetStream was selected over RabbitMQ because it allows disconnected edge nodes to reconnect and replay retained events without the need for a separate reconciliation service.",
+        "citations": ["platform/event-delivery"]
+      },
+      {
+        "number": 2,
+        "answer": "The authorization entitlement cache TTL is six hours. SQLite is used for local authorization metadata to ensure reads can continue during control-plane outages and to support local transactions for updates.",
+        "citations": ["platform/cache-policy"]
+      },
+      {
+        "number": 3,
+        "answer": "After reconnect, new intake for the node should be paused, consumer lag should be recorded, and the durable consumer resumed while monitoring for lag to decline. The retained stream should not be purged as a first response to avoid destroying replay evidence.",
+        "citations": ["operations/retained-stream-recovery"]
+      },
+      {
+        "number": 4,
+        "answer": "No, stream repair is not ready for production. It is currently experimental and awaits the completion and validation of packet-loss and duplicate-delivery tests.",
+        "citations": ["platform/stream-repair"]
+      },
+      {
+        "number": 5,
+        "answer": "Firefly was the operator-UI codename, retired in 2024, and must not be used in current operator labels.",
+        "citations": ["history/firefly-operator-codename"]
+      },
+      {
+        "number": 6,
+        "answer": "The replay-worker is owned by the Data Plane team and is responsible for replaying retained events after reconnect.",
+        "citations": ["operations/service-ownership"]
+      }
+    ]
+  },
+  "deterministic": {
+    "valid": false,
+    "answers": 6,
+    "findings": [
+      {
+        "code": "recall-answer",
+        "message": "Answer 5 did not repeat the literal word archived"
+      }
+    ]
+  },
+  "manualSemanticReview": {
+    "valid": true,
+    "findings": [],
+    "notes": "All six answers are correct, concise, and supported by valid concept citations. Answer 5 directly explains what Firefly denotes in the archived screenshots named by the question and correctly prohibits current use; omission of the redundant literal archived is a strict lexical-harness miss, not a semantic error."
+  },
+  "integrity": {
+    "bundleUnchanged": true,
+    "concepts": 6,
+    "indexDrift": 0,
+    "indexIssues": 0
+  },
+  "comparison": {
+    "localRoute": "The same model alias on private-openai-compatible.example timed out after 20 minutes without stdout or a report while appearing to issue roughly 500 requests.",
+    "openRouterRoute": "Completed in 80 seconds with 23 tool calls and six semantically correct cited answers.",
+    "interpretation": "This control strongly points to a local serving or end-to-end tool-call integration problem rather than an inherent inability of the Gemma 4 family. It is not proof of identical weights, templates, sampling, or serving configuration across providers."
+  }
+}

@@ -35,8 +35,11 @@
   ingest and source-blind recall evaluators, manual rubric, and checked comparison
   evidence retaining both a strong-model pass and a smaller-model semantic failure.
 - Record a second bounded, fully source-blind Gemma 4 recall attempt as honest
-  negative operational evidence: the live provider processed work but the Pi
+  negative operational evidence: the live local provider processed work but the Pi
   tool-use run timed out without stdout or a recall report; the bundle stayed intact.
+  A same-model OpenRouter control completed in 80 seconds with six semantically
+  correct cited answers, isolating the concern to the local serving/tool path rather
+  than Gemma's recall capability; one redundant-word lexical rubric check remained.
 - Add bounded exact-source capture, heading/line/PDF-page/XLSX-range selection,
   optional tagged SHA-1/SHA-256 Git commit/path/blob identities, immutable local
   reopening, and live-versus-pinned drift reporting without fetching or altering
