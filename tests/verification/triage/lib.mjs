@@ -91,7 +91,7 @@ export function redactText(input, environment = process.env) {
   return text
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [REDACTED]")
     .replace(/\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{8,}\b/g, "[REDACTED_TOKEN]")
-    .replace(/\b[A-Z][A-Z0-9_]*PRIVATE[A-Z0-9_]*\b/g, "[REDACTED_PRIVATE_OUTPUT]")
+    .replace(/\b[A-Z][A-Z0-9_]*PRIVATE[A-Z0-9_]*\b/g, "[REDACTED_OUTPUT]")
     .replace(/\b(api[_-]?key|token|password|secret)(\s*[=:]\s*)([^\s,;]+)/gi, "$1$2[REDACTED]");
 }
 
@@ -512,7 +512,9 @@ export async function runTriage(options, dependencies = {}) {
         || reviewerResult.timedOut || reviewerResult.outputExceeded) {
       throw new TriageError("reviewer-failed", "Reviewer process failed; inspect its private stderr log if needed");
     }
-    const exposedLines = rendered.entries.map((entry) => entry.id);
+    const exposedLines = rendered.entries
+      .filter((entry) => !/^\[REDACTED(?:_[A-Z]+)?\]$/.test(entry.text.trim()))
+      .map((entry) => entry.id);
     const review = parseAndValidateReview(reviewerResult.stdout, exposedLines);
     summary.review = sanitizedReview(review, options.environment);
     parseAndValidateReview(JSON.stringify(summary.review), exposedLines);

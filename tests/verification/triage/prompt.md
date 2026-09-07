@@ -29,7 +29,9 @@ shape:
 
 Rules:
 
-- Cite only visible `L<number>` lines. Every hypothesis needs evidence.
+- Cite only visible `L<number>` lines with substantive evidence. A line containing
+  only a redaction marker is unavailable evidence: use `null`, no hypothesis, and
+  explain the uncertainty instead of citing it.
 - Use at most three hypotheses and order them by likelihood.
 - Distinguish the first causal failure from downstream failures.
 - A suggested command is inert text for foreground review; it will not execute.
