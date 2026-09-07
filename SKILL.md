@@ -48,6 +48,9 @@ it.
 8. Cite concept IDs/paths in answers.
 9. Git enhancement is strictly read-only: never initialize, add, commit, fetch,
    checkout, push, or rewrite Git state for Engram.
+10. Never create or edit project instructions implicitly. Only the user's explicit
+    `wiring` request may install or remove Engram's canonical managed block in the
+    project-root `AGENTS.md`.
 
 See [the OKF profile](references/okf-profile.md),
 [workflow details](references/workflows.md), and the mandatory
@@ -58,7 +61,10 @@ or ingesting concepts.
 
 Interpret `/engram` arguments or equivalent natural language:
 
-- `init` → initialize after showing destination.
+- `init` → initialize after showing destination; mention optional `/engram wiring`
+  afterward, but do not modify project instructions.
+- `wiring` or `wiring install` → explicitly install the canonical project-root
+  `AGENTS.md` reminder; `wiring status|preview|remove` inspects, shows, or removes it.
 - `ingest <artifacts>` → compile artifact knowledge synchronously unless the user explicitly requests deferred/background work.
 - `enqueue ingest <artifacts>` → persist one explicit bounded artifact-ingest job and acknowledge it as queued, not stored.
 - `enqueue candidate ...` → internal M3b1 path for one bounded opted-in inferred-memory candidate.
@@ -76,10 +82,11 @@ Interpret `/engram` arguments or equivalent natural language:
 - `forget <id>` → explicit current-tree deletion with history warning.
 - no action → report status and concise available actions.
 
-Explicit artifact-ingest jobs and M3b1 skill-only opportunistic memory inference
-are implemented. Post-v0.1 automatic conversation review and extension-driven
-notification are not; never advertise systematic exchange review or automatic
-background memory as working.
+Explicit artifact-ingest jobs and skill-only opportunistic memory inference are
+implemented. Automatic conversation review and extension-driven notification
+belong to a separately packaged optional Pi extension and are unavailable here;
+never advertise systematic exchange review or automatic background memory as
+working.
 
 ## Initialization
 
@@ -95,7 +102,27 @@ If uninitialized and the user requested initialization:
 node <skill-dir>/scripts/engram.mjs init
 ```
 
-Do not alter Git, `.gitignore`, `AGENTS.md`, or agent settings.
+Initialization does not alter Git, `.gitignore`, `AGENTS.md`, or agent settings.
+It may suggest the separate `/engram wiring` command after success.
+
+## Optional project wiring
+
+A bare `wiring` request is explicit permission to install only Engram's canonical
+marker-delimited reminder in `<project-root>/AGENTS.md`; it is not permission to
+initialize a store or enable automatic memory. The project must already be
+initialized. Use the deterministic helper rather than editing the file yourself:
+
+```bash
+node <skill-dir>/scripts/engram.mjs wiring [status|preview|install|remove] --json
+```
+
+Bare `wiring` is the idempotent `install` action. `status` and `preview` do not
+write. Install prepends the canonical block while preserving existing bytes and
+mode; remove deletes only an exact canonical block and restores pre-existing
+content. Modified, partial, or duplicated marker blocks and non-UTF-8 files
+require manual reconciliation; never overwrite them. Unsafe symlinks are rejected.
+Wiring applies only to the default project context, never `--bundle`, parent/global
+instructions, or nested files. It does not alter automatic-memory policy.
 
 ## Recall
 
@@ -311,6 +338,7 @@ writes atomically, and rebuilds generated indexes.
 
 ```bash
 node <skill-dir>/scripts/engram.mjs status
+node <skill-dir>/scripts/engram.mjs wiring status
 node <skill-dir>/scripts/engram.mjs lint [--fix]
 node <skill-dir>/scripts/engram.mjs check-sources [concept-id]
 node <skill-dir>/scripts/engram.mjs check-sources [concept-id] --summary

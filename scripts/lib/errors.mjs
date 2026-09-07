@@ -17,6 +17,18 @@ export const errors = {
   validation: (message, details) => new EngramError(message, {
     code: "VALIDATION_ERROR", exitCode: 4, details,
   }),
+  wiringModified: (path) => new EngramError(
+    `Engram project-wiring markers contain non-canonical text in ${path}; reconcile it manually`,
+    { code: "WIRING_MODIFIED", exitCode: 4, details: { path, state: "modified" } },
+  ),
+  wiringMalformed: (path, details = {}) => new EngramError(
+    `Engram project-wiring markers are partial or duplicated in ${path}; reconcile them manually`,
+    { code: "WIRING_MALFORMED", exitCode: 4, details: { path, state: "malformed", ...details } },
+  ),
+  wiringEncoding: (path) => new EngramError(
+    `Project AGENTS.md is not valid UTF-8: ${path}`,
+    { code: "WIRING_ENCODING", exitCode: 4, details: { path } },
+  ),
   autoMemoryDisabled: (path, reason = "project auto-memory is off", details = {}) => new EngramError(
     `Automatic inferred-memory write disabled: ${reason}`,
     { code: "AUTO_MEMORY_DISABLED", exitCode: 4, details: { path, effective: "off", ...details } },

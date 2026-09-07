@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add explicit `/engram wiring` support for an optional canonical project-root
+  `AGENTS.md` reminder, with preview/status/removal, idempotent managed markers,
+  preservation of existing content and mode, malformed-marker and symlink refusal,
+  no implicit initialization, and no change to automatic-memory policy.
+- Suggest the separate wiring command in human-readable initialization output
+  without modifying project instructions.
+
 ## 0.1.0 — 2026-09-06
 
 - Reject newly authored source-less Memory concepts while retaining warning-only

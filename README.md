@@ -10,8 +10,8 @@ v0.1 is project-local. Automatic inference is off by default and requires
 remain available while off. Exact local Git source
 capture/reopening is read-only and opportunistic. Bounded artifact-ingest and
 inferred-memory candidate jobs are available. The skill can perform opportunistic
-memory inference; automatic conversation review is an optional post-v0.1 Pi
-extension and is not part of this release.
+memory inference; automatic conversation review belongs to a separately packaged
+optional Pi extension and is not part of the skill release roadmap.
 
 ## Installation and first use
 
@@ -31,22 +31,50 @@ pi install /path/to/okf-engram
 
 Pi packages and skills can execute code with the agent's permissions; review the
 package before installation. Engram requires Node.js 20 or newer. It ships no Pi
-extension and does not edit project instructions.
+extension and edits project instructions only through an explicit `/engram wiring`
+request.
 
 From the intended project directory, initialize deliberately and then use either
 the friendly prompt or standard skill command:
 
 ```text
 /engram init
+/engram wiring
 /engram remember this project targets Python 3.13
 /engram recall which Python version does this project target?
 /engram check-sources --summary
 /skill:okf-engram status
 ```
 
-Initialization creates `<project-root>/.agents/data/okf-engram/bundle/`. Running
-`/engram` without arguments reports status; loading the skill does not initialize
-a bundle or enable automatic memory.
+Initialization creates `<project-root>/.agents/data/okf-engram/bundle/` and may
+suggest the separate wiring command; it does not modify `AGENTS.md`. Running
+`/engram` without arguments reports status. Loading or wiring the skill does not
+initialize another bundle or enable automatic memory.
+
+## Optional project wiring
+
+After initialization, `/engram wiring` explicitly installs a short canonical
+marker-delimited reminder at the start of `<project-root>/AGENTS.md`:
+
+```md
+<!-- okf-engram:project-wiring:start -->
+## Engram project memory
+
+Use the `okf-engram` skill when work requires project knowledge, prior rationale,
+explicit memory, or establishes a durable project decision worth retaining.
+Follow the skill’s policy before inferring memory. Using the skill is not
+permission to initialize Engram or enable automatic memory; do either only on an
+explicit user request.
+<!-- okf-engram:project-wiring:end -->
+```
+
+The operation preserves pre-existing bytes and file mode and is idempotent. Use
+`/engram wiring status`, `/engram wiring preview`, or `/engram wiring remove` to
+inspect, preview, or remove it. Removal restores prior content exactly when Engram
+installed the prefix, and deletes a file that contained only the canonical block.
+Modified or malformed managed markers and non-UTF-8 files are never overwritten.
+Wiring rejects symlinks and explicit bundle overrides and never changes automatic-
+memory policy.
 
 ## Memory capture
 
@@ -59,9 +87,9 @@ ways knowledge can enter it:
    active during a foreground response, the model may notice and capture durable
    project knowledge. This is best effort: the skill may not be activated and the
    model may not notice every candidate.
-3. **Automatic conversation review — optional post-v0.1 Pi extension** — after
-   each completed exchange, an extension considers only the new eligible user
-   and assistant messages and can queue candidates through the same memory API.
+3. **Automatic conversation review — separately packaged optional Pi extension**
+   — after each completed exchange, an extension considers only the new eligible
+   user and assistant messages and can queue candidates through the same memory API.
    It improves coverage; it does not guarantee that every useful fact is found.
 
 A completed exchange means one user request and the assistant work that follows,
@@ -196,7 +224,8 @@ The operation is read-only. States are `unchanged`, `changed`, `missing`,
 - v0.1 has one project bundle and no global store, named-bundle registry,
   embeddings/vector search, or automatic contradiction detection.
 - Opportunistic inference runs only when the skill is active and may miss useful
-  knowledge. Systematic automatic conversation review is post-v0.1.
+  knowledge. Systematic automatic review requires a separately packaged optional
+  Pi extension.
 - Deferred work needs an agent-owned runner or explicit blocking `flush`; Engram
   does not install a resident daemon.
 - Exact historical reopening is local and conditional: digest-only sources cannot

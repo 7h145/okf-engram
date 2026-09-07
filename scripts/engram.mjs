@@ -13,6 +13,9 @@ import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
 import { getAutoMemoryStatus } from "./lib/settings.mjs";
 import {
+  inspectProjectWiring, installProjectWiring, removeProjectWiring,
+} from "./lib/wiring.mjs";
+import {
   enqueueIngestJob, enqueueMemoryCandidate, inspectJobs, cleanJob, cancelJob,
   retryJob, flushJobs, setAutoMemoryPolicy, inspectPendingDeliveries,
   acknowledgeDelivery,
@@ -24,6 +27,7 @@ Usage: engram <command> [options]
 
 Commands:
   init                         initialize the project bundle explicitly
+  wiring [ACTION]              manage the optional project AGENTS.md reminder
   where                        show project and bundle resolution
   status                       report bundle health and tracking
   auto-memory status|on|off    inspect or set project automatic-memory policy
@@ -76,6 +80,13 @@ Common options:
   --yes                        confirm destructive operation
   --json                       machine-readable output
   --help                       show help
+
+Wiring actions:
+  wiring                       install the canonical reminder (idempotent)
+  wiring status                inspect without changing AGENTS.md
+  wiring preview               show the exact canonical reminder
+  wiring install               install the canonical reminder (idempotent)
+  wiring remove                remove only the canonical managed reminder
 `;
 
 function option(args, name, { boolean = false } = {}) {
@@ -127,6 +138,24 @@ function printResult(result, { json = false, command } = {}) {
     console.log(`Initialized: ${result.initialized ? "yes" : "no"}`);
     return;
   }
+  if (command === "init") {
+    console.log(`${result.created ? "Initialized" : "Found existing"} Engram bundle: ${result.logicalBundle}`);
+    if (result.bundle !== result.logicalBundle) console.log(`Canonical bundle: ${result.bundle}`);
+    console.log("Optional: run /engram wiring to add the project AGENTS.md reminder; this does not enable automatic memory.");
+    return;
+  }
+  if (command === "wiring") {
+    if (result.action === "preview") {
+      console.log(`Project AGENTS.md: ${result.path}`);
+      console.log(result.block);
+      return;
+    }
+    console.log(`Project AGENTS.md: ${result.path}`);
+    console.log(`Wiring: ${result.state}`);
+    if (result.action === "install") console.log(result.changed ? "Canonical reminder installed." : "Canonical reminder already installed.");
+    if (result.action === "remove") console.log(result.changed ? "Canonical reminder removed." : "No canonical reminder installed.");
+    return;
+  }
   if (command === "check-sources" && result?.resources && result?.totals) {
     console.log("STATE\tGIT\tREFS\tRESOURCE\tCONCEPTS");
     for (const item of result.resources) {
@@ -172,6 +201,18 @@ async function main(rawArgs = process.argv.slice(2)) {
       if (args.length) throw errors.usage(`Unexpected arguments: ${args.join(" ")}`);
       result = await initializeBundle(context);
       break;
+    case "wiring": {
+      if (bundle) throw errors.usage("wiring is available only for the default project context, not --bundle");
+      const action = args.shift() ?? "install";
+      if (args.length || !["status", "preview", "install", "remove"].includes(action)) {
+        throw errors.usage("wiring accepts status, preview, install, or remove");
+      }
+      if (action === "status") result = await inspectProjectWiring(context);
+      else if (action === "preview") result = await inspectProjectWiring(context, { preview: true });
+      else if (action === "install") result = await installProjectWiring(context);
+      else result = await removeProjectWiring(context);
+      break;
+    }
     case "status":
       if (args.length) throw errors.usage(`Unexpected arguments: ${args.join(" ")}`);
       result = await statusBundle(context);

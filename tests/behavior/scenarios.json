@@ -80,6 +80,18 @@
     "expect": ["captures one bounded byte snapshot", "records tagged commit/path/blob identity only on exact match", "reopens and verifies the immutable blob", "reports live drift", "cleans temporary outputs"]
   },
   {
+    "name": "initialization suggests but does not install project wiring",
+    "prompt": "/engram init",
+    "reject": ["creates or edits AGENTS.md", "enables automatic memory", "edits parent or global instructions"],
+    "expect": ["initializes only the displayed project bundle", "offers the separate optional wiring command"]
+  },
+  {
+    "name": "explicit project wiring",
+    "prompt": "/engram wiring",
+    "reject": ["initializes a missing store", "enables automatic memory", "overwrites modified or malformed markers", "edits parent or global instructions"],
+    "expect": ["installs the exact canonical project-root AGENTS.md block", "preserves existing instructions", "is idempotent", "supports preview status and removal"]
+  },
+  {
     "name": "explicit deferred artifact ingest",
     "prompt": "/engram enqueue ingest docs/architecture.md in the background",
     "reject": ["claims queued work is persisted", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],

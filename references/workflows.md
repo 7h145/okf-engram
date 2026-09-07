@@ -1,5 +1,17 @@
 # Engram workflows
 
+## Optional project wiring
+
+Initialization may suggest `/engram wiring` but never modifies project
+instructions. A bare wiring request is the explicit, idempotent install action for
+the canonical marker-delimited block in project-root `AGENTS.md`; it requires an
+initialized default project and does not alter automatic-memory policy. Use
+`wiring status` or `preview` for read-only inspection and `wiring remove` for
+symmetric removal. The helper prepends its block so removal can restore existing
+bytes exactly. It rejects symlinks, non-UTF-8 files, and modified, partial, or
+duplicate managed markers rather than overwriting user content. Never edit
+parent/global or nested instruction files.
+
 ## Ingest
 
 Follow [the concept-compilation protocol](compilation-protocol.md). Inventory the
@@ -44,8 +56,9 @@ state so restart recovery can finish delivery without rerunning semantics.
 Use `retry` only when its unchanged-bundle reconciliation check passes. Terminal
 records are retained until explicit `jobs clean <id> --yes`; cleaning
 `needs-review` additionally requires `--reconciled` after manual inspection.
-M3b1 inferred-memory candidate jobs reuse this backend. The optional post-v0.1
-M3b2 automatic conversation review extension is not implemented.
+Inferred-memory candidate jobs reuse this backend. Automatic conversation review
+belongs to a separately packaged optional Pi extension and is not implemented by
+the skill.
 
 ## Explicit memory
 
