@@ -113,10 +113,10 @@ function reviewer(stdout, hook, overrides = {}) {
 }
 
 test("triage redacts common credentials and selects bounded error context", () => {
-  const redacted = redactText("Bearer abcdefghijk token=visible-secret sk-example-abcdefgh", {
+  const redacted = redactText("Bearer abcdefghijk token=visible-secret sk-example-abcdefgh SELF_FAIL_PRIVATE_OUTPUT", {
     SERVICE_PASSWORD: "visible-secret",
   });
-  assert.doesNotMatch(redacted, /abcdefghijk|visible-secret|sk-example/);
+  assert.doesNotMatch(redacted, /abcdefghijk|visible-secret|sk-example|SELF_FAIL_PRIVATE_OUTPUT/);
   const config = { contextBefore: 1, contextAfter: 1, maxExcerptLinesPerLog: 3 };
   const excerpt = extractLogExcerpt("failure.log", "noise\nnoise\nError: boom\ntail\nlast", config, 5, {});
   assert.deepEqual(excerpt.map((item) => item.id), [5, 6, 7]);

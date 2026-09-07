@@ -91,6 +91,7 @@ export function redactText(input, environment = process.env) {
   return text
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [REDACTED]")
     .replace(/\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{8,}\b/g, "[REDACTED_TOKEN]")
+    .replace(/\b[A-Z][A-Z0-9_]*PRIVATE[A-Z0-9_]*\b/g, "[REDACTED_PRIVATE_OUTPUT]")
     .replace(/\b(api[_-]?key|token|password|secret)(\s*[=:]\s*)([^\s,;]+)/gi, "$1$2[REDACTED]");
 }
 
@@ -111,6 +112,7 @@ function selectedIndexes(lines, config) {
 
 export function extractLogExcerpt(logName, text, config, startId = 1, environment = process.env) {
   const lines = redactText(text, environment).split(/\r?\n/);
+  while (lines.length > 1 && lines.at(-1) === "") lines.pop();
   return selectedIndexes(lines, config).map((index, offset) => ({
     id: startId + offset,
     log: logName,
