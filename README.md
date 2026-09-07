@@ -74,7 +74,7 @@ inspect, preview, or remove it. Removal restores prior content exactly when Engr
 installed the prefix, and deletes a file that contained only the canonical block.
 Modified or malformed managed markers and non-UTF-8 files are never overwritten.
 Wiring rejects symlinks and explicit bundle overrides and never changes automatic-
-memory policy.
+memory policy. Removal remains available if the bundle is later deleted.
 
 ## Memory capture
 

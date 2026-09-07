@@ -9,8 +9,9 @@ initialized default project and does not alter automatic-memory policy. Use
 `wiring status` or `preview` for read-only inspection and `wiring remove` for
 symmetric removal. The helper prepends its block so removal can restore existing
 bytes exactly. It rejects symlinks, non-UTF-8 files, and modified, partial, or
-duplicate managed markers rather than overwriting user content. Never edit
-parent/global or nested instruction files.
+duplicate managed markers rather than overwriting user content. Removal remains
+available after bundle deletion so the reminder cannot become stranded. Never
+edit parent/global or nested instruction files.
 
 ## Ingest
 

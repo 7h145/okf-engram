@@ -118,11 +118,12 @@ test("wiring prepends to and removes from an existing AGENTS.md without changing
   assert.equal((await fs.stat(agents)).mode & 0o777, 0o640);
 });
 
-test("wiring remove deletes an AGENTS.md created solely for its block", async (t) => {
+test("wiring remove cleans its sole AGENTS.md block even after bundle removal", async (t) => {
   const root = await tempProject(t, "engram wiring remove ");
   const agents = path.join(root, "AGENTS.md");
   assert.equal((await init(root)).code, 0);
   parse(await run(["wiring", "install", "--project-root", root, "--json"]));
+  await fs.rm(path.join(root, ".agents"), { recursive: true });
 
   let output = parse(await run(["wiring", "remove", "--project-root", root, "--json"]));
   assert.equal(output.changed, true);

@@ -139,8 +139,7 @@ export async function installProjectWiring(context) {
 }
 
 export async function removeProjectWiring(context) {
-  await requireInitializedBundle(context);
-  return withBundleLock(context.bundle, async () => {
+  const remove = async () => {
     const status = await readWiringFile(context);
     assertCanonicalOrAbsent(status);
     if (!status.installed) {
@@ -167,5 +166,12 @@ export async function removeProjectWiring(context) {
       deletedFile: false,
       ...publicStatus(await readWiringFile(context)),
     };
-  });
+  };
+
+  if (context.initialized && await pathExists(context.bundle)) {
+    const stat = await fs.stat(context.bundle);
+    if (!stat.isDirectory()) throw errors.validation(`Bundle is not a directory: ${context.bundle}`);
+    return withBundleLock(context.bundle, remove);
+  }
+  return remove();
 }

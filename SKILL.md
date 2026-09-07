@@ -109,8 +109,8 @@ It may suggest the separate `/engram wiring` command after success.
 
 A bare `wiring` request is explicit permission to install only Engram's canonical
 marker-delimited reminder in `<project-root>/AGENTS.md`; it is not permission to
-initialize a store or enable automatic memory. The project must already be
-initialized. Use the deterministic helper rather than editing the file yourself:
+initialize a store or enable automatic memory. Installation requires an existing
+initialized project. Use the deterministic helper rather than editing the file yourself:
 
 ```bash
 node <skill-dir>/scripts/engram.mjs wiring [status|preview|install|remove] --json
@@ -122,7 +122,8 @@ mode; remove deletes only an exact canonical block and restores pre-existing
 content. Modified, partial, or duplicated marker blocks and non-UTF-8 files
 require manual reconciliation; never overwrite them. Unsafe symlinks are rejected.
 Wiring applies only to the default project context, never `--bundle`, parent/global
-instructions, or nested files. It does not alter automatic-memory policy.
+instructions, or nested files. Removal remains available after bundle deletion so
+wiring is not stranded. It does not alter automatic-memory policy.
 
 ## Recall
 
