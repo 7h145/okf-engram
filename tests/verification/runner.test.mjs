@@ -85,6 +85,13 @@ test("delegated runner propagates failure while keeping raw output private", asy
   await assertPrivate(output, summary.commands.map((item) => item.log));
 });
 
+test("delegated runner extracts bounded test metrics", async (t) => {
+  const { output, result: processResult } = await fixture(t, "self-metrics");
+  assert.equal(processResult.code, 0, processResult.stderr);
+  const { summary } = await readResult(output);
+  assert.deepEqual(summary.commands[0].metrics, { tests: 3, passed: 3, failed: 0 });
+});
+
 test("delegated runner bounds command runtime", async (t) => {
   const { output, result: processResult } = await fixture(t, "self-timeout", ["--timeout-seconds", "1"]);
   assert.equal(processResult.code, 1, processResult.stderr);

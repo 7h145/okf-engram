@@ -23,6 +23,9 @@ const PROFILES = {
   "self-overflow": [
     { name: "self-overflow", file: process.execPath, args: ["-e", "process.stdout.write('x'.repeat(1024*1024))"] },
   ],
+  "self-metrics": [
+    { name: "current-node-check", file: process.execPath, args: ["-e", "console.log('ℹ tests 3\\nℹ pass 3\\nℹ fail 0')"] },
+  ],
   quick: [
     { name: "current-node-check", file: "npm", args: ["run", "check"] },
   ],
@@ -113,6 +116,41 @@ function stopProcess(child, signal = "SIGTERM") {
   }
 }
 
+async function summarizeLog(name, logPath) {
+  const text = await fs.readFile(logPath, "utf8");
+  if (["current-node-check", "node-20-runtime"].includes(name)) {
+    const tests = [...text.matchAll(/(?:ℹ|#) tests (\d+)/g)].at(-1);
+    const pass = [...text.matchAll(/(?:ℹ|#) pass (\d+)/g)].at(-1);
+    const fail = [...text.matchAll(/(?:ℹ|#) fail (\d+)/g)].at(-1);
+    return tests ? { tests: Number(tests[1]), passed: Number(pass?.[1] ?? 0), failed: Number(fail?.[1] ?? 0) } : undefined;
+  }
+  if (name === "production-audit") return { zeroVulnerabilities: /found 0 vulnerabilities/.test(text) };
+  if (name === "agent-skill-validation") return { valid: /Valid skill:/.test(text) };
+  if (name === "packed-install-and-pi-smoke") {
+    const line = text.trim().split("\n").at(-1);
+    try {
+      const value = JSON.parse(line);
+      return {
+        version: value.version,
+        artifact: value.artifact,
+        artifactSha256: value.artifactSha256,
+        artifactBytes: value.artifactBytes,
+        entryCount: value.entryCount,
+        node: value.node,
+        npm: value.npm,
+        engineStrictInstall: value.engineStrictInstall,
+        wiring: value.wiring,
+        piSkill: value.piSkill,
+        piPrompt: value.piPrompt,
+        diagnostics: value.diagnostics,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 async function runCommand(command, options, index) {
   const safeName = command.name.replace(/[^a-zA-Z0-9_.-]/g, "-");
   const logName = `${String(index + 1).padStart(2, "0")}-${safeName}.log`;
@@ -169,6 +207,7 @@ async function runCommand(command, options, index) {
   await handle.sync();
   await handle.close();
   const passed = outcome.exitCode === 0 && !timedOut && !outputExceeded && !outcome.spawnError;
+  const metrics = await summarizeLog(command.name, logPath);
   return {
     name: command.name,
     command: { executable: path.basename(command.file), argumentCount: command.args.length },
@@ -182,6 +221,7 @@ async function runCommand(command, options, index) {
     log: logName,
     logBytes: bytes,
     logSha256: `sha256:${hash.digest("hex")}`,
+    ...(metrics ? { metrics } : {}),
   };
 }
 

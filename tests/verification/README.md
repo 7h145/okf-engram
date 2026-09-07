@@ -37,8 +37,8 @@ Profiles:
 - `full`: `quick`, full Node 20 runtime tests, production audit, Agent Skills
   validation, engine-strict packed Node 20/npm 9 installation, wiring smoke, and
   packed Pi skill/prompt discovery.
-- `self-pass`, `self-fail`, `self-timeout`, and `self-overflow`: deterministic
-  harness regressions only.
+- `self-pass`, `self-fail`, `self-timeout`, `self-overflow`, and `self-metrics`:
+  deterministic harness regressions only.
 
 Direct invocation is available for tests:
 
