@@ -20,9 +20,11 @@ node <skill-dir>/scripts/engram.mjs <command> [options]
 ```
 
 Never assume the process cwd is the skill directory. Treat installed skill files
-as read-only. If dependencies are missing, report a setup problem and ask the user
-to install them through their normal package/development setup; do not run
-`npm install` in a shared or installed skill directory automatically.
+as read-only. Pi does not install dependencies for a local-path package: its
+reviewed source checkout must run `npm ci` before `pi install /path/to/okf-engram`.
+If dependencies are missing, report that setup problem and ask the user to fix the
+normal package/development setup; do not run `npm install` in a shared or installed
+skill directory automatically.
 
 The default project bundle is
 `<project-root>/.agents/data/okf-engram/bundle/`. A project `.agents` directory
@@ -61,6 +63,8 @@ or ingesting concepts.
 
 Interpret `/engram` arguments or equivalent natural language:
 
+- `help` → invoke `engram help` and return its exact concise deterministic output;
+  reserve `engram --help` for the complete developer CLI reference.
 - `init` → initialize after showing destination; mention optional `/engram wiring`
   afterward, but do not modify project instructions.
 - `wiring` or `wiring install` → explicitly install the canonical project-root
@@ -214,9 +218,14 @@ node <skill-dir>/scripts/engram.mjs enqueue ingest \
 Report the returned job ID and `queued` state; this is not completed persistence.
 Use the returned `workerCommand` through an available agent-owned background
 process mechanism such as boxed-tmux. Do not use an invisible untracked shell
-process. If no managed background runner is available, leave the durable job
-queued and explain that `flush --job <id>` is the explicit blocking fallback.
-Only one semantic worker runs per canonical bundle.
+process. Normal deferred ingest must not block the current agent turn: after
+launching, finish the main task and return control to the user without polling the
+job. Inspect pending/results at a later natural boundary. Inline polling is only
+for an explicitly acknowledged debugging session. If no managed background runner
+is available, leave the durable job queued and explain that `flush --job <id>` is
+the explicit blocking fallback. Only one semantic worker runs per canonical
+bundle. One job may contain the supported one to sixteen sources; do not split it
+merely to work around worker-event output limits.
 
 Inspect compact state/results with `jobs [<id>] --json`. Do not read or inject
 `events*.jsonl` or `stderr*.log` into the foreground conversation unless the user
@@ -229,7 +238,12 @@ replayed. Terminal records persist until explicitly cleaned:
 node <skill-dir>/scripts/engram.mjs jobs clean <job-id> --yes
 # needs-review only, after manual reconciliation:
 node <skill-dir>/scripts/engram.mjs jobs clean <job-id> --yes --reconciled
+# structurally unreadable private job only:
+node <skill-dir>/scripts/engram.mjs jobs clean <job-id> --yes --invalid
 ```
+
+The invalid path holds the worker lock, rejects symlinks, and refuses valid jobs;
+it cannot bypass normal terminal, reconciliation, or delivery rules.
 
 The isolated Pi process is context-separated, not an OS security sandbox. It
 uses the same compilation protocol and deterministic conditional-write helper.

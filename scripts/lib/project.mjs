@@ -117,8 +117,17 @@ export function requireInitialized(context) {
   if (!context.initialized) throw errors.notInitialized(context.logicalBundle);
 }
 
+function repositoryRelative(root, target) {
+  const relative = path.relative(root, target);
+  if (!relative || path.isAbsolute(relative) || relative === ".." || relative.startsWith(`..${path.sep}`)) {
+    return undefined;
+  }
+  return relative.split(path.sep).join("/");
+}
+
 export async function gitTrackingState(context) {
-  const relative = path.relative(context.projectRoot, context.logicalBundle);
+  const relative = repositoryRelative(context.projectRoot, context.bundle)
+    ?? repositoryRelative(context.projectRoot, context.logicalBundle);
   try {
     await execFileAsync("git", ["-C", context.projectRoot, "rev-parse", "--is-inside-work-tree"], {
       encoding: "utf8", timeout: 3_000,
@@ -126,6 +135,8 @@ export async function gitTrackingState(context) {
   } catch {
     return { repository: false, tracked: false, ignored: false };
   }
+
+  if (!relative) return { repository: true, tracked: false, ignored: false };
 
   let tracked = false;
   let ignored = false;

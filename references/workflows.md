@@ -45,9 +45,13 @@ SHA-256 digests, the canonical project/bundle, bounded instruction, model,
 runtime, and pre-work bundle hashes. It stores no source bytes or transcript.
 A queued acknowledgement is not a persistence claim.
 
-Run the returned command with an agent-owned background runner when available;
-`flush --job` is the blocking portable fallback. One worker per bundle uses the
-same compilation protocol and conditional helper. The worker is context-isolated,
+Run the returned command with an agent-owned background runner when available.
+Normal deferred work must not block the current agent turn: launch it, finish the
+main task, return control to the user, and inspect results at a later natural
+boundary. Inline polling is a deliberate debugging exception. `flush --job` is
+the blocking portable fallback. One worker per bundle uses the same compilation
+protocol and conditional helper. A job may use the supported one to sixteen
+sources; do not split solely to evade an event cap. The worker is context-isolated,
 not sandboxed. Keep its JSONL/stderr private and surface only `jobs` state and the
 compact result. Source drift, scope drift, malformed reports, invalid/index-stale
 bundles, unreported writes, cancellation after writes, and orphaned workers become
@@ -57,7 +61,10 @@ state so restart recovery can finish delivery without rerunning semantics.
 Use `retry` only when its unchanged-bundle reconciliation check passes. Terminal
 records are retained until explicit `jobs clean <id> --yes`; cleaning
 `needs-review` additionally requires `--reconciled` after manual inspection.
-Inferred-memory candidate jobs reuse this backend. Automatic conversation review
+Cancel active jobs first. `jobs clean <id> --yes --invalid` removes only a
+structurally unreadable private job while holding the worker lock; it refuses
+valid jobs and symlinked content, so it cannot bypass normal result/delivery
+checks. Inferred-memory candidate jobs reuse this backend. Automatic conversation review
 belongs to a separately packaged optional Pi extension and is not implemented by
 the skill.
 
@@ -110,8 +117,8 @@ mismatches, or LFS pointers as resolved evidence, and clean up temporary outputs
 
 ## Source inventory
 
-Use bare `check-sources [concept-id]` for backward-compatible, claim-level local
-digest/Git checks. Use `check-sources [concept-id] --summary` for a grouped view
+Use bare `check-sources [concept-id]` for claim-level local digest/Git checks. Use
+`check-sources [concept-id] --summary` for a grouped view
 of every exact resource string, including non-local and digestless references.
 The summary reports reference/concept/source IDs, expected-digest set, normalized
 selectors, live state, and aggregate Git state. It does not fetch URL/URN values.

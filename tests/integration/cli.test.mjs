@@ -9,6 +9,18 @@ import { fileURLToPath } from "node:url";
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const cli = path.join(repo, "scripts", "engram.mjs");
 
+function runProcess(file, args, { cwd = repo } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(file, args, { cwd });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code, stdout, stderr }));
+  });
+}
+
 function run(args, { cwd = repo } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...args], { cwd });
@@ -21,6 +33,8 @@ function run(args, { cwd = repo } = {}) {
   });
 }
 
+const git = (root, args) => runProcess("git", args, { cwd: root });
+
 async function tempProject(t, prefix = "engram cli ") {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -30,6 +44,20 @@ async function tempProject(t, prefix = "engram cli ") {
 function memoryDraft(text, description = text) {
   return `---\ntype: Memory\ntitle: Python version\ndescription: ${description}\ncapture: explicit\nsources:\n  - resource: urn:okf-engram:conversation:test\n---\n# Memory\n\n${text}\n`;
 }
+
+test("help is concise for users while --help retains the detailed reference", async () => {
+  const concise = await run(["help"]);
+  const noArgs = await run([]);
+  const detailed = await run(["--help"]);
+  assert.equal(concise.code, 0, concise.stderr);
+  assert.equal(noArgs.stdout, concise.stdout);
+  assert.ok(Buffer.byteLength(concise.stdout) < 1_024);
+  assert.match(concise.stdout, /engram status/);
+  assert.match(concise.stdout, /engram --help/);
+  assert.doesNotMatch(concise.stdout, /--automatic-memory/);
+  assert.ok(detailed.stdout.length > concise.stdout.length * 2);
+  assert.match(detailed.stdout, /Common options:/);
+});
 
 function artifactDraft(digest) {
   return `---\ntype: Architecture Decision\ntitle: Python runtime\ndescription: The architecture document defines the supported Python runtime.\nsources:\n  - resource: project:docs/architecture.md\n    title: Architecture document\n    digest: ${digest}\n---\n# Runtime\n\nSee [the remembered version](/memories/python-version.md).\n`;
@@ -169,6 +197,12 @@ test("supports a symlinked .agents data root but rejects bundle-internal symlink
   assert.equal(result.code, 0, result.stderr);
   const initialized = JSON.parse(result.stdout);
   assert.match(initialized.bundle, /\.pi\/data\/okf-engram\/bundle$/);
+
+  assert.equal((await git(root, ["init", "-q"])).code, 0);
+  assert.equal((await git(root, ["add", ".agents", ".pi/data/okf-engram/bundle"])).code, 0);
+  result = await run(["status", "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).git, { repository: true, tracked: true, ignored: false });
 
   const outside = path.join(root, "outside");
   await fs.mkdir(outside);

@@ -21,8 +21,9 @@ After v0.1.0 is published, install the pinned Pi package:
 pi install npm:okf-engram@0.1.0
 ```
 
-For a reviewed local checkout, install dependencies in that checkout and point Pi
-at its absolute directory:
+For a reviewed local checkout, install dependencies in that checkout **before**
+pointing Pi at its absolute directory. Pi does not run npm installation for a
+local-path package:
 
 ```bash
 cd /path/to/okf-engram && npm ci
@@ -50,6 +51,9 @@ Initialization creates `<project-root>/.agents/data/okf-engram/bundle/` and may
 suggest the separate wiring command; it does not modify `AGENTS.md`. Running
 `/engram` without arguments reports status. Loading or wiring the skill does not
 initialize another bundle or enable automatic memory.
+
+`engram help` is a fixed sub-1-KiB user summary; `engram --help` retains the
+complete deterministic developer reference.
 
 ## Optional project wiring
 
@@ -142,13 +146,20 @@ node scripts/engram.mjs cancel <job-id> --json
 ```
 
 The enqueue result includes a command suitable for an agent-owned background
-runner. Worker traces remain private job files; foreground results contain only
-state, affected concept IDs/hashes, coverage, warnings, and review/error reasons.
-Jobs are source- and bundle-bound, serialized per bundle, bounded, cancellable,
-and never blindly replay `needs-review` changes. Terminal records remain until
-explicit `jobs clean <job-id> --yes` (plus `--reconciled` for reviewed changes,
-and prior delivery acknowledgement for inferred outcomes). A worker process
-provides context isolation, not an OS sandbox.
+runner. Launching deferred work must not block the current agent turn: finish the
+main task, return control to the user, and inspect results at a later natural
+boundary. Inline polling is reserved for deliberate debugging. Worker traces
+remain private job files; foreground results contain only state, affected concept
+IDs/hashes, coverage, warnings, and review/error reasons. Jobs are source- and
+bundle-bound, serialized per bundle, bounded, cancellable, and never blindly
+replay `needs-review` changes. A supported job may contain one to sixteen sources;
+splitting is not required to avoid the event limit. New jobs use a 10 MiB event
+cap, and capsules freeze a bounded 1–16 MiB per-job limit. Terminal records remain
+until explicit `jobs clean <job-id> --yes` (plus `--reconciled` for reviewed
+changes and prior delivery acknowledgement for inferred outcomes). Use
+`jobs clean <job-id> --yes --invalid` only for a structurally unreadable private
+job; it refuses valid jobs and symlinked content. A worker process provides
+context isolation, not an OS sandbox.
 
 Opportunistic inference uses the same worker lifecycle without storing a
 transcript. The active foreground model first checks policy, then submits only a
@@ -201,8 +212,8 @@ As a skill user, request the existing claim-level check or the grouped inventory
 /engram check-sources decisions/storage --summary
 ```
 
-Bare `check-sources` remains backward compatible: it emits one row per local,
-digest-bearing concept/source claim and can therefore repeat a resource. The
+Bare `check-sources` emits one row per local, digest-bearing concept/source claim
+and can therefore repeat a resource. The
 `--summary` view groups exact resource strings across the bundle and includes
 total/digest-bearing/digestless/Git reference counts, concept/source IDs,
 expected digests, selectors, current-byte state, and aggregate immutable Git
@@ -238,7 +249,16 @@ The operation is read-only. States are `unchanged`, `changed`, `missing`,
 ## Privacy and persistence boundaries
 
 - The bundle contains durable project knowledge. Decide explicitly whether your
-  project should track it in Git; Engram never stages or commits it.
+  project should track it in Git; Engram never stages or commits it. The safe
+  default is to version only the bundle and keep local consent policy
+  `settings.json`, private `jobs/`, and `.agents/run/` untracked.
+- For a real `.agents/` directory, an allow-list can ignore `.agents/**` and
+  re-include only `.agents/data/okf-engram/bundle/**` plus its parent directories.
+  If `.agents` is a symlink (for example to `.pi`), use the canonical physical
+  path reported by `engram where --json` in Git and ignore rules; Git cannot stage
+  files through the logical symlink. Inspect
+  `git status --short --untracked-files=all` before staging. Track a settings file only after a
+  separate deliberate decision to share that automatic-memory policy.
 - Original sources stay in place and are not copied into the bundle. A digest can
   detect drift but cannot recover vanished bytes. Git reopening also depends on
   the recorded local object remaining available; Engram never fetches it.
@@ -270,7 +290,9 @@ The operation is read-only. States are `unchanged`, `changed`, `missing`,
   conditional update.
 - Inspect queued work with `/engram jobs <job-id>`. Use `retry` only for an
   unchanged failed/cancelled job. Reconcile `needs-review` manually; acknowledge
-  inferred outcomes before cleanup.
+  inferred outcomes before cleanup. Cancel queued/running jobs before ordinary
+  cleanup. If malformed private state prevents inspection, use the explicit
+  `jobs clean <job-id> --yes --invalid` path; it does not accept valid jobs.
 - Bundle-internal symlinks and unsafe project paths are rejected. A deliberately
   symlinked project `.agents` root is canonicalized and supported.
 

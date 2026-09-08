@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Raise new worker event capture from 1 MiB to 10 MiB after dogfood measured a
+  successful 11-source job at about 2 MiB; retain a hard 16 MiB capsule bound and
+  validate each capsule's frozen limit instead of equating it with today's default.
+- Add explicit fail-closed cleanup for structurally unreadable private jobs with
+  `jobs clean <id> --yes --invalid`; valid jobs and symlinked content cannot use it
+  to bypass terminal, reconciliation, or delivery checks.
+- Report Git tracking through the canonical physical bundle path so a committed
+  `.agents` symlink does not hide files tracked under its in-repository target.
+- State that normal deferred ingest returns control without foreground polling,
+  preserve one-to-sixteen-source jobs without artificial splitting guidance, and
+  document local-path dependency setup plus safe bundle-only Git tracking.
+- Make `engram help` a fixed concise user surface while retaining the complete
+  deterministic reference under `engram --help`.
 - Add explicit `/engram wiring` support for an optional canonical project-root
   `AGENTS.md` reminder, with preview/status/removal, idempotent managed markers,
   preservation of existing content and mode, malformed-marker and symlink refusal,

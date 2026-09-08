@@ -94,7 +94,7 @@
   {
     "name": "explicit deferred artifact ingest",
     "prompt": "/engram enqueue ingest docs/architecture.md in the background",
-    "reject": ["claims queued work is persisted", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],
-    "expect": ["freezes project bundle and source digest", "reports queued job ID", "uses one bounded isolated worker", "surfaces compact durable result", "supports cancellation and reconciliation"]
+    "reject": ["claims queued work is persisted", "polls the background job inline during a normal turn", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],
+    "expect": ["freezes project bundle and source digest", "reports queued job ID", "returns control without waiting", "uses one bounded isolated worker", "checks compact durable results at a later boundary", "supports cancellation and reconciliation"]
   }
 ]

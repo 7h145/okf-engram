@@ -32,7 +32,9 @@ const MIN_RUNTIME_SECONDS = 30;
 const MAX_RUNTIME_SECONDS = 1_200;
 const DEFAULT_RUNTIME_SECONDS = 900;
 const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
-const MAX_EVENT_BYTES = 1024 * 1024;
+const MIN_EVENT_BYTES = 1024 * 1024;
+const DEFAULT_EVENT_BYTES = 10 * 1024 * 1024;
+const MAX_EVENT_BYTES = 16 * 1024 * 1024;
 const MAX_STDERR_BYTES = 64 * 1024;
 const MAX_REPORT_BYTES = 64 * 1024;
 const HEARTBEAT_MS = 2_000;
@@ -182,7 +184,9 @@ function validateCapsule(value, jobId, context) {
       || !/^sha256:[0-9a-f]{64}$/.test(value.requestHash)
       || value.scope?.projectRoot !== context.projectRoot || value.scope?.bundle !== context.bundle
       || !snapshotIsValid(value.bundleSnapshot)
-      || value.limits?.maxEventBytes !== MAX_EVENT_BYTES
+      || !Number.isInteger(value.limits?.maxEventBytes)
+      || value.limits.maxEventBytes < MIN_EVENT_BYTES
+      || value.limits.maxEventBytes > MAX_EVENT_BYTES
       || value.limits?.maxReportBytes !== MAX_REPORT_BYTES) {
     throw errors.validation(`Invalid capsule for job ${jobId}`);
   }
@@ -440,7 +444,7 @@ export async function enqueueIngestJob(context, resources, options = {}) {
     scope: { projectRoot: context.projectRoot, bundle: context.bundle },
     request: { resources: capturedResources, instruction: validated.instruction },
     worker: { model: options.model, thinking: validated.thinking },
-    limits: { runtimeSeconds: validated.runtimeSeconds, maxEventBytes: MAX_EVENT_BYTES, maxReportBytes: MAX_REPORT_BYTES },
+    limits: { runtimeSeconds: validated.runtimeSeconds, maxEventBytes: DEFAULT_EVENT_BYTES, maxReportBytes: MAX_REPORT_BYTES },
   };
   const immutableInput = {
     ...requestIdentity,
@@ -519,7 +523,7 @@ export async function enqueueMemoryCandidate(context, candidate, options = {}) {
     worker: { model: options.model, thinking: validated.thinking },
     limits: {
       runtimeSeconds: validated.runtimeSeconds,
-      maxEventBytes: MAX_EVENT_BYTES,
+      maxEventBytes: DEFAULT_EVENT_BYTES,
       maxReportBytes: MAX_REPORT_BYTES,
     },
   };
@@ -750,10 +754,27 @@ async function rejectTreeSymlinks(directory) {
   }
 }
 
-export async function cleanJob(context, jobId, { yes = false, reconciled = false } = {}) {
+export async function cleanJob(context, jobId, {
+  yes = false, reconciled = false, invalid = false,
+} = {}) {
   if (!yes) throw errors.confirmation("Cleaning durable job state requires --yes after inspecting its result");
   return withWorkerLock(context, () => withJobsLock(context, async () => {
-    const job = await readJob(context, jobId);
+    const directory = jobDirectory(context, jobId);
+    let job;
+    try {
+      job = await readJob(context, jobId);
+    } catch (error) {
+      if (!invalid || !["VALIDATION_ERROR", "NOT_FOUND"].includes(error.code)) throw error;
+      const stat = await rejectSymlink(directory, "Engram job directory");
+      if (!stat) throw errors.notFound(`Job ${jobId}`);
+      if (!stat.isDirectory()) throw errors.unsafePath(`Engram job path is not a directory: ${directory}`);
+      await rejectTreeSymlinks(directory);
+      await fs.rm(directory, { recursive: true });
+      return { jobId, cleaned: true, invalid: true };
+    }
+    if (invalid) {
+      throw errors.validation(`Job ${jobId} is valid; omit --invalid and follow normal cleanup policy`);
+    }
     if (!TERMINAL_STATES.has(job.state.state)) {
       throw errors.validation(`Job ${jobId} is ${job.state.state}; only terminal jobs can be cleaned`);
     }

@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -42,6 +43,32 @@ async function fakePi(t, source) {
 }
 
 const parse = (result) => JSON.parse(result.stdout);
+const hash = (value) => `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+
+function rehashCapsule(capsule) {
+  const requestIdentity = capsule.kind === "inferred-memory" ? {
+    kind: capsule.kind,
+    scope: capsule.scope,
+    request: capsule.request,
+    policy: capsule.policy,
+    worker: capsule.worker,
+    limits: capsule.limits,
+  } : {
+    kind: capsule.kind,
+    scope: capsule.scope,
+    request: capsule.request,
+    worker: capsule.worker,
+    limits: capsule.limits,
+  };
+  capsule.requestHash = hash(requestIdentity);
+  const immutable = { ...capsule };
+  delete immutable.version;
+  delete immutable.jobId;
+  delete immutable.createdAt;
+  delete immutable.inputHash;
+  capsule.inputHash = hash(immutable);
+  return capsule;
+}
 
 const successWorker = String.raw`
 const fs = require("node:fs");
@@ -125,7 +152,7 @@ fs.writeFileSync(reportPath, "{malformed\n", { mode: 0o600, flag: "wx" });
 `;
 
 const overflowingWorker = String.raw`
-process.stdout.write("x".repeat(1024 * 1024 + 4096));
+process.stdout.write("x".repeat(10 * 1024 * 1024 + 4096));
 setInterval(() => {}, 1000);
 `;
 
@@ -188,6 +215,7 @@ test("M3a enqueue writes a bounded private capsule outside the OKF bundle and de
   assert.equal(capsule.kind, "artifact-ingest");
   assert.equal(capsule.scope.projectRoot, await fs.realpath(root));
   assert.match(capsule.request.resources[0].digest, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(capsule.limits.maxEventBytes, 10 * 1024 * 1024);
   assert.equal(JSON.stringify(capsule).includes("Use bounded workers."), false);
   assert.equal((await fs.stat(queued.jobDir)).mode & 0o777, 0o700);
   assert.equal((await fs.stat(capsulePath)).mode & 0o777, 0o600);
@@ -398,7 +426,25 @@ test("M3a malformed reports and oversized event streams fail within bounded priv
   assert.equal(result.code, 0, result.stderr);
   assert.equal(parse(result).processed[0].state, "failed");
   assert.equal(parse(result).processed[0].reason, "worker-output-limit");
-  assert.equal((await fs.stat(path.join(queued.jobDir, "events.jsonl"))).size, 1024 * 1024);
+  assert.equal((await fs.stat(path.join(queued.jobDir, "events.jsonl"))).size, 10 * 1024 * 1024);
+});
+
+test("M3a capsule event limits are bounded job input rather than today's default", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  const capsulePath = path.join(queued.jobDir, "capsule.json");
+  const capsule = JSON.parse(await fs.readFile(capsulePath, "utf8"));
+  capsule.limits.maxEventBytes = 1024 * 1024;
+  await fs.writeFile(capsulePath, `${JSON.stringify(rehashCapsule(capsule), null, 2)}\n`, { mode: 0o600 });
+  let result = await run(["jobs", queued.jobId, "--project-root", root, "--json"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).job.capsule.limits.maxEventBytes, 1024 * 1024);
+
+  capsule.limits.maxEventBytes = 16 * 1024 * 1024 + 1;
+  await fs.writeFile(capsulePath, `${JSON.stringify(rehashCapsule(capsule), null, 2)}\n`, { mode: 0o600 });
+  result = await run(["jobs", queued.jobId, "--project-root", root, "--json"]);
+  assert.equal(result.code, 4);
+  assert.match(result.stderr, /invalid capsule/i);
 });
 
 test("M3a enqueue rejects sources beyond the explicit hashing bound", async (t) => {
@@ -433,6 +479,32 @@ test("M3a terminal records are retained until explicit safe cleanup", async (t) 
   await assert.rejects(() => fs.access(queued.jobDir), { code: "ENOENT" });
 });
 
+test("M3a explicit invalid cleanup removes malformed jobs but cannot bypass valid-job policy", async (t) => {
+  const root = await project(t);
+  let queued = parse(await enqueue(root));
+  let result = await run([
+    "jobs", "clean", queued.jobId, "--yes", "--invalid", "--project-root", root, "--json",
+  ]);
+  assert.equal(result.code, 4);
+  assert.match(result.stderr, /valid.*omit --invalid/i);
+  assert.ok(await fs.stat(queued.jobDir));
+
+  queued = parse(await enqueue(root, ["--instruction", "A malformed cleanup fixture."]));
+  await fs.writeFile(path.join(queued.jobDir, "capsule.json"), "{malformed\n", { mode: 0o600 });
+  result = await run([
+    "jobs", "clean", queued.jobId, "--invalid", "--project-root", root, "--json",
+  ]);
+  assert.equal(result.code, 8);
+  assert.ok(await fs.stat(queued.jobDir));
+
+  result = await run([
+    "jobs", "clean", queued.jobId, "--yes", "--invalid", "--project-root", root, "--json",
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(parse(result), { jobId: queued.jobId, cleaned: true, invalid: true });
+  await assert.rejects(() => fs.access(queued.jobDir), { code: "ENOENT" });
+});
+
 test("M3a immutable capsules are integrity-checked and bound to their canonical project", async (t) => {
   const root = await project(t);
   const queued = parse(await enqueue(root));
@@ -459,7 +531,12 @@ test("M3a malformed or symlinked job state is rejected without following it", as
   const statePath = path.join(queued.jobDir, "state.json");
   await fs.rm(statePath);
   await fs.symlink(outside, statePath);
-  const result = await run(["jobs", queued.jobId, "--project-root", root, "--json"]);
+  let result = await run(["jobs", queued.jobId, "--project-root", root, "--json"]);
   assert.equal(result.code, 9);
+  result = await run([
+    "jobs", "clean", queued.jobId, "--yes", "--invalid", "--project-root", root, "--json",
+  ]);
+  assert.equal(result.code, 9);
+  assert.ok(await fs.lstat(statePath));
   assert.equal(await fs.readFile(outside, "utf8"), "not json\n");
 });

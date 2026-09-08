@@ -21,7 +21,23 @@ import {
   acknowledgeDelivery,
 } from "./lib/jobs.mjs";
 
-const HELP = `okf-engram ${VERSION}
+const HELP = `okf-engram ${VERSION} — project knowledge and memory
+
+Common actions:
+  engram status                 show corpus health and automatic-memory policy
+  engram init                   initialize explicitly
+  engram wiring                 install the optional project reminder
+  engram search QUERY           find knowledge envelopes
+  engram get ID                 read one concept
+  engram check-sources --summary
+                                inspect source freshness
+  engram jobs                   inspect deferred work
+  engram lint                   validate the corpus
+
+Use /engram remember, recall, or ingest for semantic workflows.
+Run engram --help for the complete deterministic CLI reference.`;
+
+const DETAILED_HELP = `okf-engram ${VERSION}
 
 Usage: engram <command> [options]
 
@@ -46,6 +62,7 @@ Commands:
   jobs pending [JOB_ID]        list unacknowledged inferred-memory outcomes
   jobs acknowledge JOB_ID      acknowledge one presented inferred outcome
   jobs clean JOB_ID --yes      remove inspected terminal operational state
+                               add --invalid for an unreadable private job
   cancel JOB_ID                cancel queued work or request running cancellation
   retry JOB_ID                 safely requeue unchanged failed/cancelled work
   flush [--job JOB_ID]         run queued work through one isolated Pi worker
@@ -76,6 +93,7 @@ Common options:
   --job JOB_ID                 flush only one queued job
   --state STATE                filter job listing by lifecycle state
   --reconciled                 confirm needs-review changes were reconciled
+  --invalid                    confirm cleanup of an unreadable job only
   --summary                    group all referenced sources into an inventory
   --yes                        confirm destructive operation
   --json                       machine-readable output
@@ -176,8 +194,12 @@ function printResult(result, { json = false, command } = {}) {
 
 async function main(rawArgs = process.argv.slice(2)) {
   const args = [...rawArgs];
-  if (!args.length || args.includes("--help") || args[0] === "help") {
+  if (!args.length || args[0] === "help") {
     console.log(HELP);
+    return 0;
+  }
+  if (args.includes("--help")) {
+    console.log(DETAILED_HELP);
     return 0;
   }
   if (args.includes("--version")) {
@@ -394,9 +416,10 @@ async function main(rawArgs = process.argv.slice(2)) {
         args.shift();
         const yes = option(args, "--yes", { boolean: true });
         const reconciled = option(args, "--reconciled", { boolean: true });
+        const invalid = option(args, "--invalid", { boolean: true });
         const id = args.shift();
         if (!id || args.length) throw errors.usage("jobs clean requires one job ID and --yes");
-        result = await cleanJob(context, id, { yes, reconciled });
+        result = await cleanJob(context, id, { yes, reconciled, invalid });
         break;
       }
       const state = option(args, "--state");
