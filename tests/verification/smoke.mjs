@@ -116,8 +116,9 @@ async function main() {
     const packageRoot = path.join(consumer, "node_modules", "okf-engram");
     await run("pi", ["install", packageRoot], { env: { PI_CODING_AGENT_DIR: agentDir } });
     const npmRoot = (await run("npm", ["root", "-g"])).stdout.trim();
-    const modulePath = path.join(npmRoot, "@earendil-works", "pi-coding-agent", "dist", "index.js");
-    const { DefaultResourceLoader } = await import(pathToFileURL(modulePath).href);
+    const piRoot = path.join(npmRoot, "@earendil-works", "pi-coding-agent", "dist");
+    const { DefaultResourceLoader } = await import(pathToFileURL(path.join(piRoot, "index.js")).href);
+    const { expandPromptTemplate } = await import(pathToFileURL(path.join(piRoot, "core", "prompt-templates.js")).href);
     const loader = new DefaultResourceLoader({ cwd: project, agentDir });
     await loader.reload();
     const skills = loader.getSkills();
@@ -130,9 +131,12 @@ async function main() {
     if (matchingSkills.length !== 1 || matchingPrompts.length !== 1 || diagnostics.length) {
       throw new Error("packed Pi skill/prompt discovery failed");
     }
-    if (!matchingPrompts[0].argumentHint?.includes("wire")
-        || matchingPrompts[0].argumentHint.includes("forget")) {
+    if (!matchingPrompts[0].argumentHint?.includes("wire") || matchingPrompts[0].argumentHint.includes("forget")) {
       throw new Error("packed /engram prompt does not expose the strict safe human subset");
+    }
+    const expandedPrompt = expandPromptTemplate("/engram ls", matchingPrompts);
+    if (!expandedPrompt.includes("Engram request: ls") || expandedPrompt.includes("$ARGUMENTS")) {
+      throw new Error("packed /engram prompt does not expand all request arguments");
     }
 
     console.log(
@@ -148,6 +152,7 @@ async function main() {
         wiring: true,
         piSkill: matchingSkills[0].name,
         piPrompt: matchingPrompts[0].name,
+        promptArguments: true,
         diagnostics: diagnostics.length,
       }),
     );

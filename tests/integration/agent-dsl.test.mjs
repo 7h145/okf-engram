@@ -96,6 +96,8 @@ test("Pi prompt and skill define one strict human router without destructive sho
   ])
     assert.match(prompt, new RegExp(`\\b${shortcut}\\b`));
   assert.match(prompt, /strict `\/engram`/);
+  assert.match(prompt, /Engram request: \$ARGUMENTS/);
+  assert.doesNotMatch(prompt, /\$\{ARGUMENTS\}/);
   assert.doesNotMatch(prompt, /\b(?:forget|delete)\b/);
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest/);
   assert.match(skill, /There is no destructive human\s+shortcut/);

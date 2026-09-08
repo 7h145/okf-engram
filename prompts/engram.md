@@ -4,4 +4,4 @@ argument-hint: "[help|init|wire|unwire|auto|ls|find|show|remember|recall|ingest|
 ---
 Activate and follow the `okf-engram` skill. Treat this as a strict `/engram`
 request; reject unknown forms with concise help.
-Engram request: ${ARGUMENTS}
+Engram request: $ARGUMENTS

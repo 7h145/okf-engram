@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Standardize help-output disjunctions on the compact `a|b` form.
+- Fix `/engram` prompt argument forwarding by using Pi's supported `$ARGUMENTS`
+  token and contract-testing expansion from the packed prompt.
 
 ## 0.1.1 — 2026-09-08
 
