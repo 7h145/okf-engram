@@ -54,6 +54,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /\[S\] memory remember/);
   assert.match(result.stdout, /\[D\] concepts write/);
   assert.match(result.stdout, /--corpus-context project\|global/);
+  assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
   assert.doesNotMatch(result.stdout, /\b(?:put|flush|check-sources|capture-source)\b/);
   assert.doesNotMatch(result.stdout, /--(?:from|to|if-match|yes|json)(?:\s|$)/m);
@@ -65,6 +66,9 @@ test("human help is bounded, strict, and contains no destructive shortcut", asyn
   assert.equal(result.code, 0, result.stderr);
   assert.equal(noArguments.stdout, result.stdout);
   assert.ok(Buffer.byteLength(result.stdout) < 1_024);
+  assert.match(result.stdout, /\/engram wire\|unwire/);
+  assert.match(result.stdout, /\/engram auto status\|on\|off/);
+  assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /\/engram remember STATEMENT/);
   assert.match(result.stdout, /\/engram jobs \[JOB_ID\]/);
   assert.match(result.stdout, /Commands are strict/);

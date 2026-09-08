@@ -40,7 +40,7 @@ Common commands:
   /engram                         show project corpus status
   /engram help                    show this concise help
   /engram init                    initialize the project corpus
-  /engram wire | unwire           add or remove the project reminder
+  /engram wire|unwire             add or remove the project reminder
   /engram auto status|on|off      manage automatic project memory
   /engram ls                      list concept envelopes
   /engram find WORDS              find concepts

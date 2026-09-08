@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Standardize help-output disjunctions on the compact `a|b` form.
+
 ## 0.1.1 — 2026-09-08
 
 - Replace the pre-stability helper grammar with the canonical agent DSL: domain
