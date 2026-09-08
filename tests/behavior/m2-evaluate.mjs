@@ -4,7 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { resolveProject } from "../../scripts/lib/project.mjs";
-import { lintBundle } from "../../scripts/lib/bundle.mjs";
+import { validateCorpus } from "../../scripts/lib/bundle.mjs";
 import { scanBundle } from "../../scripts/lib/scan.mjs";
 import { searchConcepts } from "../../scripts/lib/search.mjs";
 import { loadManifest, verifyFixtureSources } from "./m2-fixture.mjs";
@@ -39,7 +39,7 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
 
   const context = await resolveProject({ projectRoot });
   const scan = await scanBundle(context.bundle);
-  const lint = await lintBundle(context);
+  const lint = await validateCorpus(context);
   for (const issue of scan.issues.filter((item) => item.severity === "error")) {
     findings.push(finding("bundle-invalid", issue.message, { id: issue.id, issueCode: issue.code }));
   }
@@ -47,12 +47,16 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
 
   const byId = new Map(scan.concepts.map((item) => [item.id, item]));
   const allBundleText = scan.concepts.map(textOf).join("\n");
-  if (scan.concepts.length < manifest.limits.minimumConcepts
-      || scan.concepts.length > manifest.limits.maximumConcepts) {
-    findings.push(finding(
-      "concept-boundary-count",
-      `Expected ${manifest.limits.minimumConcepts}-${manifest.limits.maximumConcepts} focused concepts, found ${scan.concepts.length}`,
-    ));
+  if (
+    scan.concepts.length < manifest.limits.minimumConcepts ||
+    scan.concepts.length > manifest.limits.maximumConcepts
+  ) {
+    findings.push(
+      finding(
+        "concept-boundary-count",
+        `Expected ${manifest.limits.minimumConcepts}-${manifest.limits.maximumConcepts} focused concepts, found ${scan.concepts.length}`,
+      ),
+    );
   }
 
   let report;
@@ -96,8 +100,10 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
       } else if (!concept.concept.body.includes(`[^${source.id}]`)) {
         findings.push(finding("claim-footnote", `${concept.id} does not reference source ID ${source.id} in its body`));
       }
-      if (expected.selectorRequired
-          && (!source.selector || !reportValue(source.selector.kind) || !reportValue(source.selector.value))) {
+      if (
+        expected.selectorRequired &&
+        (!source.selector || !reportValue(source.selector.kind) || !reportValue(source.selector.value))
+      ) {
         findings.push(finding("source-selector", `${concept.id} needs a selector for ${source.resource}`));
       }
     }
@@ -110,42 +116,66 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
       continue;
     }
     if (row.state !== "cited") {
-      findings.push(finding("coverage-incomplete", `${expected.resource} is ${row.state}; this readable fixture requires cited coverage`));
+      findings.push(
+        finding(
+          "coverage-incomplete",
+          `${expected.resource} is ${row.state}; this readable fixture requires cited coverage`,
+        ),
+      );
     }
     if (row.method !== expected.expectedMethod) {
-      findings.push(finding("extraction-method", `${expected.resource} expected method ${expected.expectedMethod}, got ${row.method}`));
+      findings.push(
+        finding(
+          "extraction-method",
+          `${expected.resource} expected method ${expected.expectedMethod}, got ${row.method}`,
+        ),
+      );
     }
     const cited = [...new Set(actualCitations.get(expected.resource))].sort();
-    if (!cited.length) findings.push(finding("provenance-missing", `${expected.resource} is not cited by a persisted concept`));
+    if (!cited.length)
+      findings.push(finding("provenance-missing", `${expected.resource} is not cited by a persisted concept`));
     const reported = Array.isArray(row.conceptIds) ? [...new Set(row.conceptIds)].sort() : [];
     if (JSON.stringify(reported) !== JSON.stringify(cited)) {
-      findings.push(finding("coverage-mismatch", `${expected.resource} report IDs do not match persisted citations`, {
-        reported, actual: cited,
-      }));
+      findings.push(
+        finding("coverage-mismatch", `${expected.resource} report IDs do not match persisted citations`, {
+          reported,
+          actual: cited,
+        }),
+      );
     }
   }
   for (const resource of coverageByResource.keys()) {
-    if (!manifestByResource.has(resource)) findings.push(finding("coverage-extra", `Unexpected coverage resource ${resource}`));
+    if (!manifestByResource.has(resource))
+      findings.push(finding("coverage-extra", `Unexpected coverage resource ${resource}`));
   }
 
   const multi = actualCitations.get(manifest.oneSourceToMany.resource) ?? [];
   if (new Set(multi).size < manifest.oneSourceToMany.minimumConcepts) {
-    findings.push(finding("one-source-many", `${manifest.oneSourceToMany.resource} must support at least ${manifest.oneSourceToMany.minimumConcepts} concepts`));
+    findings.push(
+      finding(
+        "one-source-many",
+        `${manifest.oneSourceToMany.resource} must support at least ${manifest.oneSourceToMany.minimumConcepts} concepts`,
+      ),
+    );
   }
 
   const seed = byId.get(manifest.seed.id);
   if (!seed) findings.push(finding("seed-update", `Seed concept ${manifest.seed.id} was removed or renamed`));
   else {
     for (const text of manifest.seed.mustContainAfter) {
-      if (!seed.concept.text.includes(text)) findings.push(finding("seed-update", `${manifest.seed.id} must contain ${JSON.stringify(text)}`));
+      if (!seed.concept.text.includes(text))
+        findings.push(finding("seed-update", `${manifest.seed.id} must contain ${JSON.stringify(text)}`));
     }
     for (const alternatives of manifest.seed.mustContainAnyAfter ?? []) {
       if (!alternatives.some((text) => seed.concept.text.includes(text))) {
-        findings.push(finding("seed-update", `${manifest.seed.id} must contain one of ${JSON.stringify(alternatives)}`));
+        findings.push(
+          finding("seed-update", `${manifest.seed.id} must contain one of ${JSON.stringify(alternatives)}`),
+        );
       }
     }
     for (const text of manifest.seed.mustNotContainAfter) {
-      if (seed.concept.text.includes(text)) findings.push(finding("seed-update", `${manifest.seed.id} retained obsolete text ${JSON.stringify(text)}`));
+      if (seed.concept.text.includes(text))
+        findings.push(finding("seed-update", `${manifest.seed.id} retained obsolete text ${JSON.stringify(text)}`));
     }
   }
 
@@ -153,7 +183,9 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
     for (const id of actualCitations.get(rule.resource) ?? []) {
       const concept = byId.get(id);
       if (concept?.concept.body.includes(rule.bodyTerm) && !rule.allowed.includes(concept.envelope.status)) {
-        findings.push(finding("status-calibration", `${id} mentions ${rule.bodyTerm} but has status ${concept.envelope.status}`));
+        findings.push(
+          finding("status-calibration", `${id} mentions ${rule.bodyTerm} but has status ${concept.envelope.status}`),
+        );
       }
     }
   }
@@ -161,7 +193,12 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
   const retainedText = `${allBundleText}\n${JSON.stringify(report)}`.toLocaleLowerCase("en-US");
   for (const literal of [...manifest.prohibitedLiterals, ...manifest.prohibitedClaims]) {
     if (retainedText.includes(literal.toLocaleLowerCase("en-US"))) {
-      findings.push(finding("sensitive-or-unsafe-content", `Bundle or result report retained prohibited fixture text: ${JSON.stringify(literal)}`));
+      findings.push(
+        finding(
+          "sensitive-or-unsafe-content",
+          `Bundle or result report retained prohibited fixture text: ${JSON.stringify(literal)}`,
+        ),
+      );
     }
   }
 
@@ -177,7 +214,9 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
   }
   const seedTarget = planTargets.find((item) => item.id === manifest.seed.id);
   if (!seedTarget || seedTarget.action !== "update" || !reportValue(seedTarget.expectedHash)) {
-    findings.push(finding("write-inventory", `Seed ${manifest.seed.id} must be planned as an update with its prior hash`));
+    findings.push(
+      finding("write-inventory", `Seed ${manifest.seed.id} must be planned as an update with its prior hash`),
+    );
   }
 
   const outcomes = Array.isArray(report.outcomes) ? report.outcomes : [];
@@ -185,7 +224,10 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
   for (const outcome of outcomes) {
     const outcomeStatus = outcome?.status ?? outcome?.outcome ?? outcome?.action;
     const outcomeHash = outcome?.hash ?? outcome?.actualHash;
-    if (!reportValue(outcome?.id) || !["created", "updated", "unchanged", "conflicted", "failed"].includes(outcomeStatus)) {
+    if (
+      !reportValue(outcome?.id) ||
+      !["created", "updated", "unchanged", "conflicted", "failed"].includes(outcomeStatus)
+    ) {
       findings.push(finding("outcome", "Every outcome needs an ID and a supported status"));
       continue;
     }
@@ -198,18 +240,18 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
     }
   }
   for (const id of planIds) {
-    if (!outcomeIds.has(id)) findings.push(finding("outcome-missing", `No actual outcome recorded for planned target ${id}`));
+    if (!outcomeIds.has(id))
+      findings.push(finding("outcome-missing", `No actual outcome recorded for planned target ${id}`));
   }
 
   const reviewKeys = ["lint", "provenance", "uncertainty", "sensitiveData", "conceptBoundaries", "crossLinks"];
   for (const key of reviewKeys) {
-    if (report.review?.[key] !== "pass") findings.push(finding("semantic-review", `review.${key} must record pass for this gate`));
+    if (report.review?.[key] !== "pass")
+      findings.push(finding("semantic-review", `review.${key} must record pass for this gate`));
   }
 
   const existingIds = new Set(byId.keys());
-  const linkMap = new Map(scan.concepts.map((concept) => [
-    concept.id, new Set(internalLinks(concept.concept.body)),
-  ]));
+  const linkMap = new Map(scan.concepts.map((concept) => [concept.id, new Set(internalLinks(concept.concept.body))]));
   let linkCount = 0;
   for (const [id, targets] of linkMap) {
     for (const target of targets) {
@@ -226,7 +268,12 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
       if (plannedPairs.has(pair)) continue;
       plannedPairs.add(pair);
       if (!linkMap.get(target.id)?.has(related) && !linkMap.get(related)?.has(target.id)) {
-        findings.push(finding("planned-link-missing", `Planned relationship ${target.id} ↔ ${related} has no persisted Markdown link`));
+        findings.push(
+          finding(
+            "planned-link-missing",
+            `Planned relationship ${target.id} ↔ ${related} has no persisted Markdown link`,
+          ),
+        );
       }
     }
   }
@@ -238,21 +285,34 @@ export async function evaluateM2Run(projectRoot, { resultPath } = {}) {
       includeDeprecated: probe.includeDeprecated === true,
     });
     if (probe.requiredId && !results.some((item) => item.id === probe.requiredId)) {
-      findings.push(finding("retrieval-probe", `${JSON.stringify(probe.query)} did not retrieve ${probe.requiredId} in top ${probe.top}`));
+      findings.push(
+        finding(
+          "retrieval-probe",
+          `${JSON.stringify(probe.query)} did not retrieve ${probe.requiredId} in top ${probe.top}`,
+        ),
+      );
     }
     if (probe.requiredTerms) {
       const matched = results.some((result) => {
         const candidate = byId.get(result.id);
         const haystack = textOf(candidate).toLocaleLowerCase("en-US").replace(/\s+/g, " ");
-        return probe.requiredTerms.every((term) => (
-          haystack.includes(term.toLocaleLowerCase("en-US").replace(/\s+/g, " "))
-        ));
+        return probe.requiredTerms.every((term) =>
+          haystack.includes(term.toLocaleLowerCase("en-US").replace(/\s+/g, " ")),
+        );
       });
-      if (!matched) findings.push(finding("retrieval-probe", `${JSON.stringify(probe.query)} did not retrieve all expected terms in one top-${probe.top} concept`));
+      if (!matched)
+        findings.push(
+          finding(
+            "retrieval-probe",
+            `${JSON.stringify(probe.query)} did not retrieve all expected terms in one top-${probe.top} concept`,
+          ),
+        );
     }
     const reportProbe = reportedRetrieval.find((item) => item?.query === probe.query);
     if (!reportProbe || !Array.isArray(reportProbe.topIds)) {
-      findings.push(finding("retrieval-report", `Result report is missing retrieval probe ${JSON.stringify(probe.query)}`));
+      findings.push(
+        finding("retrieval-report", `Result report is missing retrieval probe ${JSON.stringify(probe.query)}`),
+      );
     }
   }
 

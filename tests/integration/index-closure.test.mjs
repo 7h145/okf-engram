@@ -14,8 +14,12 @@ function run(args) {
     const child = spawn(process.execPath, [cli, ...args]);
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
@@ -25,7 +29,10 @@ async function project(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram index closure "));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const bundle = path.join(root, ".agents", "data", "okf-engram", "bundle");
-  assert.equal((await run(["init", "--project-root", root])).code, 0);
+  assert.equal(
+    (await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root])).code,
+    0,
+  );
   return { root, bundle };
 }
 
@@ -43,7 +50,18 @@ test("R3 deleting the last nested concept clears generated summaries in empty an
   const { root, bundle } = await project(t);
   const file = path.join(root, "draft.md");
   await fs.writeFile(file, draft);
-  let result = await run(["put", "group/nested/test", "--from", file, "--project-root", root, "--json"]);
+  let result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    "group/nested/test",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    file,
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 0, result.stderr);
   const created = JSON.parse(result.stdout);
 
@@ -54,8 +72,17 @@ test("R3 deleting the last nested concept clears generated summaries in empty an
   await fs.writeFile(nestedIndex, customized);
 
   result = await run([
-    "delete", "group/nested/test", "--if-match", created.hash, "--yes",
-    "--project-root", root, "--json",
+    "concepts",
+    "delete",
+    "--concept-id",
+    "group/nested/test",
+    "--corpus-context",
+    "project",
+    "--expected-current-sha256",
+    created.hash,
+    "--confirm-current-tree-deletion",
+    "--project-root-path",
+    root,
   ]);
   assert.equal(result.code, 0, result.stderr);
 
@@ -70,7 +97,7 @@ test("R3 deleting the last nested concept clears generated summaries in empty an
   assert.match(nested, /Human footer remains/);
 });
 
-test("R3 lint discovers and reindex repairs stale managed indexes in empty groups", async (t) => {
+test("R3 corpus validation discovers and index repair fixes stale managed indexes in empty groups", async (t) => {
   const { root, bundle } = await project(t);
   const staleDirectory = path.join(bundle, "old", "nested");
   await fs.mkdir(staleDirectory, { recursive: true });
@@ -89,16 +116,16 @@ test("R3 lint discovers and reindex repairs stale managed indexes in empty group
   await fs.writeFile(oldIndex, stale);
   await fs.writeFile(nestedIndex, `${stale}\nHuman tail.\n`);
 
-  let result = await run(["lint", "--project-root", root, "--json"]);
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   let parsed = JSON.parse(result.stdout);
   assert.equal(parsed.issues.filter((issue) => issue.code === "index-drift").length, 2);
 
-  result = await run(["reindex", "--project-root", root, "--json"]);
+  result = await run(["corpus", "repair-indexes", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   parsed = JSON.parse(result.stdout);
-  assert.ok(parsed.files.includes(oldIndex));
-  assert.ok(parsed.files.includes(nestedIndex));
+  assert.ok(parsed.repairedIndexFilePaths.includes(oldIndex));
+  assert.ok(parsed.repairedIndexFilePaths.includes(nestedIndex));
 
   for (const index of [oldIndex, nestedIndex]) {
     const text = await fs.readFile(index, "utf8");
@@ -107,7 +134,7 @@ test("R3 lint discovers and reindex repairs stale managed indexes in empty group
   }
   assert.match(await fs.readFile(nestedIndex, "utf8"), /Human tail/);
 
-  result = await run(["lint", "--project-root", root, "--json"]);
+  result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(JSON.parse(result.stdout).issues.filter((issue) => issue.code === "index-drift").length, 0);
 });
 
@@ -119,13 +146,11 @@ test("R3 obsolete unmanaged indexes are preserved and reported", async (t) => {
   const content = "# Human-only index\n\nKeep this text.\n";
   await fs.writeFile(index, content);
 
-  let result = await run(["lint", "--project-root", root, "--json"]);
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
-  assert.ok(JSON.parse(result.stdout).issues.some((issue) => (
-    issue.code === "index-unmanaged" && issue.path === index
-  )));
+  assert.ok(JSON.parse(result.stdout).issues.some((issue) => issue.code === "index-unmanaged" && issue.path === index));
 
-  result = await run(["reindex", "--project-root", root, "--json"]);
+  result = await run(["corpus", "repair-indexes", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(await fs.readFile(index, "utf8"), content);
   assert.ok(JSON.parse(result.stdout).issues.some((issue) => issue.code === "index-unmanaged"));

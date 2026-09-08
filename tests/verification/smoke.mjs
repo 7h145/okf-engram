@@ -26,8 +26,12 @@ function run(file, args, { cwd = repo, env = {}, maxBytes = 2 * 1024 * 1024 } = 
       }
       return Buffer.concat([current, chunk]);
     };
-    child.stdout.on("data", (chunk) => { stdout = append(stdout, chunk); });
-    child.stderr.on("data", (chunk) => { stderr = append(stderr, chunk); });
+    child.stdout.on("data", (chunk) => {
+      stdout = append(stdout, chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = append(stderr, chunk);
+    });
     child.on("error", reject);
     child.on("close", (code, signal) => {
       const result = { code, signal, stdout: stdout.toString("utf8"), stderr: stderr.toString("utf8") };
@@ -50,24 +54,63 @@ async function main() {
     await fs.mkdir(consumer);
     await fs.mkdir(project);
     await fs.mkdir(agentDir);
-    await fs.writeFile(path.join(consumer, "package.json"), "{\"private\":true}\n");
+    await fs.writeFile(path.join(consumer, "package.json"), '{"private":true}\n');
 
-    await run("npx", [
-      "--yes", "--package=node@20.0.0", "--package=npm@9.9.4", "-c",
-      "npm --prefix \"$CONSUMER\" install --engine-strict \"$TARBALL\"",
-    ], { env: { CONSUMER: consumer, TARBALL: tarball } });
+    await run(
+      "npx",
+      [
+        "--yes",
+        "--package=node@20.0.0",
+        "--package=npm@9.9.4",
+        "-c",
+        'npm --prefix "$CONSUMER" install --engine-strict "$TARBALL"',
+      ],
+      { env: { CONSUMER: consumer, TARBALL: tarball } },
+    );
 
     const installed = path.join(consumer, "node_modules", "okf-engram");
     const cli = path.join(installed, "scripts", "engram.mjs");
     const version = (await run("npx", ["--yes", "node@20.0.0", cli, "--version"])).stdout.trim();
     if (version !== packed.version) throw new Error(`packed version mismatch: ${version} != ${packed.version}`);
-    await run("npx", ["--yes", "node@20.0.0", cli, "init", "--project-root", project, "--json"]);
-    const wiring = JSON.parse((await run("npx", [
-      "--yes", "node@20.0.0", cli, "wiring", "--project-root", project, "--json",
-    ])).stdout);
+    await run("npx", [
+      "--yes",
+      "node@20.0.0",
+      cli,
+      "corpus",
+      "initialize",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      project,
+    ]);
+    const wiring = JSON.parse(
+      (
+        await run("npx", [
+          "--yes",
+          "node@20.0.0",
+          cli,
+          "wiring",
+          "project",
+          "install",
+          "--corpus-context",
+          "project",
+          "--project-root-path",
+          project,
+        ])
+      ).stdout,
+    );
     if (!wiring.installed || !wiring.changed) throw new Error("packed wiring install did not persist");
     await run("npx", [
-      "--yes", "node@20.0.0", cli, "wiring", "remove", "--project-root", project, "--json",
+      "--yes",
+      "node@20.0.0",
+      cli,
+      "wiring",
+      "project",
+      "remove",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      project,
     ]);
 
     const packageRoot = path.join(consumer, "node_modules", "okf-engram");
@@ -81,9 +124,9 @@ async function main() {
     const prompts = loader.getPrompts();
     const matchingSkills = skills.skills.filter((item) => item.name === "okf-engram");
     const matchingPrompts = prompts.prompts.filter((item) => item.name === "engram");
-    const diagnostics = [...skills.diagnostics, ...prompts.diagnostics].filter((item) => (
-      String(item.path ?? item.filePath ?? item.message).includes("engram")
-    ));
+    const diagnostics = [...skills.diagnostics, ...prompts.diagnostics].filter((item) =>
+      String(item.path ?? item.filePath ?? item.message).includes("engram"),
+    );
     if (matchingSkills.length !== 1 || matchingPrompts.length !== 1 || diagnostics.length) {
       throw new Error("packed Pi skill/prompt discovery failed");
     }
@@ -91,20 +134,22 @@ async function main() {
       throw new Error("packed /engram prompt omits wiring");
     }
 
-    console.log(JSON.stringify({
-      version,
-      artifact: packed.filename,
-      artifactSha256: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
-      artifactBytes: bytes.length,
-      entryCount: packed.entryCount,
-      node: "v20.0.0",
-      npm: "9.9.4",
-      engineStrictInstall: true,
-      wiring: true,
-      piSkill: matchingSkills[0].name,
-      piPrompt: matchingPrompts[0].name,
-      diagnostics: diagnostics.length,
-    }));
+    console.log(
+      JSON.stringify({
+        version,
+        artifact: packed.filename,
+        artifactSha256: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+        artifactBytes: bytes.length,
+        entryCount: packed.entryCount,
+        node: "v20.0.0",
+        npm: "9.9.4",
+        engineStrictInstall: true,
+        wiring: true,
+        piSkill: matchingSkills[0].name,
+        piPrompt: matchingPrompts[0].name,
+        diagnostics: diagnostics.length,
+      }),
+    );
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

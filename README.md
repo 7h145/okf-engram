@@ -1,64 +1,91 @@
 # OKF Engram
 
-Engram is an agent-maintained project knowledge corpus and memory, stored as
+Engram is an agent-maintained project knowledge corpus and memory stored as
 [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/open-knowledge-format)
 Markdown.
 
-The Agent Skill is `okf-engram`; the user-facing command is `/engram` on Pi.
-v0.1 is project-local. Automatic inference is off by default and requires
-`/engram auto-memory on` for the resolved project; explicit remember/recall
-remain available while off. Exact local Git source
-capture/reopening is read-only and opportunistic. Bounded artifact-ingest and
-inferred-memory candidate jobs are available. The skill can perform opportunistic
-memory inference; automatic conversation review belongs to a separately packaged
-optional Pi extension and is not part of the skill release roadmap.
+The Agent Skill is `okf-engram`; Pi exposes the strict human command `/engram`.
+The canonical agent interface is a descriptive domain-specific command language.
+v0.1 is project-local. Automatic memory is off by default and explicit
+remember/recall remains available while it is off.
+
+Exact local Git source capture/reopening is read-only and opportunistic. Bounded
+artifact-ingest and inferred-memory jobs are available. Automatic conversation
+review belongs to a separately packaged optional Pi adapter and is not part of
+the skill roadmap.
 
 ## Installation and first use
 
-After v0.1.0 is published, install the pinned Pi package:
+After publication, install a pinned Pi package:
 
 ```bash
-pi install npm:okf-engram@0.1.0
+pi install npm:okf-engram@<version>
 ```
 
-For a reviewed local checkout, install dependencies in that checkout **before**
-pointing Pi at its absolute directory. Pi does not run npm installation for a
-local-path package:
+For a reviewed local checkout, install dependencies there before pointing Pi at
+its absolute directory. Pi does not install dependencies for local-path packages:
 
 ```bash
-cd /path/to/okf-engram && npm ci
+cd /path/to/okf-engram
+npm ci
 pi install /path/to/okf-engram
 ```
 
-Pi packages and skills can execute code with the agent's permissions; review the
-package before installation. Engram requires Node.js 20 or newer. It ships no Pi
-extension and edits project instructions only through an explicit `/engram wiring`
-request.
+Pi packages and skills execute with the agent's permissions; review the package
+before installation. Engram requires Node.js 20 or newer. It ships no Pi
+extension and changes project instructions only on an explicit wiring request.
 
-From the intended project directory, initialize deliberately and then use either
-the friendly prompt or standard skill command:
+From the intended project directory:
 
 ```text
 /engram init
-/engram wiring
+/engram wire
 /engram remember this project targets Python 3.13
 /engram recall which Python version does this project target?
-/engram check-sources --summary
-/skill:okf-engram status
+/engram ingest docs/architecture.md
+/engram queue docs/runbook.md
+/engram jobs
 ```
 
-Initialization creates `<project-root>/.agents/data/okf-engram/bundle/` and may
-suggest the separate wiring command; it does not modify `AGENTS.md`. Running
-`/engram` without arguments reports status. Loading or wiring the skill does not
-initialize another bundle or enable automatic memory.
+Initialization creates `<project-root>/.agents/data/okf-engram/bundle/`. It does
+not modify `AGENTS.md`, Git, ignore rules, or automatic-memory policy. `/engram`
+without arguments reports project corpus status.
 
-`engram help` is a fixed sub-1-KiB user summary; `engram --help` retains the
-complete deterministic developer reference.
+`/engram help` is a fixed sub-1-KiB human summary. `/engram --help` presents the
+complete canonical agent DSL with a one-line definition for each domain.
+
+## Command model
+
+The canonical shape is:
+
+```text
+/engram <domain> <operation> [descriptive long options]
+```
+
+The domains are `corpus`, `knowledge`, `memory`, `concepts`, `sources`, `jobs`,
+`policy`, and `wiring`. Semantic operations such as `knowledge ingest` and
+`memory remember` are interpreted by the active skill. Deterministic operations
+map to `scripts/engram.mjs`.
+
+Canonical operations explicitly identify their corpus context:
+
+```text
+--corpus-context project
+```
+
+Global context is reserved for v0.2 but unavailable in this release. Unsupported
+or inaccessible contexts fail; project operations never fall back to global or
+vice versa. Deterministic helper output defaults to JSON. Use
+`--output-format text` only for direct debugging.
+
+The human `/engram` grammar is strict and intentionally small. Unknown forms are
+rejected with concise help. Ask the agent normally outside `/engram` for free-form
+requests. Human shortcuts include no destructive operation.
 
 ## Optional project wiring
 
-After initialization, `/engram wiring` explicitly installs a short canonical
-marker-delimited reminder at the start of `<project-root>/AGENTS.md`:
+`/engram wire` installs a short canonical marker-delimited reminder at the start
+of `<project-root>/AGENTS.md`:
 
 ```md
 <!-- okf-engram:project-wiring:start -->
@@ -72,45 +99,48 @@ explicit user request.
 <!-- okf-engram:project-wiring:end -->
 ```
 
-The operation preserves pre-existing bytes and file mode and is idempotent. Use
-`/engram wiring status`, `/engram wiring preview`, or `/engram wiring remove` to
-inspect, preview, or remove it. Removal restores prior content exactly when Engram
-installed the prefix, and deletes a file that contained only the canonical block.
-Modified or malformed managed markers and non-UTF-8 files are never overwritten.
-Wiring rejects symlinks and explicit bundle overrides and never changes automatic-
-memory policy. Removal remains available if the bundle is later deleted.
+The operation preserves existing bytes and mode and is idempotent. `/engram
+unwire` removes only the exact canonical block. Modified, malformed, non-UTF-8,
+and unsafe symlink states are never overwritten. Wiring never changes automatic-
+memory policy.
+
+Canonical inspection is available through:
+
+```bash
+node scripts/engram.mjs wiring project status --corpus-context project
+node scripts/engram.mjs wiring project preview --corpus-context project
+```
 
 ## Memory capture
 
-Engram has one corpus and one project `auto-memory on|off` permission, but three
-ways knowledge can enter it:
+Three paths are distinct:
 
-1. **Explicit memory** — you say “remember this.” This is always available and
-   does not depend on automatic-memory permission.
-2. **Opportunistic memory inference — included** — while the Engram skill is
-   active during a foreground response, the model may notice and capture durable
-   project knowledge. This is best effort: the skill may not be activated and the
-   model may not notice every candidate.
-3. **Automatic conversation review — separately packaged optional Pi extension**
-   — after each completed exchange, an extension considers only the new eligible
-   user and assistant messages and can queue candidates through the same memory API.
-   It improves coverage; it does not guarantee that every useful fact is found.
+1. **Explicit memory** — the user asks Engram to remember established knowledge.
+2. **Opportunistic inference** — while Engram is active in an opted-in foreground
+   turn, the model may notice and queue one durable project-memory candidate.
+3. **Automatic conversation review** — a separately packaged optional Pi adapter
+   may review eligible completed exchanges through the same bounded API.
 
-A completed exchange means one user request and the assistant work that follows,
-after the assistant has finished. Automatic conversation review operates only
-while Pi is running in an initialized project with automatic memory enabled. It
-does not review or later backfill off intervals. Installing the extension will
-not itself enable automatic memory. Both inference paths are project-only,
-exclude complete transcripts and tool/thinking output, share deduplication and
-policy gates, and never fall back to the planned v0.2 global store. A monotonic
+The inference paths are project-only, omit transcripts/tool/thinking output,
+share deduplication and policy gates, and never target global memory. A monotonic
 policy generation prevents work accepted before an off/on boundary from writing
-after
-re-enable.
+later.
+
+Manage consent with:
+
+```text
+/engram auto status
+/engram auto on
+/engram auto off
+```
+
+The canonical operation is `policy project automatic-memory
+status|enable|disable`.
 
 ## Development
 
-The runtime supports Node.js 20+. Current ESLint development tooling requires
-Node.js 20.19 or newer.
+Runtime support is Node.js 20+. Current ESLint tooling requires Node.js 20.19 or
+newer.
 
 ```bash
 npm install
@@ -118,188 +148,174 @@ npm test
 node scripts/engram.mjs --help
 ```
 
-Artifact ingest follows the documented
-[concept-compilation protocol](references/compilation-protocol.md): explicit
-coverage closure, mixed-format extraction, source/claim provenance, conservative
-status, conditional integration, and post-ingest retrieval review. Local source capture
-binds compilation bytes to SHA-256, selectors, and an optional verified commit/
-blob identity without fetching or changing Git. The sanitized M2 fixture and
-evaluator live under `tests/fixtures/m2-semantic/` and
-`tests/behavior/`.
+Artifact ingest follows the mandatory
+[concept-compilation protocol](references/compilation-protocol.md): complete
+coverage accounting, mixed-format extraction, claim provenance, conservative
+status, conditional integration, and retrieval review.
 
-The default project bundle is:
+The project bundle is:
 
 ```text
 <project-root>/.agents/data/okf-engram/bundle/
 ```
 
-Explicit deferred ingest stores minimal access-restricted operational state next
-to, not inside, that bundle:
+Private operational state is adjacent to, not inside, the OKF bundle.
+
+### Deferred artifact ingest
 
 ```bash
-node scripts/engram.mjs enqueue ingest project:docs/architecture.md \
-  --instruction "Compile accepted architecture decisions." \
-  --model openrouter/google/gemma-4-31b-it --runtime-seconds 900 --json
-node scripts/engram.mjs jobs <job-id> --json
-node scripts/engram.mjs flush --job <job-id> --json  # blocking fallback
-node scripts/engram.mjs cancel <job-id> --json
+node scripts/engram.mjs jobs enqueue artifact-ingest \
+  --corpus-context project \
+  --source-resource project:docs/architecture.md \
+  --ingest-instruction "Compile accepted architecture decisions." \
+  --worker-model-id openrouter/google/gemma-4-31b-it \
+  --worker-timeout-seconds 900
+
+node scripts/engram.mjs jobs show \
+  --corpus-context project --job-id <job-id>
+
+# Explicit blocking fallback for one job:
+node scripts/engram.mjs jobs run \
+  --corpus-context project --job-id <job-id>
+
+node scripts/engram.mjs jobs cancel \
+  --corpus-context project --job-id <job-id>
 ```
 
-The enqueue result includes a command suitable for an agent-owned background
-runner. Launching deferred work must not block the current agent turn: finish the
-main task, return control to the user, and inspect results at a later natural
-boundary. Inline polling is reserved for deliberate debugging. Worker traces
-remain private job files; foreground results contain only state, affected concept
-IDs/hashes, coverage, warnings, and review/error reasons. Jobs are source- and
-bundle-bound, serialized per bundle, bounded, cancellable, and never blindly
-replay `needs-review` changes. A supported job may contain one to sixteen sources;
-splitting is not required to avoid the event limit. New jobs use a 10 MiB event
-cap, and capsules freeze a bounded 1–16 MiB per-job limit. Terminal records remain
-until explicit `jobs clean <job-id> --yes` (plus `--reconciled` for reviewed
-changes and prior delivery acknowledgement for inferred outcomes). Use
-`jobs clean <job-id> --yes --invalid` only for a structurally unreadable private
-job; it refuses valid jobs and symlinked content. A worker process provides
-context isolation, not an OS sandbox.
+The enqueue result contains `workerCommand` for an agent-owned background runner.
+Normal deferred work returns control without inline polling. Worker traces stay in
+private job files. Foreground results contain only bounded state, concept
+IDs/hashes, coverage, warnings, and review/error reasons.
 
-Opportunistic inference uses the same worker lifecycle without storing a
-transcript. The active foreground model first checks policy, then submits only a
-bounded claim, concise evidence, and optional opaque context references:
+Jobs are source- and corpus-bound, serialized per bundle, cancellable, and never
+blindly replay `needs-review` changes. Multiple pre-enqueued jobs run serially
+against a fresh execution-time corpus baseline; source drift still stops a job
+before worker execution. One job supports one to sixteen sources and
+a frozen 1–16 MiB event limit; new jobs use 10 MiB.
+
+Terminal state remains until explicit cleanup:
 
 ```bash
-node scripts/engram.mjs auto-memory status --json
-# Set GENERATION to the integer returned above.
-node scripts/engram.mjs enqueue candidate \
-  --claim "SQLite is the approved durable local store." \
-  --evidence "The user approved SQLite for offline transactional updates." \
-  --context-ref session:opaque/entry:opaque \
-  --policy-generation "$GENERATION" --json
-node scripts/engram.mjs jobs pending --json
-node scripts/engram.mjs jobs acknowledge <job-id> --json
+node scripts/engram.mjs jobs clean \
+  --corpus-context project --job-id <job-id> \
+  --confirm-job-state-deletion
+
+node scripts/engram.mjs jobs discard-invalid \
+  --corpus-context project --job-id <job-id> \
+  --confirm-invalid-job-deletion
 ```
 
-The generation must come from the preceding status result. Acceptance and every
-worker write recheck it under the bundle lock. Disabling automatic memory
-invalidates queued inferred work and requests cooperative cancellation of running
-work; late output is discarded and stale generations cannot write even after
-re-enable. Candidate compilation produces one verified inferred Memory, a bounded
-discard disposition, or `needs-review`. Pending compact results remain durable
-until acknowledged; private candidate capsules and worker traces are not returned
-by the delivery command.
+A `needs-review` job additionally requires `--confirm-reconciled`. Inferred-memory
+results must be acknowledged before cleanup. Invalid-job discard refuses valid
+jobs and symlinks. A worker is context-isolated, not an OS sandbox.
 
-Engram never initializes or commits Git repositories automatically. Source
-capture and reopening are also read-only: no fetch, checkout, index update, or
-remote registry.
+### Opportunistic inferred memory
 
 ```bash
-node scripts/engram.mjs capture-source project:docs/architecture.md \
-  --to /tmp/architecture.snapshot --selector-kind heading \
-  --selector-value "Decision" --region-to /tmp/architecture.region --json
-node scripts/engram.mjs resolve-source decisions/storage architecture \
-  --to /tmp/architecture.pinned --region-to /tmp/architecture.pinned-region --json
+node scripts/engram.mjs policy project automatic-memory status \
+  --corpus-context project
+
+node scripts/engram.mjs jobs enqueue inferred-memory \
+  --corpus-context project \
+  --memory-claim "SQLite is the approved durable local store." \
+  --memory-evidence "The user approved SQLite for offline transactional updates." \
+  --conversation-context-reference session:opaque/entry:opaque \
+  --automatic-memory-policy-generation "$GENERATION"
+
+node scripts/engram.mjs jobs results list \
+  --corpus-context project \
+  --acknowledgement-state unacknowledged
+
+node scripts/engram.mjs jobs results acknowledge \
+  --corpus-context project --job-id <job-id>
 ```
 
-Captured outputs are exclusive temporary files outside the bundle and must be
-removed after use. Digest-only fallback is first-class when exact Git objects are
-not available.
+Acknowledgement means a result was presented; it does not delete the job, result,
+or stored knowledge.
+
+### Exact source capture
+
+```bash
+node scripts/engram.mjs sources capture \
+  --corpus-context project \
+  --source-resource project:docs/architecture.md \
+  --output-file-path /tmp/architecture.snapshot \
+  --source-selector-kind heading \
+  --source-selector-value "Decision" \
+  --selected-region-output-file-path /tmp/architecture.region
+
+node scripts/engram.mjs sources resolve \
+  --corpus-context project \
+  --concept-id decisions/storage --source-id architecture \
+  --output-file-path /tmp/architecture.pinned \
+  --selected-region-output-file-path /tmp/architecture.pinned-region
+```
+
+Capture never fetches or alters Git. Outputs are exclusive mode-0600 temporary
+files outside the corpus and must be removed after use.
 
 ## Source status
 
-As a skill user, request the existing claim-level check or the grouped inventory:
-
-```text
-/engram check-sources
-/engram check-sources --summary
-/engram check-sources decisions/storage --summary
-```
-
-Bare `check-sources` emits one row per local, digest-bearing concept/source claim
-and can therefore repeat a resource. The
-`--summary` view groups exact resource strings across the bundle and includes
-total/digest-bearing/digestless/Git reference counts, concept/source IDs,
-expected digests, selectors, current-byte state, and aggregate immutable Git
-state. URLs, conversation URNs, and digestless resources
-are shown as `not-checkable`; Engram never fetches them. Malformed claims and
-conflicting expected digests are explicit rather than silently omitted.
-
-For direct machine-readable output:
-
 ```bash
-node scripts/engram.mjs check-sources --summary --json
+node scripts/engram.mjs sources check --corpus-context project
+node scripts/engram.mjs sources inventory --corpus-context project
+node scripts/engram.mjs sources inventory \
+  --corpus-context project --concept-id decisions/storage
 ```
 
-The operation is read-only. States are `unchanged`, `changed`, `missing`,
-`unresolvable`, `not-checkable`, `conflicting`, or `invalid`.
+`check` reports each local digest-bearing claim. `inventory` groups exact resource
+strings and reports reference/concept IDs, digests, selectors, current-byte state,
+and immutable Git state. URL, conversation-URN, and digestless resources are
+`not-checkable`; Engram never fetches them.
 
 ## Known limitations
 
-- v0.1 has one project bundle and no global store, named-bundle registry,
+- v0.1 has one project corpus and no global store, named-bundle registry,
   embeddings/vector search, or automatic contradiction detection.
-- Opportunistic inference runs only when the skill is active and may miss useful
-  knowledge. Systematic automatic review requires a separately packaged optional
-  Pi extension.
-- Deferred work needs an agent-owned runner or explicit blocking `flush`; Engram
-  does not install a resident daemon.
-- Exact historical reopening is local and conditional: digest-only sources cannot
-  be reconstructed, and Git-enhanced sources still depend on local objects.
+- Opportunistic inference may miss useful knowledge. Systematic review requires a
+  separately packaged optional Pi adapter.
+- Deferred work needs an agent-owned runner or explicit blocking `jobs run`;
+  Engram installs no daemon.
+- Historical reopening depends on locally available ordinary Git objects.
 - Source URLs are provenance labels, not a network retrieval service.
 - Current-tree deletion cannot erase Git history, sessions, backups, remotes, or
-  clones. The deferred private-provider Gemma serving/tool-loop timeout remains documented;
-  OpenRouter controls do not prove provider equivalence.
+  clones.
 
-## Privacy and persistence boundaries
+## Privacy and persistence
 
-- The bundle contains durable project knowledge. Decide explicitly whether your
-  project should track it in Git; Engram never stages or commits it. The safe
-  default is to version only the bundle and keep local consent policy
-  `settings.json`, private `jobs/`, and `.agents/run/` untracked.
-- For a real `.agents/` directory, an allow-list can ignore `.agents/**` and
-  re-include only `.agents/data/okf-engram/bundle/**` plus its parent directories.
-  If `.agents` is a symlink (for example to `.pi`), use the canonical physical
-  path reported by `engram where --json` in Git and ignore rules; Git cannot stage
-  files through the logical symlink. Inspect
-  `git status --short --untracked-files=all` before staging. Track a settings file only after a
-  separate deliberate decision to share that automatic-memory policy.
-- Original sources stay in place and are not copied into the bundle. A digest can
-  detect drift but cannot recover vanished bytes. Git reopening also depends on
-  the recorded local object remaining available; Engram never fetches it.
-- Explicit and inferred memories retain short evidence and opaque conversation
-  URNs, not full transcripts, thinking, or tool output. Do not ask Engram to store
-  credentials, secret values, or incidental personal data.
-- Job capsules, compact results, and capped worker logs live in access-restricted
-  operational state outside the OKF bundle and persist until safe explicit cleanup.
-  A worker is context-isolated but is not an OS sandbox. Its configured model
-  provider receives the bounded job request and source content needed for ingest.
-- Exact source outputs are caller-selected, exclusive mode-0600 temporary files
-  outside the bundle/source/Git state. The caller must remove them after use.
+- Decide explicitly whether to version the project bundle. Engram never stages or
+  commits it. Keep `settings.json`, private `jobs/`, and `.agents/run/` untracked
+  unless a separate policy says otherwise.
+- For a symlinked `.agents` root, use the canonical physical bundle path reported
+  by `corpus locate` for Git operations.
+- Original sources stay in place. Digests detect drift but cannot recover vanished
+  bytes.
+- Memories retain short evidence and opaque conversation URNs, not transcripts,
+  thinking, or tool output.
+- Private job records persist until explicit cleanup. Their configured model
+  provider receives the bounded request and source content required for ingest.
 - Project operations never fall back to global memory. Global explicit memory is
-  planned for v0.2; global automatic inference is not planned.
+  planned for v0.2; global automatic inference is disabled.
 
-## Recovery, troubleshooting, and migration
+## Recovery
 
-- `NOT_INITIALIZED`: run `/engram init` only if you intend to create the displayed
-  project store.
-- Invalid automatic-memory settings fail closed as off and are never overwritten
-  silently. Correct `.agents/data/okf-engram/settings.json`, then check status.
-  Legacy version-1 settings remain readable as generation zero and migrate to
-  version 2 on the next explicit `auto-memory on|off` write.
-- `PERSISTED_INDEX_STALE` means the concept mutation did persist but generated
-  index maintenance failed. Do not blindly repeat the mutation; inspect the
-  returned ID/hash or deletion and run `/engram lint --fix` to reconcile indexes.
-- `changed`, `missing`, or unavailable Git objects are provenance warnings, not
-  permission to rewrite concepts. Compare current and recorded evidence before a
-  conditional update.
-- Inspect queued work with `/engram jobs <job-id>`. Use `retry` only for an
-  unchanged failed/cancelled job. Reconcile `needs-review` manually; acknowledge
-  inferred outcomes before cleanup. Cancel queued/running jobs before ordinary
-  cleanup. If malformed private state prevents inspection, use the explicit
-  `jobs clean <job-id> --yes --invalid` path; it does not accept valid jobs.
-- Bundle-internal symlinks and unsafe project paths are rejected. A deliberately
-  symlinked project `.agents` root is canonicalized and supported.
+- `NOT_INITIALIZED`: use `/engram init` only when you intend to create the shown
+  project corpus.
+- Invalid automatic-memory settings fail closed and are never overwritten
+  implicitly. Repair or explicitly discard the local settings file before setting
+  policy again.
+- `PERSISTED_INDEX_STALE`: the concept mutation persisted but index maintenance
+  failed. Inspect the current concept/hash or deletion and run `corpus
+  repair-indexes`; do not repeat semantic synthesis blindly.
+- Reconcile changed/missing source evidence before conditional updates.
+- Use `jobs retry` only for unchanged failed/cancelled work. Reconcile
+  `needs-review`, acknowledge inferred-memory results, then clean explicitly.
+- Bundle-internal symlinks and unsafe paths are rejected. A symlinked project
+  `.agents` root is canonicalized and supported.
 
-v0.1 uses OKF v0.2 concepts and settings schema version 2. Unknown concept
-frontmatter is preserved. There is no automatic content migration, raw-source
-archive, global-store migration, or Git-history purge. Back up or commit the
-bundle according to project policy before manual transformations.
+v0.1 uses OKF v0.2 concepts, automatic-memory settings schema version 3, and
+private job-record schema version 2. Unknown concept frontmatter is preserved.
+There is no automatic content migration or raw-source archive.
 
 ## Acknowledgements
 

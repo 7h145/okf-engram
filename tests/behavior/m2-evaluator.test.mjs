@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { resolveProject } from "../../scripts/lib/project.mjs";
-import { getConcept, putConcept } from "../../scripts/lib/bundle.mjs";
+import { readConcept, writeConcept } from "../../scripts/lib/bundle.mjs";
 import { scanBundle } from "../../scripts/lib/scan.mjs";
 import { searchConcepts } from "../../scripts/lib/search.mjs";
 import { evaluateM2Run } from "./m2-evaluate.mjs";
@@ -39,69 +39,118 @@ async function preparedRun(t) {
   const digests = Object.fromEntries(manifest.resources.map((item) => [item.resource, item.sha256]));
   const verification = await verifyFixtureSources(root, manifest);
   const context = await resolveProject({ projectRoot: root });
-  const originalSeed = await getConcept(context, manifest.seed.id);
+  const originalSeed = await readConcept(context, manifest.seed.id);
 
   const concepts = [
     {
       id: "platform/cache-policy",
       action: "update",
-      ifMatch: originalSeed.hash,
+      expectedCurrentSha256: originalSeed.hash,
       text: draft({
-        type: "Decision", title: "Local authorization cache policy",
+        type: "Decision",
+        title: "Local authorization cache policy",
         description: "SQLite supports offline authorization reads with a six-hour entitlement TTL.",
-        sources: [source("platform-notes", "project:sources/example.md", digests["project:sources/example.md"], { kind: "heading", value: "Local authorization cache" })],
+        sources: [
+          source("platform-notes", "project:sources/example.md", digests["project:sources/example.md"], {
+            kind: "heading",
+            value: "Local authorization cache",
+          }),
+        ],
         body: "SQLite remains the local authorization cache for offline reads. Entitlements are cached for 6 hours; online refresh may shorten but not extend the TTL.[^platform-notes]\n\nSee [event delivery](/platform/event-delivery.md).\n\n[^platform-notes]: Platform notes, “Local authorization cache”.",
       }),
     },
     {
-      id: "platform/event-delivery", action: "create",
+      id: "platform/event-delivery",
+      action: "create",
       text: draft({
-        type: "Decision", title: "Edge event delivery",
+        type: "Decision",
+        title: "Edge event delivery",
         description: "JetStream supports replay after disconnected Lantern edge nodes reconnect.",
         sources: [
-          source("platform-notes", "project:sources/example.md", digests["project:sources/example.md"], { kind: "heading", value: "Event delivery" }),
+          source("platform-notes", "project:sources/example.md", digests["project:sources/example.md"], {
+            kind: "heading",
+            value: "Event delivery",
+          }),
           source("roadmap", "project:sources/roadmap.txt", digests["project:sources/roadmap.txt"]),
         ],
         body: "Lantern selected NATS JetStream for retained replay after disconnected edge nodes reconnect. At-least-once consumers use event UUIDs for idempotency.[^platform-notes] Kafka is only an unresolved future investigation, not a migration decision.[^roadmap]\n\nSee [recovery](/operations/offline-recovery.md).\n\n[^platform-notes]: Platform notes, “Event delivery”.\n[^roadmap]: Delivery roadmap planning note.",
       }),
     },
     {
-      id: "operations/offline-recovery", action: "create",
+      id: "operations/offline-recovery",
+      action: "create",
       text: draft({
-        type: "Procedure", title: "Offline stream recovery",
+        type: "Procedure",
+        title: "Offline stream recovery",
         description: "Recover retained replay while preserving evidence and observing consumer lag.",
-        sources: [source("recovery", "project:sources/offline-recovery.pdf", digests["project:sources/offline-recovery.pdf"], { kind: "page", value: "2" })],
+        sources: [
+          source("recovery", "project:sources/offline-recovery.pdf", digests["project:sources/offline-recovery.pdf"], {
+            kind: "page",
+            value: "2",
+          }),
+        ],
         body: "After reconnect, pause node intake, record consumer lag, resume the durable consumer, and verify lag declines. Do not purge the retained stream first because purge destroys replay evidence.[^recovery]\n\nSee [event delivery](/platform/event-delivery.md).\n\n[^recovery]: Offline recovery runbook, page 2.",
       }),
     },
     {
-      id: "experiments/stream-repair", action: "create",
+      id: "experiments/stream-repair",
+      action: "create",
       text: draft({
-        type: "Experiment", title: "Stream-repair experiment",
-        description: "Stream-repair remains experimental pending packet-loss and duplicate tests.", status: "draft",
+        type: "Experiment",
+        title: "Stream-repair experiment",
+        description: "Stream-repair remains experimental pending packet-loss and duplicate tests.",
+        status: "draft",
         sources: [
-          source("deployment-example", "project:sources/deployment.env.example", digests["project:sources/deployment.env.example"]),
-          source("service-matrix", "project:sources/service-matrix.xlsx", digests["project:sources/service-matrix.xlsx"], { kind: "sheet", value: "Experiments!A1:C2" }),
+          source(
+            "deployment-example",
+            "project:sources/deployment.env.example",
+            digests["project:sources/deployment.env.example"],
+          ),
+          source(
+            "service-matrix",
+            "project:sources/service-matrix.xlsx",
+            digests["project:sources/service-matrix.xlsx"],
+            { kind: "sheet", value: "Experiments!A1:C2" },
+          ),
           source("roadmap", "project:sources/roadmap.txt", digests["project:sources/roadmap.txt"]),
         ],
         body: "The stream-repair option is experimental. Packet-loss and duplicate-delivery validation remains incomplete, so its example configuration is not a production decision.[^deployment-example][^service-matrix][^roadmap]\n\n[^deployment-example]: Deployment example, redacted feature state only.\n[^service-matrix]: Service matrix, Experiments sheet.\n[^roadmap]: Delivery roadmap planning note.",
       }),
     },
     {
-      id: "platform/service-responsibilities", action: "create",
+      id: "platform/service-responsibilities",
+      action: "create",
       text: draft({
-        type: "Knowledge", title: "Lantern service responsibilities",
+        type: "Knowledge",
+        title: "Lantern service responsibilities",
         description: "Stable component responsibilities and team-level ownership from the service matrix.",
-        sources: [source("service-matrix", "project:sources/service-matrix.xlsx", digests["project:sources/service-matrix.xlsx"], { kind: "sheet", value: "Services!A1:D4" })],
+        sources: [
+          source(
+            "service-matrix",
+            "project:sources/service-matrix.xlsx",
+            digests["project:sources/service-matrix.xlsx"],
+            { kind: "sheet", value: "Services!A1:D4" },
+          ),
+        ],
         body: "The Data Plane team owns replay-worker, which replays retained events after reconnect. Edge Platform owns edge-gateway, and Identity Systems owns auth-cache.[^service-matrix]\n\n[^service-matrix]: Service matrix, Services sheet.",
       }),
     },
     {
-      id: "history/firefly-codename", action: "create",
+      id: "history/firefly-codename",
+      action: "create",
       text: draft({
-        type: "History", title: "Retired Firefly codename",
-        description: "Firefly is a retired operator-UI name retained only for archived interpretation.", status: "deprecated",
-        sources: [source("historical-scan", "project:sources/historical-scan.pdf", digests["project:sources/historical-scan.pdf"], { kind: "page", value: "1" })],
+        type: "History",
+        title: "Retired Firefly codename",
+        description: "Firefly is a retired operator-UI name retained only for archived interpretation.",
+        status: "deprecated",
+        sources: [
+          source(
+            "historical-scan",
+            "project:sources/historical-scan.pdf",
+            digests["project:sources/historical-scan.pdf"],
+            { kind: "page", value: "1" },
+          ),
+        ],
         body: "Firefly was retired in 2024 and must not be used in current labels. The name is retained only to interpret archived screenshots.[^historical-scan]\n\n[^historical-scan]: OCR of superseded historical note, page 1.",
       }),
     },
@@ -109,7 +158,9 @@ async function preparedRun(t) {
 
   const outcomes = [];
   for (const item of concepts) {
-    const result = await putConcept(context, item.id, item.text, { ifMatch: item.ifMatch });
+    const result = await writeConcept(context, item.id, item.text, {
+      expectedCurrentSha256: item.expectedCurrentSha256,
+    });
     outcomes.push({ id: item.id, status: item.action === "update" ? "updated" : "created", hash: result.hash });
   }
   const scan = await scanBundle(context.bundle);
@@ -122,30 +173,47 @@ async function preparedRun(t) {
   const retrieval = manifest.retrievalProbes.map((probe) => ({
     query: probe.query,
     topIds: searchConcepts(probe.query, scan.concepts, {
-      limit: probe.top, includeDeprecated: probe.includeDeprecated === true,
+      limit: probe.top,
+      includeDeprecated: probe.includeDeprecated === true,
     }).map((item) => item.id),
   }));
   const report = {
     version: 1,
     run: {
-      model: "deterministic-gold-fixture", provider: "node-test",
-      skillRevision: "working-tree", fixtureDigest: verification.fixtureDigest,
-      startedAt: "2026-09-05T00:00:00.000Z", completedAt: "2026-09-05T00:01:00.000Z",
+      model: "deterministic-gold-fixture",
+      provider: "node-test",
+      skillRevision: "working-tree",
+      fixtureDigest: verification.fixtureDigest,
+      startedAt: "2026-09-05T00:00:00.000Z",
+      completedAt: "2026-09-05T00:01:00.000Z",
     },
     plan: {
       targets: concepts.map((item) => ({
-        id: item.id, action: item.action, expectedHash: item.ifMatch,
-        subjects: [item.id], sourceResources: [], relatedIds: [],
+        id: item.id,
+        action: item.action,
+        expectedHash: item.expectedCurrentSha256,
+        subjects: [item.id],
+        sourceResources: [],
+        relatedIds: [],
       })),
     },
     coverage: manifest.resources.map((item) => ({
-      resource: item.resource, state: "cited", method: item.expectedMethod,
-      conceptIds: [...new Set(citations.get(item.resource))].sort(), reason: "",
+      resource: item.resource,
+      state: "cited",
+      method: item.expectedMethod,
+      conceptIds: [...new Set(citations.get(item.resource))].sort(),
+      reason: "",
     })),
     outcomes,
     review: {
-      lint: "pass", provenance: "pass", uncertainty: "pass", sensitiveData: "pass",
-      conceptBoundaries: "pass", crossLinks: "pass", retrieval, warnings: [],
+      lint: "pass",
+      provenance: "pass",
+      uncertainty: "pass",
+      sensitiveData: "pass",
+      conceptBoundaries: "pass",
+      crossLinks: "pass",
+      retrieval,
+      warnings: [],
     },
   };
   const resultPath = path.join(root, "engram-eval-result.json");
@@ -178,12 +246,32 @@ test("M2 fresh recall evaluator requires useful answers and valid concept citati
   const recall = {
     model: "deterministic-recall-fixture",
     answers: [
-      { number: 1, answer: "JetStream was chosen over RabbitMQ for disconnected replay.", citations: ["platform/event-delivery"] },
+      {
+        number: 1,
+        answer: "JetStream was chosen over RabbitMQ for disconnected replay.",
+        citations: ["platform/event-delivery"],
+      },
       { number: 2, answer: "SQLite supports outage reads with a six hour TTL.", citations: ["platform/cache-policy"] },
-      { number: 3, answer: "Pause intake, watch consumer lag, and do not purge first.", citations: ["operations/offline-recovery"] },
-      { number: 4, answer: "It is experimental because packet-loss validation is incomplete.", citations: ["experiments/stream-repair"] },
-      { number: 5, answer: "Firefly is retired and retained for archived screenshots.", citations: ["history/firefly-codename"] },
-      { number: 6, answer: "Data Plane owns replay-worker, which replays retained events.", citations: ["platform/service-responsibilities"] },
+      {
+        number: 3,
+        answer: "Pause intake, watch consumer lag, and do not purge first.",
+        citations: ["operations/offline-recovery"],
+      },
+      {
+        number: 4,
+        answer: "It is experimental because packet-loss validation is incomplete.",
+        citations: ["experiments/stream-repair"],
+      },
+      {
+        number: 5,
+        answer: "Firefly is retired and retained for archived screenshots.",
+        citations: ["history/firefly-codename"],
+      },
+      {
+        number: 6,
+        answer: "Data Plane owns replay-worker, which replays retained events.",
+        citations: ["platform/service-responsibilities"],
+      },
     ],
   };
   await fs.writeFile(recallPath, `${JSON.stringify(recall, null, 2)}\n`);

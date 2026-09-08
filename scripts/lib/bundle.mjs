@@ -8,14 +8,12 @@ import { errors } from "./errors.mjs";
 import { sha256 } from "./hash.mjs";
 import { withBundleLock } from "./lock.mjs";
 import { scanBundle } from "./scan.mjs";
-import {
-  indexDrift, inspectExistingIndexes, inspectExistingLogs, validateRootIndex, writeIndexes,
-} from "./index.mjs";
+import { indexDrift, inspectExistingIndexes, inspectExistingLogs, validateRootIndex, writeIndexes } from "./index.mjs";
 import { searchConcepts } from "./search.mjs";
 import { digestResource } from "./sources.mjs";
 import { resolvePinnedSource } from "./git-sources.mjs";
 import { gitTrackingState } from "./project.mjs";
-import { getAutoMemoryStatus, requireAutoMemoryEnabledLocked } from "./settings.mjs";
+import { getAutomaticMemoryPolicyStatus, requireAutomaticMemoryEnabledLocked } from "./settings.mjs";
 import { validateSelector } from "./selectors.mjs";
 
 async function assertBundle(context) {
@@ -26,7 +24,7 @@ async function assertBundle(context) {
   if (!stat.isDirectory()) throw errors.validation(`Bundle is not a directory: ${context.bundle}`);
 }
 
-export async function initializeBundle(context) {
+export async function initializeCorpus(context) {
   await fs.mkdir(context.bundle, { recursive: true, mode: 0o700 });
   const canonicalBundle = await fs.realpath(context.bundle);
   context.bundle = canonicalBundle;
@@ -44,9 +42,9 @@ export async function initializeBundle(context) {
       const { issues: conceptIssues } = await scanBundle(context.bundle);
       const indexIssues = await inspectExistingIndexes(context.bundle);
       const logIssues = await inspectExistingLogs(context.bundle);
-      const errorsFound = [...conceptIssues, ...indexIssues, ...logIssues].filter((issue) => (
-        issue.severity === "error" || issue.code === "symlink"
-      ));
+      const errorsFound = [...conceptIssues, ...indexIssues, ...logIssues].filter(
+        (issue) => issue.severity === "error" || issue.code === "symlink",
+      );
       if (errorsFound.length) {
         throw errors.validation(`Refusing to initialize invalid existing bundle: ${context.bundle}`, {
           issues: errorsFound,
@@ -70,7 +68,7 @@ export async function initializeBundle(context) {
   });
 }
 
-export async function getConcept(context, id) {
+export async function readConcept(context, id) {
   await assertBundle(context);
   const file = conceptPath(context.bundle, id);
   await rejectInternalSymlinks(context.bundle, file);
@@ -93,11 +91,12 @@ function assertValid(concept) {
   return result;
 }
 
-async function writeConceptLocked(context, id, concept, {
-  ifMatch,
-  operation = "put",
-  testHooks,
-} = {}) {
+async function writeConceptLocked(
+  context,
+  id,
+  concept,
+  { expectedCurrentSha256, operation = "concepts.write", testHooks } = {},
+) {
   const file = conceptPath(context.bundle, id);
   await rejectInternalSymlinks(context.bundle, file);
   let current;
@@ -108,15 +107,18 @@ async function writeConceptLocked(context, id, concept, {
   }
 
   if (current !== undefined) {
-    if (!ifMatch) throw errors.conflict(`Concept ${id} already exists; replacement requires --if-match`);
+    if (!expectedCurrentSha256) {
+      throw errors.conflict(`Concept ${id} already exists; replacement requires --expected-current-sha256`);
+    }
     const currentHash = sha256(current);
-    if (currentHash !== ifMatch) {
+    if (currentHash !== expectedCurrentSha256) {
       throw errors.conflict(`Concept ${id} changed since it was read`, {
-        expected: ifMatch, actual: currentHash,
+        expected: expectedCurrentSha256,
+        actual: currentHash,
       });
     }
-  } else if (ifMatch) {
-    throw errors.conflict(`Concept ${id} no longer exists`, { expected: ifMatch });
+  } else if (expectedCurrentSha256) {
+    throw errors.conflict(`Concept ${id} no longer exists`, { expected: expectedCurrentSha256 });
   }
 
   normalizeGenerated(concept);
@@ -143,20 +145,21 @@ async function writeConceptLocked(context, id, concept, {
   };
 }
 
-export async function putConcept(context, id, draftText, options = {}) {
+export async function writeConcept(context, id, draftText, options = {}) {
   await assertBundle(context);
   const concept = parseConcept(draftText, options.source ?? "draft");
   assertValid(concept);
   if (options.automaticMemory && !(concept.data.type === "Memory" && concept.data.capture === "inferred")) {
-    throw errors.usage("--automatic-memory requires a Memory concept with capture: inferred");
+    throw errors.usage("automatic-inferred-memory write mode requires a Memory concept with capture: inferred");
   }
-  if (options.automaticMemory
-      && (!Number.isSafeInteger(options.policyGeneration) || options.policyGeneration < 0)) {
-    throw errors.usage("--automatic-memory requires --policy-generation from auto-memory status");
+  if (options.automaticMemory && (!Number.isSafeInteger(options.policyGeneration) || options.policyGeneration < 0)) {
+    throw errors.usage(
+      "automatic-inferred-memory write mode requires --automatic-memory-policy-generation from project policy status",
+    );
   }
   return withBundleLock(context.bundle, async () => {
     if (options.automaticMemory) {
-      await requireAutoMemoryEnabledLocked(context, options.policyGeneration);
+      await requireAutomaticMemoryEnabledLocked(context, options.policyGeneration);
     }
     return writeConceptLocked(context, id, concept, options);
   });
@@ -171,7 +174,7 @@ export async function listConcepts(context, { type } = {}) {
   };
 }
 
-export async function searchBundle(context, query, options = {}) {
+export async function searchCorpus(context, query, options = {}) {
   await assertBundle(context);
   const { concepts, issues } = await scanBundle(context.bundle);
   return { results: searchConcepts(query, concepts, options), issues };
@@ -195,7 +198,10 @@ async function linkIssues(bundle, concepts) {
         decoded = decodeURIComponent(link);
       } catch {
         issues.push({
-          severity: "warning", category: "profile", code: "invalid-link", id: item.id,
+          severity: "warning",
+          category: "profile",
+          code: "invalid-link",
+          id: item.id,
           message: `Invalid percent encoding in link: ${rawLink}`,
         });
         continue;
@@ -205,16 +211,20 @@ async function linkIssues(bundle, concepts) {
         : path.resolve(path.dirname(item.path), decoded);
       const relative = path.relative(bundle, target);
       if (relative.startsWith("..") || path.isAbsolute(relative)) continue;
-      if (!(await pathExists(target))) issues.push({
-        severity: "warning", category: "profile", code: "broken-link", id: item.id,
-        message: `Broken bundle link: ${rawLink}`,
-      });
+      if (!(await pathExists(target)))
+        issues.push({
+          severity: "warning",
+          category: "profile",
+          code: "broken-link",
+          id: item.id,
+          message: `Broken bundle link: ${rawLink}`,
+        });
     }
   }
   return issues;
 }
 
-export async function checkSources(context, id) {
+export async function inspectSourceClaims(context, id) {
   await assertBundle(context);
   const { concepts } = await scanBundle(context.bundle);
   const selected = id ? concepts.filter((item) => item.id === id) : concepts;
@@ -239,8 +249,11 @@ export async function checkSources(context, id) {
       if (!source.digest || !/^(?:project:|file:)/.test(source.resource)) continue;
       if (!/^sha256:[0-9a-f]{64}$/.test(source.digest)) {
         results.push({
-          id: item.id, resource: source.resource, expected: source.digest,
-          state: "invalid", error: "source digest must be sha256:<64 lowercase hex characters>",
+          id: item.id,
+          resource: source.resource,
+          expected: source.digest,
+          state: "invalid",
+          error: "source digest must be sha256:<64 lowercase hex characters>",
         });
         continue;
       }
@@ -254,17 +267,25 @@ export async function checkSources(context, id) {
       try {
         const actual = (await digestResource(source.resource, context.projectRoot)).digest;
         results.push({
-          id: item.id, sourceId: source.id, resource: source.resource,
-          expected: source.digest, actual,
+          id: item.id,
+          sourceId: source.id,
+          resource: source.resource,
+          expected: source.digest,
+          actual,
           state: actual === source.digest ? "unchanged" : "changed",
-          gitState, gitError,
+          gitState,
+          gitError,
         });
       } catch (error) {
         results.push({
-          id: item.id, sourceId: source.id, resource: source.resource,
+          id: item.id,
+          sourceId: source.id,
+          resource: source.resource,
           expected: source.digest,
           state: error.code === "NOT_FOUND" ? "missing" : "unresolvable",
-          error: error.message, gitState, gitError,
+          error: error.message,
+          gitState,
+          gitError,
         });
       }
     }
@@ -272,9 +293,7 @@ export async function checkSources(context, id) {
   return results;
 }
 
-const SUMMARY_STATES = [
-  "unchanged", "changed", "missing", "unresolvable", "not-checkable", "conflicting", "invalid",
-];
+const SUMMARY_STATES = ["unchanged", "changed", "missing", "unresolvable", "not-checkable", "conflicting", "invalid"];
 
 function compareText(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -283,7 +302,11 @@ function compareText(left, right) {
 function canonicalValue(value) {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.keys(value).sort(compareText).map((key) => [key, canonicalValue(value[key])]));
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort(compareText)
+        .map((key) => [key, canonicalValue(value[key])]),
+    );
   }
   return value;
 }
@@ -356,7 +379,7 @@ async function inspectSummaryLive(context, resource, expectedDigests) {
   }
 }
 
-export async function summarizeSources(context, id) {
+export async function inventorySources(context, id) {
   await assertBundle(context);
   const { concepts } = await scanBundle(context.bundle);
   const selected = id ? concepts.filter((item) => item.id === id) : concepts;
@@ -379,13 +402,18 @@ export async function summarizeSources(context, id) {
     sources.forEach((source, sourceIndex) => {
       if (!source || typeof source !== "object" || Array.isArray(source)) {
         invalidClaims.push({
-          conceptId: item.id, sourceIndex, state: "invalid", error: "source entry must be a mapping",
+          conceptId: item.id,
+          sourceIndex,
+          state: "invalid",
+          error: "source entry must be a mapping",
         });
         return;
       }
       if (typeof source.resource !== "string" || !source.resource.trim()) {
         invalidClaims.push({
-          conceptId: item.id, sourceIndex, state: "invalid",
+          conceptId: item.id,
+          sourceIndex,
+          state: "invalid",
           error: "source resource must be a non-empty string",
         });
         return;
@@ -399,12 +427,16 @@ export async function summarizeSources(context, id) {
 
   const resources = [];
   for (const [resource, claims] of [...grouped.entries()].sort(([left], [right]) => compareText(left, right))) {
-    const expectedDigests = [...new Set(claims.map(({ source }) => source.digest).filter((value) => (
-      typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value)
-    )))].sort(compareText);
-    const issues = claims.flatMap(({ source, conceptId, sourceIndex }) => (
-      sourceMetadataIssues(source, conceptId, sourceIndex)
-    ));
+    const expectedDigests = [
+      ...new Set(
+        claims
+          .map(({ source }) => source.digest)
+          .filter((value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value)),
+      ),
+    ].sort(compareText);
+    const issues = claims.flatMap(({ source, conceptId, sourceIndex }) =>
+      sourceMetadataIssues(source, conceptId, sourceIndex),
+    );
     const live = await inspectSummaryLive(context, resource, expectedDigests);
     const git = await inspectSummaryGit(context, claims);
     issues.push(...git.issues);
@@ -422,25 +454,27 @@ export async function summarizeSources(context, id) {
     const summary = {
       resource,
       referenceCount: claims.length,
-      digestReferenceCount: claims.filter(({ source }) => (
-        typeof source.digest === "string" && /^sha256:[0-9a-f]{64}$/.test(source.digest)
-      )).length,
+      digestReferenceCount: claims.filter(
+        ({ source }) => typeof source.digest === "string" && /^sha256:[0-9a-f]{64}$/.test(source.digest),
+      ).length,
       digestlessReferenceCount: claims.filter(({ source }) => source.digest === undefined).length,
       gitReferenceCount: git.gitReferenceCount,
       conceptIds: [...new Set(claims.map(({ conceptId }) => conceptId))].sort(compareText),
-      sourceIds: [...new Set(claims.map(({ source }) => source.id).filter((value) => (
-        typeof value === "string" && value.trim()
-      )))].sort(compareText),
+      sourceIds: [
+        ...new Set(claims.map(({ source }) => source.id).filter((value) => typeof value === "string" && value.trim())),
+      ].sort(compareText),
       expectedDigests,
-      selectors: uniqueValues(claims.flatMap(({ source }) => {
-        if (source.selector === undefined) return [];
-        try {
-          const selector = validateSelector(source.selector);
-          return [{ kind: selector.kind, value: selector.value }];
-        } catch {
-          return [];
-        }
-      })),
+      selectors: uniqueValues(
+        claims.flatMap(({ source }) => {
+          if (source.selector === undefined) return [];
+          try {
+            const selector = validateSelector(source.selector);
+            return [{ kind: selector.kind, value: selector.value }];
+          } catch {
+            return [];
+          }
+        }),
+      ),
       state,
     };
     if (reason) summary.reason = reason;
@@ -449,18 +483,22 @@ export async function summarizeSources(context, id) {
     if (live.error) summary.error = live.error;
     summary.gitState = git.gitState;
     summary.gitStates = git.gitStates;
-    summary.issues = issues.sort((left, right) => (
-      compareText(left.conceptId, right.conceptId) || left.sourceIndex - right.sourceIndex || compareText(left.code, right.code)
-    ));
+    summary.issues = issues.sort(
+      (left, right) =>
+        compareText(left.conceptId, right.conceptId) ||
+        left.sourceIndex - right.sourceIndex ||
+        compareText(left.code, right.code),
+    );
     resources.push(summary);
   }
 
-  invalidClaims.sort((left, right) => (
-    compareText(left.conceptId, right.conceptId) || (left.sourceIndex ?? -1) - (right.sourceIndex ?? -1)
-  ));
-  const states = Object.fromEntries(SUMMARY_STATES.map((state) => [
-    state, resources.filter((item) => item.state === state).length,
-  ]));
+  invalidClaims.sort(
+    (left, right) =>
+      compareText(left.conceptId, right.conceptId) || (left.sourceIndex ?? -1) - (right.sourceIndex ?? -1),
+  );
+  const states = Object.fromEntries(
+    SUMMARY_STATES.map((state) => [state, resources.filter((item) => item.state === state).length]),
+  );
   return {
     resources,
     invalidClaims,
@@ -473,38 +511,49 @@ export async function summarizeSources(context, id) {
   };
 }
 
-export async function lintBundle(context, { fix = false } = {}) {
+export async function validateCorpus(context, { fix = false } = {}) {
   await assertBundle(context);
   const inspect = async () => {
     const { concepts, issues: scanIssues } = await scanBundle(context.bundle);
     const issues = [
       ...scanIssues,
-      ...await linkIssues(context.bundle, concepts),
-      ...await inspectExistingLogs(context.bundle),
+      ...(await linkIssues(context.bundle, concepts)),
+      ...(await inspectExistingLogs(context.bundle)),
     ];
     const { drift, issues: indexIssues } = await indexDrift(concepts, context.bundle);
     issues.push(...indexIssues);
-    drift.forEach(({ file, reason }) => issues.push({
-      severity: "warning", category: "derived", code: "index-drift", path: file,
-      message: `Generated index is ${reason}`,
-    }));
-    const sources = await checkSources(context);
-    sources.filter((item) => item.state !== "unchanged").forEach((item) => issues.push({
-      severity: "warning",
-      category: "profile",
-      code: item.state === "invalid" ? "source-invalid" : "source-drift",
-      id: item.id,
-      message: item.state === "invalid"
-        ? item.error
-        : `${item.resource} is ${item.state}`,
-    }));
-    sources.filter((item) => item.gitState && item.gitState !== "verified").forEach((item) => issues.push({
-      severity: "warning",
-      category: "profile",
-      code: "source-git-unavailable",
-      id: item.id,
-      message: `${item.resource} immutable Git source is ${item.gitState}`,
-    }));
+    drift.forEach(({ file, reason }) =>
+      issues.push({
+        severity: "warning",
+        category: "derived",
+        code: "index-drift",
+        path: file,
+        message: `Generated index is ${reason}`,
+      }),
+    );
+    const sources = await inspectSourceClaims(context);
+    sources
+      .filter((item) => item.state !== "unchanged")
+      .forEach((item) =>
+        issues.push({
+          severity: "warning",
+          category: "profile",
+          code: item.state === "invalid" ? "source-invalid" : "source-drift",
+          id: item.id,
+          message: item.state === "invalid" ? item.error : `${item.resource} is ${item.state}`,
+        }),
+      );
+    sources
+      .filter((item) => item.gitState && item.gitState !== "verified")
+      .forEach((item) =>
+        issues.push({
+          severity: "warning",
+          category: "profile",
+          code: "source-git-unavailable",
+          id: item.id,
+          message: `${item.resource} immutable Git source is ${item.gitState}`,
+        }),
+      );
     return { concepts, drift, issues };
   };
   const run = async () => {
@@ -529,21 +578,13 @@ export async function lintBundle(context, { fix = false } = {}) {
   return fix ? withBundleLock(context.bundle, run) : run();
 }
 
-export async function reindexBundle(context) {
-  await assertBundle(context);
-  return withBundleLock(context.bundle, async () => {
-    const { concepts } = await scanBundle(context.bundle);
-    return writeIndexes(concepts, context.bundle);
-  });
-}
-
-export async function statusBundle(context) {
+export async function inspectCorpusStatus(context) {
   await assertBundle(context);
   const { concepts, issues } = await scanBundle(context.bundle);
   const { drift, issues: indexIssues } = await indexDrift(concepts, context.bundle);
   const git = await gitTrackingState(context);
-  const sources = await checkSources(context);
-  const autoMemory = await getAutoMemoryStatus(context, {
+  const sources = await inspectSourceClaims(context);
+  const automaticMemory = await getAutomaticMemoryPolicyStatus(context, {
     tolerateInvalid: true,
     allowExplicitBundle: true,
   });
@@ -566,12 +607,12 @@ export async function statusBundle(context) {
     indexIssues,
     sourceStates,
     gitSourceStates,
-    autoMemory,
+    automaticMemory,
     git,
   };
 }
 
-export async function deprecateConcept(context, id, { reason, ifMatch }) {
+export async function deprecateConcept(context, id, { reason, expectedCurrentSha256 }) {
   await assertBundle(context);
   if (!reason) throw errors.usage("deprecate requires --reason");
   return withBundleLock(context.bundle, async () => {
@@ -585,16 +626,19 @@ export async function deprecateConcept(context, id, { reason, ifMatch }) {
       throw error;
     }
     const concept = appendDeprecation(parseConcept(text, id), reason);
-    return writeConceptLocked(context, id, concept, { ifMatch, operation: "deprecate" });
+    return writeConceptLocked(context, id, concept, { expectedCurrentSha256, operation: "concepts.deprecate" });
   });
 }
 
-export async function deleteConcept(context, id, { ifMatch, yes = false }) {
+export async function deleteConcept(context, id, { expectedCurrentSha256, confirmCurrentTreeDeletion = false }) {
   await assertBundle(context);
-  if (!yes) throw errors.confirmation(
-    "Deletion requires --yes; current-tree removal cannot erase Git history, sessions, backups, remotes, or clones",
-  );
-  if (!ifMatch) throw errors.conflict("Deletion requires --if-match with the current concept hash");
+  if (!confirmCurrentTreeDeletion)
+    throw errors.confirmation(
+      "Deletion requires --confirm-current-tree-deletion; current-tree removal cannot erase Git history, sessions, backups, remotes, or clones",
+    );
+  if (!expectedCurrentSha256) {
+    throw errors.conflict("Deletion requires --expected-current-sha256 with the current concept hash");
+  }
   return withBundleLock(context.bundle, async () => {
     const file = conceptPath(context.bundle, id);
     await rejectInternalSymlinks(context.bundle, file);
@@ -606,18 +650,26 @@ export async function deleteConcept(context, id, { ifMatch, yes = false }) {
       throw error;
     }
     const actual = sha256(text);
-    if (actual !== ifMatch) throw errors.conflict(`Concept ${id} changed since it was read`, {
-      expected: ifMatch, actual,
-    });
+    if (actual !== expectedCurrentSha256)
+      throw errors.conflict(`Concept ${id} changed since it was read`, {
+        expected: expectedCurrentSha256,
+        actual,
+      });
     await fs.unlink(file);
     let indexResult;
     try {
       const { concepts } = await scanBundle(context.bundle);
       indexResult = await writeIndexes(concepts, context.bundle);
     } catch (error) {
-      throw errors.persistedIndexStale({
-        operation: "delete", id, path: file, deleted: true,
-      }, error);
+      throw errors.persistedIndexStale(
+        {
+          operation: "concepts.delete",
+          id,
+          path: file,
+          deleted: true,
+        },
+        error,
+      );
     }
     return {
       id,

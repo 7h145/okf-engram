@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { resolveProject } from "../../scripts/lib/project.mjs";
-import { initializeBundle, putConcept } from "../../scripts/lib/bundle.mjs";
+import { initializeCorpus, writeConcept } from "../../scripts/lib/bundle.mjs";
 import { fixtureRoot, loadManifest, verifyFixtureSources } from "./m2-fixture.mjs";
 
 const output = process.argv[2] ? path.resolve(process.argv[2]) : undefined;
@@ -23,9 +23,9 @@ const verification = await verifyFixtureSources(output, manifest);
 if (verification.findings.length) throw new Error(JSON.stringify(verification.findings));
 
 const context = await resolveProject({ projectRoot: output });
-await initializeBundle(context);
+await initializeCorpus(context);
 const seedDraft = await fs.readFile(path.join(fixtureRoot, manifest.seed.draft), "utf8");
-const seed = await putConcept(context, manifest.seed.id, seedDraft, {
+const seed = await writeConcept(context, manifest.seed.id, seedDraft, {
   source: manifest.seed.draft,
 });
 
@@ -79,16 +79,20 @@ const template = {
     warnings: [],
   },
 };
-await fs.writeFile(
-  path.join(output, "engram-eval-result.template.json"),
-  `${JSON.stringify(template, null, 2)}\n`,
-  { mode: 0o600 },
-);
+await fs.writeFile(path.join(output, "engram-eval-result.template.json"), `${JSON.stringify(template, null, 2)}\n`, {
+  mode: 0o600,
+});
 
-console.log(JSON.stringify({
-  projectRoot: output,
-  bundle: context.bundle,
-  fixtureDigest: verification.fixtureDigest,
-  seed: { id: manifest.seed.id, hash: seed.hash },
-  resultPath: path.join(output, "engram-eval-result.json"),
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      projectRoot: output,
+      bundle: context.bundle,
+      fixtureDigest: verification.fixtureDigest,
+      seed: { id: manifest.seed.id, hash: seed.hash },
+      resultPath: path.join(output, "engram-eval-result.json"),
+    },
+    null,
+    2,
+  ),
+);

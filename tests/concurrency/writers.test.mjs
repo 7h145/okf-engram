@@ -14,66 +14,148 @@ function run(args) {
     const child = spawn(process.execPath, [cli, ...args]);
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
 }
 
-const draft = (title) => `---\ntype: Memory\ntitle: ${title}\ndescription: Concurrent test memory.\ncapture: inferred\nsources:\n  - resource: urn:okf-engram:conversation:concurrency\n---\n# Memory\n\nConcurrent write.\n`;
+const draft = (title) =>
+  `---\ntype: Memory\ntitle: ${title}\ndescription: Concurrent test memory.\ncapture: inferred\nsources:\n  - resource: urn:okf-engram:conversation:concurrency\n---\n# Memory\n\nConcurrent write.\n`;
 
 function projectArgs(root) {
-  return ["--project-root", root, "--json"];
+  return ["--project-root-path", root];
 }
 
 test("concurrent creates serialize and do not clobber", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram-concurrency-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
-  assert.equal((await run(["init", "--project-root", root])).code, 0);
+  assert.equal(
+    (await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root])).code,
+    0,
+  );
   const a = path.join(root, "a.md");
   const b = path.join(root, "b.md");
   await fs.writeFile(a, draft("Writer A"));
   await fs.writeFile(b, draft("Writer B"));
 
   const results = await Promise.all([
-    run(["put", "memories/race", "--from", a, "--project-root", root]),
-    run(["put", "memories/race", "--from", b, "--project-root", root]),
+    run([
+      "concepts",
+      "write",
+      "--concept-id",
+      "memories/race",
+      "--corpus-context",
+      "project",
+      "--document-file-path",
+      a,
+      "--project-root-path",
+      root,
+    ]),
+    run([
+      "concepts",
+      "write",
+      "--concept-id",
+      "memories/race",
+      "--corpus-context",
+      "project",
+      "--document-file-path",
+      b,
+      "--project-root-path",
+      root,
+    ]),
   ]);
   assert.deepEqual(results.map((result) => result.code).sort(), [0, 5]);
 
-  const get = await run(["get", "memories/race", "--project-root", root, "--json"]);
-  assert.equal(get.code, 0, get.stderr);
-  const stored = JSON.parse(get.stdout).text;
+  const readResult = await run([
+    "concepts",
+    "read",
+    "--concept-id",
+    "memories/race",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(readResult.code, 0, readResult.stderr);
+  const stored = JSON.parse(readResult.stdout).text;
   assert.ok(stored.includes("Writer A") || stored.includes("Writer B"));
 });
 
 test("R1 opt-out and automatic writes share one ordering lock", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram-policy-race-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
-  assert.equal((await run(["init", ...projectArgs(root)])).code, 0);
-  assert.equal((await run(["auto-memory", "on", ...projectArgs(root)])).code, 0);
+  assert.equal((await run(["corpus", "initialize", "--corpus-context", "project", ...projectArgs(root)])).code, 0);
+  assert.equal(
+    (
+      await run([
+        "policy",
+        "project",
+        "automatic-memory",
+        "enable",
+        "--corpus-context",
+        "project",
+        ...projectArgs(root),
+      ])
+    ).code,
+    0,
+  );
 
   const candidate = path.join(root, "candidate.md");
   await fs.writeFile(candidate, draft("Policy race"));
-  const [off, put] = await Promise.all([
-    run(["auto-memory", "off", ...projectArgs(root)]),
+  const [disabled, writeResult] = await Promise.all([
+    run(["policy", "project", "automatic-memory", "disable", "--corpus-context", "project", ...projectArgs(root)]),
     run([
-      "put", "memories/policy-race", "--from", candidate,
-      "--automatic-memory", "--policy-generation", "1", ...projectArgs(root),
+      "concepts",
+      "write",
+      "--concept-id",
+      "memories/policy-race",
+      "--corpus-context",
+      "project",
+      "--document-file-path",
+      candidate,
+      "--write-mode",
+      "automatic-inferred-memory",
+      "--automatic-memory-policy-generation",
+      "1",
+      ...projectArgs(root),
     ]),
   ]);
 
-  assert.equal(off.code, 0, off.stderr);
-  assert.ok([0, 4].includes(put.code), put.stderr);
-  const status = await run(["auto-memory", "status", ...projectArgs(root)]);
+  assert.equal(disabled.code, 0, disabled.stderr);
+  assert.ok([0, 4].includes(writeResult.code), writeResult.stderr);
+  const status = await run([
+    "policy",
+    "project",
+    "automatic-memory",
+    "status",
+    "--corpus-context",
+    "project",
+    ...projectArgs(root),
+  ]);
   assert.equal(status.code, 0, status.stderr);
-  assert.equal(JSON.parse(status.stdout).autoMemory, "off");
+  assert.equal(JSON.parse(status.stdout).automaticMemory, "off");
 
   const after = await run([
-    "put", "memories/after-off", "--from", candidate,
-    "--automatic-memory", "--policy-generation", "1", ...projectArgs(root),
+    "concepts",
+    "write",
+    "--concept-id",
+    "memories/after-off",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    candidate,
+    "--write-mode",
+    "automatic-inferred-memory",
+    "--automatic-memory-policy-generation",
+    "1",
+    ...projectArgs(root),
   ]);
   assert.equal(after.code, 4, after.stderr);
-  assert.match(after.stderr, /AUTO_MEMORY_DISABLED/);
+  assert.match(after.stderr, /AUTOMATIC_MEMORY_DISABLED/);
 });

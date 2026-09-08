@@ -24,9 +24,11 @@ function posixPath(value) {
 function isLfsPointer(bytes) {
   if (bytes.length > 4096) return false;
   const text = bytes.toString("utf8");
-  return text.startsWith("version https://git-lfs.github.com/spec/v1\n")
-    && /^oid sha256:[0-9a-f]{64}$/m.test(text)
-    && /^size [0-9]+$/m.test(text);
+  return (
+    text.startsWith("version https://git-lfs.github.com/spec/v1\n") &&
+    /^oid sha256:[0-9a-f]{64}$/m.test(text) &&
+    /^size [0-9]+$/m.test(text)
+  );
 }
 
 async function git(cwd, args, { encoding = "utf8" } = {}) {
@@ -81,8 +83,8 @@ function repositoryLocator(repositoryRoot, projectRoot) {
   return pathToFileURL(repositoryRoot).href;
 }
 
-async function commitOid(repositoryRoot, ref) {
-  const result = await git(repositoryRoot, ["rev-parse", "--verify", `${ref}^{commit}`]);
+async function commitOid(repositoryRoot, gitRevision) {
+  const result = await git(repositoryRoot, ["rev-parse", "--verify", `${gitRevision}^{commit}`]);
   return result.ok ? result.stdout.trim() : undefined;
 }
 
@@ -95,7 +97,9 @@ async function objectAlgorithm(repositoryRoot, oid) {
 async function treeBlob(repositoryRoot, commit, gitPath) {
   const result = await git(repositoryRoot, ["ls-tree", "-z", commit, "--", gitPath], { encoding: "buffer" });
   if (!result.ok || !result.stdout.length) return undefined;
-  const record = result.stdout.subarray(0, result.stdout.indexOf(0) < 0 ? undefined : result.stdout.indexOf(0)).toString("utf8");
+  const record = result.stdout
+    .subarray(0, result.stdout.indexOf(0) < 0 ? undefined : result.stdout.indexOf(0))
+    .toString("utf8");
   const match = /^(\d+) (\S+) ([0-9a-f]+)\t(.+)$/s.exec(record);
   if (!match || match[2] !== "blob" || match[4] !== gitPath) return undefined;
   return { mode: match[1], oid: match[3] };
@@ -131,14 +135,20 @@ export function validateGitIdentity(identity) {
   if (identity.remote !== undefined) {
     throw errors.validation("source git identity must not retain a remote URL");
   }
-  if (typeof identity.repository !== "string"
-      || !(identity.repository.startsWith("project:") || identity.repository.startsWith("file:"))) {
+  if (
+    typeof identity.repository !== "string" ||
+    !(identity.repository.startsWith("project:") || identity.repository.startsWith("file:"))
+  ) {
     throw errors.validation("source git.repository must be a project: or file: locator");
   }
   if (identity.repository.startsWith("project:")) {
     const relative = identity.repository.slice("project:".length);
-    if (!relative || path.posix.isAbsolute(relative) || relative.includes("\\")
-        || relative.split("/").some((part) => !part || part === ".." || (part === "." && relative !== "."))) {
+    if (
+      !relative ||
+      path.posix.isAbsolute(relative) ||
+      relative.includes("\\") ||
+      relative.split("/").some((part) => !part || part === ".." || (part === "." && relative !== "."))
+    ) {
       throw errors.validation("source git.repository has an unsafe project locator");
     }
   } else {
@@ -153,9 +163,14 @@ export function validateGitIdentity(identity) {
   if (identity.commit.algorithm !== identity.blob.algorithm) {
     throw errors.validation("source git commit/blob algorithms must match");
   }
-  if (typeof identity.path !== "string" || !identity.path || path.posix.isAbsolute(identity.path)
-      || identity.path.split("/").some((part) => !part || part === "." || part === "..")
-      || identity.path.includes("\\") || identity.path.includes("\0")) {
+  if (
+    typeof identity.path !== "string" ||
+    !identity.path ||
+    path.posix.isAbsolute(identity.path) ||
+    identity.path.split("/").some((part) => !part || part === "." || part === "..") ||
+    identity.path.includes("\\") ||
+    identity.path.includes("\0")
+  ) {
     throw errors.validation("source git.path must be a safe repository-relative POSIX path");
   }
   return identity;
@@ -171,13 +186,15 @@ async function readBounded(file) {
 }
 
 async function safeOutputPath(context, output, sourcePath, otherOutput, protectedRoots = []) {
-  if (!output) throw errors.usage("source capture requires --to FILE");
+  if (!output) throw errors.usage("source capture requires --output-file-path");
   const lexical = path.resolve(output);
   if (lexical === path.resolve(sourcePath) || (otherOutput && lexical === path.resolve(otherOutput))) {
     throw errors.unsafePath("Source output must not overwrite the source or another output");
   }
-  if (lexical.split(path.sep).some((part) => part.toLocaleLowerCase("en-US") === ".git")
-      || protectedRoots.some((root) => isContained(root, lexical))) {
+  if (
+    lexical.split(path.sep).some((part) => part.toLocaleLowerCase("en-US") === ".git") ||
+    protectedRoots.some((root) => isContained(root, lexical))
+  ) {
     throw errors.unsafePath("Source output must not write inside Git administrative state");
   }
   if (isContained(context.bundle, lexical) || isContained(context.logicalBundle, lexical)) {
@@ -186,8 +203,11 @@ async function safeOutputPath(context, output, sourcePath, otherOutput, protecte
   await fs.mkdir(path.dirname(lexical), { recursive: true, mode: 0o700 });
   const parent = await fs.realpath(path.dirname(lexical));
   const target = path.join(parent, path.basename(lexical));
-  if (target === sourcePath || isContained(context.bundle, target)
-      || protectedRoots.some((root) => isContained(root, target))) {
+  if (
+    target === sourcePath ||
+    isContained(context.bundle, target) ||
+    protectedRoots.some((root) => isContained(root, target))
+  ) {
     throw errors.unsafePath("Source output resolves to a protected source, bundle, or Git administrative path");
   }
   try {
@@ -226,9 +246,7 @@ async function selectorResult(bytes, selector, sourcePath) {
   return selector ? selectSourceRegion(bytes, validateSelector(selector), { filename: sourcePath }) : undefined;
 }
 
-async function persistCapture(context, sourcePath, bytes, {
-  output, regionOutput, selector, protectedRoots = [],
-}) {
+async function persistCapture(context, sourcePath, bytes, { output, regionOutput, selector, protectedRoots = [] }) {
   const selected = await selectorResult(bytes, selector, sourcePath);
   const outputs = await prepareOutputs(context, sourcePath, output, regionOutput, protectedRoots);
   await writeExclusive(outputs.raw, bytes);
@@ -237,16 +255,18 @@ async function persistCapture(context, sourcePath, bytes, {
   }
   return {
     output: outputs.raw,
-    region: selected ? {
-      ...selected,
-      output: outputs.region && selected.state === "selected" ? outputs.region : undefined,
-    } : undefined,
+    region: selected
+      ? {
+          ...selected,
+          output: outputs.region && selected.state === "selected" ? outputs.region : undefined,
+        }
+      : undefined,
   };
 }
 
-async function pinnedCandidate(repositoryRoot, sourcePath, projectRoot, ref = "HEAD") {
-  const commit = await commitOid(repositoryRoot, ref);
-  if (!commit) return { state: "digest-only", reason: "ref-unavailable" };
+async function pinnedCandidate(repositoryRoot, sourcePath, projectRoot, gitRevision = "HEAD") {
+  const commit = await commitOid(repositoryRoot, gitRevision);
+  if (!commit) return { state: "digest-only", reason: "git-revision-unavailable" };
   const gitPath = posixPath(path.relative(repositoryRoot, sourcePath));
   if (!gitPath || gitPath.startsWith("../")) return { state: "digest-only", reason: "source-outside-repository" };
   const blob = await treeBlob(repositoryRoot, commit, gitPath);
@@ -267,11 +287,15 @@ async function pinnedCandidate(repositoryRoot, sourcePath, projectRoot, ref = "H
 }
 
 export async function captureSource(context, resource, options = {}) {
-  if (options.ref !== undefined && (
-    typeof options.ref !== "string" || !options.ref || options.ref.startsWith("-")
-    || options.ref.length > 1024 || /[\0\r\n]/.test(options.ref)
-  )) {
-    throw errors.usage("--ref must be a bounded Git revision that does not start with '-'");
+  if (
+    options.gitRevision !== undefined &&
+    (typeof options.gitRevision !== "string" ||
+      !options.gitRevision ||
+      options.gitRevision.startsWith("-") ||
+      options.gitRevision.length > 1024 ||
+      /[\0\r\n]/.test(options.gitRevision))
+  ) {
+    throw errors.usage("--git-revision must be bounded and must not start with '-'");
   }
   const sourcePath = await resolveLocalResource(resource, context.projectRoot);
   let bytes = await readBounded(sourcePath);
@@ -280,11 +304,11 @@ export async function captureSource(context, resource, options = {}) {
   const repository = await repositoryFor(sourcePath);
   let gitResult;
 
-  if (options.ref) {
+  if (options.gitRevision) {
     if (repository.state !== "available") {
       return { state: "unavailable", resource, git: { state: "unavailable", reason: repository.reason } };
     }
-    const candidate = await pinnedCandidate(repository.root, sourcePath, context.projectRoot, options.ref);
+    const candidate = await pinnedCandidate(repository.root, sourcePath, context.projectRoot, options.gitRevision);
     if (candidate.state !== "pinned") {
       return { state: "unavailable", resource, git: { state: "unavailable", reason: candidate.reason } };
     }
@@ -311,9 +335,7 @@ export async function captureSource(context, resource, options = {}) {
   if (isLfsPointer(bytes)) {
     return { state: "unavailable", resource, git: { state: "unavailable", reason: "lfs-pointer" } };
   }
-  const protectedRoots = repository.state === "available"
-    ? await gitAdministrativeRoots(repository.root)
-    : [];
+  const protectedRoots = repository.state === "available" ? await gitAdministrativeRoots(repository.root) : [];
   const persisted = await persistCapture(context, sourcePath, bytes, { ...options, protectedRoots });
   const result = {
     state: "captured",
@@ -323,7 +345,7 @@ export async function captureSource(context, resource, options = {}) {
     size: bytes.length,
     selector: options.selector,
     git: gitResult,
-    liveState: options.ref ? (liveBytes.equals(bytes) ? "unchanged" : "changed") : undefined,
+    liveState: options.gitRevision ? (liveBytes.equals(bytes) ? "unchanged" : "changed") : undefined,
     ...persisted,
   };
   Object.defineProperty(result, "bytes", { value: bytes, enumerable: false });
@@ -341,7 +363,10 @@ async function resolveRepository(locator, projectRoot) {
   if (!stat?.isDirectory()) return { state: "unavailable", reason: "repository-unavailable" };
   const detected = await repositoryFor(path.join(root, ".engram-probe"));
   if (detected.state !== "available") {
-    return { state: "unavailable", reason: detected.reason === "git-unavailable" ? "git-unavailable" : "repository-unavailable" };
+    return {
+      state: "unavailable",
+      reason: detected.reason === "git-unavailable" ? "git-unavailable" : "repository-unavailable",
+    };
   }
   if (detected.root !== root) return { state: "unavailable", reason: "identity-mismatch" };
   return { state: "available", root };
@@ -398,11 +423,11 @@ export async function resolvePinnedSource(context, source, options = {}) {
   }
   const persisted = options.output
     ? await persistCapture(context, sourcePath, bytes, {
-      output: options.output,
-      regionOutput: options.regionOutput,
-      selector: source.selector,
-      protectedRoots: await gitAdministrativeRoots(repository.root),
-    })
+        output: options.output,
+        regionOutput: options.regionOutput,
+        selector: source.selector,
+        protectedRoots: await gitAdministrativeRoots(repository.root),
+      })
     : { region: options.verifyOnly ? undefined : await selectorResult(bytes, source.selector, sourcePath) };
   let liveState;
   try {

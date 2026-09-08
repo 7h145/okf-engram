@@ -2,24 +2,36 @@
 
 ## Unreleased
 
+- Replace the pre-stability helper grammar with the canonical agent DSL: domain
+  subcommands, explicit corpus context, descriptive typed long options, JSON by
+  default, context-qualified results, semantic-operation declarations, and strict
+  rejection of obsolete/ambiguous forms.
+- Add a strict sub-1-KiB human `/engram` subset with memorable safe shortcuts and
+  no destructive aliases; detailed help defines every agent domain and labels
+  semantic workflows versus deterministic helper operations.
+- Align source, tests, prompts, documentation, private job records, settings, and
+  errors with the canonical corpus/concepts/sources/jobs/policy vocabulary.
+  Completed inferred-memory outcomes are `jobs results`; acknowledgement records
+  presentation and never deletes the result, job, or knowledge.
+- Use automatic-memory settings schema version 3 and private job-record schema
+  version 2. Invalid private pre-release state fails closed and can be discarded
+  explicitly; no compatibility branches are retained.
 - Raise new worker event capture from 1 MiB to 10 MiB after dogfood measured a
   successful 11-source job at about 2 MiB; retain a hard 16 MiB capsule bound and
   validate each capsule's frozen limit instead of equating it with today's default.
 - Add explicit fail-closed cleanup for structurally unreadable private jobs with
-  `jobs clean <id> --yes --invalid`; valid jobs and symlinked content cannot use it
-  to bypass terminal, reconciliation, or delivery checks.
+  `jobs discard-invalid --job-id ID --confirm-invalid-job-deletion`; valid jobs
+  and symlinked content cannot bypass terminal, reconciliation, or result checks.
 - Report Git tracking through the canonical physical bundle path so a committed
   `.agents` symlink does not hide files tracked under its in-repository target.
 - State that normal deferred ingest returns control without foreground polling,
   preserve one-to-sixteen-source jobs without artificial splitting guidance, and
   document local-path dependency setup plus safe bundle-only Git tracking.
-- Make `engram help` a fixed concise user surface while retaining the complete
-  deterministic reference under `engram --help`.
-- Add explicit `/engram wiring` support for an optional canonical project-root
+- Add explicit `/engram wire` support for an optional canonical project-root
   `AGENTS.md` reminder, with preview/status/removal, idempotent managed markers,
   preservation of existing content and mode, malformed-marker and symlink refusal,
   no implicit initialization, and no change to automatic-memory policy.
-- Suggest the separate wiring command in human-readable initialization output
+- Suggest the separate wire command in human-readable initialization output
   without modifying project instructions.
 
 ## 0.1.0 — 2026-09-06

@@ -14,8 +14,12 @@ function run(args) {
     const child = spawn(process.execPath, [cli, ...args]);
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
@@ -25,7 +29,10 @@ async function project(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram read containment "));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const bundle = path.join(root, ".agents", "data", "okf-engram", "bundle");
-  assert.equal((await run(["init", "--project-root", root])).code, 0);
+  assert.equal(
+    (await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root])).code,
+    0,
+  );
   return { root, bundle };
 }
 
@@ -45,21 +52,45 @@ function assertUnsafe(result) {
   assert.equal(JSON.parse(result.stderr).error, "UNSAFE_PATH");
 }
 
-test("R6 get rejects leaf, directory, and dangling symlinks inside the bundle", async (t) => {
+test("R6 concept read rejects leaf, directory, and dangling symlinks inside the bundle", async (t) => {
   const { root, bundle } = await project(t);
   const outside = path.join(root, "outside.md");
   await fs.writeFile(outside, concept);
   await fs.symlink(outside, path.join(bundle, "leaf.md"));
-  assertUnsafe(await run(["get", "leaf", "--project-root", root, "--json"]));
+  assertUnsafe(
+    await run(["concepts", "read", "--concept-id", "leaf", "--corpus-context", "project", "--project-root-path", root]),
+  );
 
   const outsideDirectory = path.join(root, "outside-directory");
   await fs.mkdir(outsideDirectory);
   await fs.writeFile(path.join(outsideDirectory, "nested.md"), concept);
   await fs.symlink(outsideDirectory, path.join(bundle, "group"), "dir");
-  assertUnsafe(await run(["get", "group/nested", "--project-root", root, "--json"]));
+  assertUnsafe(
+    await run([
+      "concepts",
+      "read",
+      "--concept-id",
+      "group/nested",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      root,
+    ]),
+  );
 
   await fs.symlink(path.join(root, "missing.md"), path.join(bundle, "dangling.md"));
-  assertUnsafe(await run(["get", "dangling", "--project-root", root, "--json"]));
+  assertUnsafe(
+    await run([
+      "concepts",
+      "read",
+      "--concept-id",
+      "dangling",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      root,
+    ]),
+  );
 });
 
 test("R6 deprecate rejects an external symlink before parsing its target", async (t) => {
@@ -70,8 +101,18 @@ test("R6 deprecate rejects an external symlink before parsing its target", async
   await fs.symlink(outside, path.join(bundle, "linked.md"));
 
   const result = await run([
-    "deprecate", "linked", "--reason", "Do not read it", "--if-match", "0".repeat(64),
-    "--project-root", root, "--json",
+    "concepts",
+    "deprecate",
+    "--concept-id",
+    "linked",
+    "--corpus-context",
+    "project",
+    "--reason",
+    "Do not read it",
+    "--expected-current-sha256",
+    "0".repeat(64),
+    "--project-root-path",
+    root,
   ]);
   assertUnsafe(result);
   assert.equal(await fs.readFile(outside, "utf8"), malformed);
@@ -83,11 +124,13 @@ test("R6 scanner skips concept symlinks and reports a safety diagnostic", async 
   await fs.writeFile(outside, concept);
   await fs.symlink(outside, path.join(bundle, "linked.md"));
 
-  const result = await run(["lint", "--project-root", root, "--json"]);
+  const result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   const parsed = JSON.parse(result.stdout);
-  assert.ok(parsed.issues.some((issue) => (
-    issue.code === "symlink" && issue.category === "safety" && issue.path.endsWith("linked.md")
-  )));
+  assert.ok(
+    parsed.issues.some(
+      (issue) => issue.code === "symlink" && issue.category === "safety" && issue.path.endsWith("linked.md"),
+    ),
+  );
   assert.ok(!parsed.issues.some((issue) => issue.message?.includes("EXTERNAL SECRET SENTINEL")));
 });

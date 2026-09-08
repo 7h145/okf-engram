@@ -17,8 +17,12 @@ function run(args) {
     const child = spawn(process.execPath, [cli, ...args]);
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
@@ -27,7 +31,7 @@ function run(args) {
 async function tempProject(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram source summary "));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
-  const initialized = await run(["init", "--project-root", root, "--json"]);
+  const initialized = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(initialized.code, 0, initialized.stderr);
   return root;
 }
@@ -41,10 +45,21 @@ function draft(title, sources) {
   }).trimEnd()}\n---\n# ${title}\n\nFixture knowledge.\n`;
 }
 
-async function put(root, id, text) {
+async function writeFixtureConcept(root, id, text) {
   const file = path.join(root, `${id.replaceAll("/", "-")}.md`);
   await fs.writeFile(file, text);
-  const result = await run(["put", id, "--from", file, "--project-root", root, "--json"]);
+  const result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    id,
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    file,
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 0, result.stderr);
 }
 
@@ -69,9 +84,7 @@ test("M4 source summary groups every resource and preserves status conflicts wit
     digestless: "digestless bytes\n",
     invalid: "invalid metadata bytes\n",
   };
-  await Promise.all(Object.entries(files).map(([name, text]) => (
-    fs.writeFile(path.join(docs, `${name}.md`), text)
-  )));
+  await Promise.all(Object.entries(files).map(([name, text]) => fs.writeFile(path.join(docs, `${name}.md`), text)));
 
   let requests = 0;
   const server = http.createServer((_request, response) => {
@@ -86,32 +99,50 @@ test("M4 source summary groups every resource and preserves status conflicts wit
   const sharedDigest = digest(files.shared);
   const changedDigest = digest(files.changed);
   const conflictDigest = digest(files.conflict);
-  await put(root, "evidence/one", draft("Evidence one", [
-    {
-      id: "shared-one", resource: "project:docs/shared.md", digest: sharedDigest,
-      selector: { kind: "heading", value: "Shared" },
-    },
-    { id: "changed", resource: "project:docs/changed.md", digest: changedDigest },
-    { id: "remote", resource: remote },
-    { id: "conversation", resource: "urn:okf-engram:conversation:summary-test" },
-    { id: "digestless", resource: "project:docs/digestless.md" },
-    { id: "missing", resource: "project:docs/missing.md", digest: digest("missing bytes\n") },
-    { id: "unsafe", resource: "project:../escape.md", digest: digest("escape bytes\n") },
-  ]));
-  await put(root, "evidence/two", draft("Evidence two", [
-    {
-      id: "shared-two", resource: "project:docs/shared.md", digest: sharedDigest,
-      selector: { value: "Shared", kind: "heading" },
-    },
-    { id: "conflict-current", resource: "project:docs/conflict.md", digest: conflictDigest },
-  ]));
-  await put(root, "evidence/three", draft("Evidence three", [
-    { id: "conflict-old", resource: "project:docs/conflict.md", digest: digest("older bytes\n") },
-  ]));
+  await writeFixtureConcept(
+    root,
+    "evidence/one",
+    draft("Evidence one", [
+      {
+        id: "shared-one",
+        resource: "project:docs/shared.md",
+        digest: sharedDigest,
+        selector: { kind: "heading", value: "Shared" },
+      },
+      { id: "changed", resource: "project:docs/changed.md", digest: changedDigest },
+      { id: "remote", resource: remote },
+      { id: "conversation", resource: "urn:okf-engram:conversation:summary-test" },
+      { id: "digestless", resource: "project:docs/digestless.md" },
+      { id: "missing", resource: "project:docs/missing.md", digest: digest("missing bytes\n") },
+      { id: "unsafe", resource: "project:../escape.md", digest: digest("escape bytes\n") },
+    ]),
+  );
+  await writeFixtureConcept(
+    root,
+    "evidence/two",
+    draft("Evidence two", [
+      {
+        id: "shared-two",
+        resource: "project:docs/shared.md",
+        digest: sharedDigest,
+        selector: { value: "Shared", kind: "heading" },
+      },
+      { id: "conflict-current", resource: "project:docs/conflict.md", digest: conflictDigest },
+    ]),
+  );
+  await writeFixtureConcept(
+    root,
+    "evidence/three",
+    draft("Evidence three", [
+      { id: "conflict-old", resource: "project:docs/conflict.md", digest: digest("older bytes\n") },
+    ]),
+  );
   await fs.writeFile(path.join(docs, "changed.md"), "changed live bytes\n");
 
   const bundle = path.join(root, ".agents", "data", "okf-engram", "bundle");
-  await fs.writeFile(path.join(bundle, "malformed-sources.md"), `---
+  await fs.writeFile(
+    path.join(bundle, "malformed-sources.md"),
+    `---
 type: Knowledge
 title: Malformed sources
 description: Source metadata that remains inspectable despite profile diagnostics.
@@ -125,8 +156,11 @@ sources:
 # Malformed sources
 
 Fixture knowledge.
-`);
-  await fs.writeFile(path.join(bundle, "malformed-list.md"), `---
+`,
+  );
+  await fs.writeFile(
+    path.join(bundle, "malformed-list.md"),
+    `---
 type: Knowledge
 title: Malformed source list
 description: A malformed source-list shape remains inspectable.
@@ -135,12 +169,14 @@ sources: { resource: project:docs/shared.md }
 # Malformed source list
 
 Fixture knowledge.
-`);
+`,
+  );
 
-  const result = await run(["check-sources", "--summary", "--project-root", root, "--json"]);
+  const result = await run(["sources", "inventory", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   const summary = JSON.parse(result.stdout);
-  assert.deepEqual(Object.keys(summary), ["resources", "invalidClaims", "totals"]);
+  assert.deepEqual(Object.keys(summary), ["corpusContext", "resources", "invalidClaims", "totals"]);
+  assert.equal(summary.corpusContext, "project");
   assert.equal(summary.resources.length, 9);
   assert.equal(summary.totals.resources, 9);
   assert.equal(summary.totals.references, 11);
@@ -202,11 +238,21 @@ Fixture knowledge.
   const invalid = byResource(summary, "project:docs/invalid.md");
   assert.equal(invalid.state, "invalid");
   assert.match(invalid.issues[0].error, /digest/i);
-  assert.deepEqual(summary.invalidClaims.map((item) => item.conceptId), [
-    "malformed-list", "malformed-sources", "malformed-sources",
-  ]);
+  assert.deepEqual(
+    summary.invalidClaims.map((item) => item.conceptId),
+    ["malformed-list", "malformed-sources", "malformed-sources"],
+  );
 
-  const human = await run(["check-sources", "--summary", "--project-root", root]);
+  const human = await run([
+    "sources",
+    "inventory",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+    "--output-format",
+    "text",
+  ]);
   assert.equal(human.code, 0, human.stderr);
   assert.match(human.stdout, /^STATE\tGIT\tREFS\tRESOURCE\tCONCEPTS\n/);
   assert.match(human.stdout, /unchanged\tnone\t2\t"project:docs\/shared.md"\t\["evidence\/one","evidence\/two"\]/);
@@ -216,28 +262,39 @@ Fixture knowledge.
   assert.equal(requests, 0, "human summary must not fetch URL resources");
 });
 
-test("M4 bare check-sources stays claim-level and --summary accepts one concept ID", async (t) => {
+test("M4 source checks stay claim-level while inventory groups an optional concept", async (t) => {
   const root = await tempProject(t);
   await fs.mkdir(path.join(root, "docs"));
   await fs.writeFile(path.join(root, "docs", "shared.md"), "shared\n");
   const expected = digest("shared\n");
-  await put(root, "evidence/one", draft("Evidence one", [
-    { id: "one", resource: "project:docs/shared.md", digest: expected },
-    { id: "conversation", resource: "urn:okf-engram:conversation:one" },
-  ]));
-  await put(root, "evidence/two", draft("Evidence two", [
-    { id: "two", resource: "project:docs/shared.md", digest: expected },
-    { id: "two-digestless", resource: "project:docs/shared.md" },
-  ]));
+  await writeFixtureConcept(
+    root,
+    "evidence/one",
+    draft("Evidence one", [
+      { id: "one", resource: "project:docs/shared.md", digest: expected },
+      { id: "conversation", resource: "urn:okf-engram:conversation:one" },
+    ]),
+  );
+  await writeFixtureConcept(
+    root,
+    "evidence/two",
+    draft("Evidence two", [
+      { id: "two", resource: "project:docs/shared.md", digest: expected },
+      { id: "two-digestless", resource: "project:docs/shared.md" },
+    ]),
+  );
 
-  const bare = await run(["check-sources", "--project-root", root, "--json"]);
+  const bare = await run(["sources", "check", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(bare.code, 0, bare.stderr);
-  const claims = JSON.parse(bare.stdout);
-  assert.ok(Array.isArray(claims));
-  assert.equal(claims.length, 2);
-  assert.deepEqual(claims.map((item) => item.id), ["evidence/one", "evidence/two"]);
+  const checked = JSON.parse(bare.stdout);
+  assert.equal(checked.corpusContext, "project");
+  assert.equal(checked.sourceClaims.length, 2);
+  assert.deepEqual(
+    checked.sourceClaims.map((item) => item.id),
+    ["evidence/one", "evidence/two"],
+  );
 
-  const grouped = await run(["check-sources", "--summary", "--project-root", root, "--json"]);
+  const grouped = await run(["sources", "inventory", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(grouped.code, 0, grouped.stderr);
   const groupedShared = byResource(JSON.parse(grouped.stdout), "project:docs/shared.md");
   assert.equal(groupedShared.referenceCount, 3);
@@ -246,7 +303,14 @@ test("M4 bare check-sources stays claim-level and --summary accepts one concept 
   assert.equal(groupedShared.state, "unchanged");
 
   const selected = await run([
-    "check-sources", "evidence/one", "--summary", "--project-root", root, "--json",
+    "sources",
+    "inventory",
+    "--corpus-context",
+    "project",
+    "--concept-id",
+    "evidence/one",
+    "--project-root-path",
+    root,
   ]);
   assert.equal(selected.code, 0, selected.stderr);
   const summary = JSON.parse(selected.stdout);
@@ -257,7 +321,14 @@ test("M4 bare check-sources stays claim-level and --summary accepts one concept 
   assert.equal(byResource(summary, "urn:okf-engram:conversation:one").state, "not-checkable");
 
   const missing = await run([
-    "check-sources", "evidence/absent", "--summary", "--project-root", root, "--json",
+    "sources",
+    "inventory",
+    "--corpus-context",
+    "project",
+    "--concept-id",
+    "evidence/absent",
+    "--project-root-path",
+    root,
   ]);
   assert.equal(missing.code, 7);
   assert.match(missing.stderr, /not found/i);

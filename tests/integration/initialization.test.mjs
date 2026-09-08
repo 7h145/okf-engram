@@ -14,8 +14,12 @@ function run(args, { cwd = repo } = {}) {
     const child = spawn(process.execPath, [cli, ...args], { cwd });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
@@ -32,13 +36,14 @@ function paths(root) {
   return { state, bundle: path.join(state, "bundle") };
 }
 
-const note = (title = "Test note") => `---\ntype: Note\ntitle: ${title}\ndescription: R2 fixture.\n---\n# Note\n\nBody.\n`;
+const note = (title = "Test note") =>
+  `---\ntype: Note\ntitle: ${title}\ndescription: R2 fixture.\n---\n# Note\n\nBody.\n`;
 
 test("R2 init rejects false, malformed, and incomplete bundle markers without overwrite", async (t) => {
   const cases = [
     ["prose marker", "Not an OKF file.\nExample: okf_version: 0.2\nValuable text.\n"],
     ["malformed YAML", "---\nokf_version: [broken\n---\n# Valuable\n"],
-    ["wrong version", "---\nokf_version: \"0.1\"\n---\n# Valuable\n"],
+    ["wrong version", '---\nokf_version: "0.1"\n---\n# Valuable\n'],
   ];
 
   for (const [name, indexText] of cases) {
@@ -48,7 +53,7 @@ test("R2 init rejects false, malformed, and incomplete bundle markers without ov
       await fs.mkdir(bundle, { recursive: true });
       const index = path.join(bundle, "index.md");
       await fs.writeFile(index, indexText);
-      const result = await run(["init", "--project-root", root, "--json"]);
+      const result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
       assert.equal(result.code, 4, result.stderr);
       assert.equal(await fs.readFile(index, "utf8"), indexText);
     });
@@ -61,7 +66,7 @@ test("R2 init rejects false, malformed, and incomplete bundle markers without ov
     const concept = path.join(bundle, "valuable.md");
     await fs.writeFile(concept, note("Valuable"));
     const before = await fs.readFile(concept, "utf8");
-    const result = await run(["init", "--project-root", root, "--json"]);
+    const result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
     assert.equal(result.code, 4, result.stderr);
     assert.equal(await fs.readFile(concept, "utf8"), before);
     await assert.rejects(() => fs.access(path.join(bundle, "index.md")));
@@ -71,11 +76,11 @@ test("R2 init rejects false, malformed, and incomplete bundle markers without ov
     const root = await tempProject(t, "engram init invalid concept ");
     const { bundle } = paths(root);
     await fs.mkdir(bundle, { recursive: true });
-    const indexText = "---\nokf_version: \"0.2\"\n---\n# Engram\n";
+    const indexText = '---\nokf_version: "0.2"\n---\n# Engram\n';
     const invalid = "---\ntitle: Missing type\n---\nBody\n";
     await fs.writeFile(path.join(bundle, "index.md"), indexText);
     await fs.writeFile(path.join(bundle, "bad.md"), invalid);
-    const result = await run(["init", "--project-root", root, "--json"]);
+    const result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
     assert.equal(result.code, 4, result.stderr);
     assert.equal(await fs.readFile(path.join(bundle, "index.md"), "utf8"), indexText);
     assert.equal(await fs.readFile(path.join(bundle, "bad.md"), "utf8"), invalid);
@@ -86,10 +91,10 @@ test("R2 init rejects false, malformed, and incomplete bundle markers without ov
     const { bundle } = paths(root);
     await fs.mkdir(bundle, { recursive: true });
     const outside = path.join(root, "outside-index.md");
-    const indexText = "---\nokf_version: \"0.2\"\n---\n# External\n";
+    const indexText = '---\nokf_version: "0.2"\n---\n# External\n';
     await fs.writeFile(outside, indexText);
     await fs.symlink(outside, path.join(bundle, "index.md"));
-    const result = await run(["init", "--project-root", root, "--json"]);
+    const result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
     assert.equal(result.code, 9, result.stderr);
     assert.equal(await fs.readFile(outside, "utf8"), indexText);
   });
@@ -106,7 +111,7 @@ test("R2 init adopts a valid existing store without repairing or reformatting it
   await fs.writeFile(index, indexText);
   await fs.writeFile(concept, conceptText);
 
-  const result = await run(["init", "--project-root", root, "--json"]);
+  const result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).created, false);
   assert.equal(await fs.readFile(index, "utf8"), indexText);
@@ -116,7 +121,10 @@ test("R2 init adopts a valid existing store without repairing or reformatting it
 test("R2 generated index updates preserve root metadata and surrounding user text", async (t) => {
   const root = await tempProject(t);
   const { bundle } = paths(root);
-  assert.equal((await run(["init", "--project-root", root])).code, 0);
+  assert.equal(
+    (await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root])).code,
+    0,
+  );
   const rootIndex = path.join(bundle, "index.md");
   const initial = await fs.readFile(rootIndex, "utf8");
   const customized = initial
@@ -127,7 +135,18 @@ test("R2 generated index updates preserve root metadata and surrounding user tex
 
   const draft = path.join(root, "draft.md");
   await fs.writeFile(draft, note("Created note"));
-  let result = await run(["put", "created", "--from", draft, "--project-root", root, "--json"]);
+  let result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    "created",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    draft,
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 0, result.stderr);
   let updated = await fs.readFile(rootIndex, "utf8");
   assert.match(updated, /custom_root: preserve/);
@@ -136,9 +155,12 @@ test("R2 generated index updates preserve root metadata and surrounding user tex
   assert.match(updated, /Human footer/);
   assert.match(updated, /\[Created note\]\(created\.md\)/);
 
-  updated = updated.replace(/<!-- engram:index:start -->[\s\S]*<!-- engram:index:end -->/, "<!-- engram:index:start -->\nSTALE\n<!-- engram:index:end -->");
+  updated = updated.replace(
+    /<!-- engram:index:start -->[\s\S]*<!-- engram:index:end -->/,
+    "<!-- engram:index:start -->\nSTALE\n<!-- engram:index:end -->",
+  );
   await fs.writeFile(rootIndex, updated);
-  result = await run(["reindex", "--project-root", root, "--json"]);
+  result = await run(["corpus", "repair-indexes", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   const repaired = await fs.readFile(rootIndex, "utf8");
   assert.doesNotMatch(repaired, /\nSTALE\n/);
@@ -150,37 +172,53 @@ test("R2 generated index updates preserve root metadata and surrounding user tex
 test("R2 markerless and malformed indexes are never overwritten implicitly", async (t) => {
   const root = await tempProject(t);
   const { bundle } = paths(root);
-  assert.equal((await run(["init", "--project-root", root])).code, 0);
+  assert.equal(
+    (await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root])).code,
+    0,
+  );
   const memories = path.join(bundle, "memories", "index.md");
   const markerless = "# Human memories index\n\nDo not replace this.\n";
   await fs.writeFile(memories, markerless);
   const draft = path.join(root, "draft.md");
   await fs.writeFile(draft, note());
 
-  let result = await run(["put", "note", "--from", draft, "--project-root", root, "--json"]);
+  let result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    "note",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    draft,
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(await fs.readFile(memories, "utf8"), markerless);
-  result = await run(["reindex", "--project-root", root, "--json"]);
+  result = await run(["corpus", "repair-indexes", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(await fs.readFile(memories, "utf8"), markerless);
   assert.ok(JSON.parse(result.stdout).issues.some((issue) => issue.code === "index-unmanaged"));
 
   const malformed = "# Human memories index\n\n<!-- engram:index:start -->\nNo end marker.\n";
   await fs.writeFile(memories, malformed);
-  result = await run(["reindex", "--project-root", root, "--json"]);
-  assert.equal(result.code, 0, result.stderr);
+  result = await run(["corpus", "repair-indexes", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 4, result.stderr);
   assert.equal(await fs.readFile(memories, "utf8"), malformed);
   assert.ok(JSON.parse(result.stdout).issues.some((issue) => issue.code === "index-markers"));
 });
 
 test("R2 concurrent initialization converges without clobbering", async (t) => {
   const root = await tempProject(t, "engram concurrent init ");
-  const results = await Promise.all(Array.from({ length: 4 }, () => (
-    run(["init", "--project-root", root, "--json"])
-  )));
+  const results = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]),
+    ),
+  );
   for (const result of results) assert.equal(result.code, 0, result.stderr);
   assert.equal(results.filter((result) => JSON.parse(result.stdout).created).length, 1);
-  const lint = await run(["lint", "--project-root", root, "--json"]);
+  const lint = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(lint.code, 0, lint.stderr);
   assert.equal(JSON.parse(lint.stdout).counts.errors, 0);
 });

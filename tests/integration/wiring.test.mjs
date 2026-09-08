@@ -24,8 +24,12 @@ function run(args, { cwd = repo } = {}) {
     const child = spawn(process.execPath, [cli, ...args], { cwd });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
@@ -37,8 +41,17 @@ async function tempProject(t, prefix = "engram wiring ") {
   return root;
 }
 
-async function init(root, { json = true } = {}) {
-  return run(["init", "--project-root", root, ...(json ? ["--json"] : [])]);
+async function initializeCorpus(root, { outputFormat = "json" } = {}) {
+  return run([
+    "corpus",
+    "initialize",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+    "--output-format",
+    outputFormat,
+  ]);
 }
 
 function parse(result) {
@@ -54,20 +67,20 @@ test("wiring status and preview are non-mutating; install requires initializatio
   const root = await tempProject(t);
   const agents = path.join(root, "AGENTS.md");
 
-  let result = await run(["wiring", "status", "--project-root", root, "--json"]);
+  let result = await run(["wiring", "project", "status", "--corpus-context", "project", "--project-root-path", root]);
   let output = parse(result);
   assert.equal(output.state, "not-installed");
   assert.equal(output.installed, false);
-  assert.equal(output.path, agents);
+  assert.equal(output.projectInstructionsFilePath, agents);
   await assert.rejects(() => fs.access(agents), { code: "ENOENT" });
 
-  result = await run(["wiring", "preview", "--project-root", root, "--json"]);
+  result = await run(["wiring", "project", "preview", "--corpus-context", "project", "--project-root-path", root]);
   output = parse(result);
   assert.equal(output.block, expectedBlock);
   assert.equal(output.wouldChange, true);
   await assert.rejects(() => fs.access(agents), { code: "ENOENT" });
 
-  result = await run(["wiring", "--project-root", root, "--json"]);
+  result = await run(["wiring", "project", "install", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 3);
   assert.match(result.stderr, /NOT_INITIALIZED/);
   await assert.rejects(() => fs.access(agents), { code: "ENOENT" });
@@ -76,9 +89,11 @@ test("wiring status and preview are non-mutating; install requires initializatio
 test("bare wiring installs idempotently without enabling automatic memory", async (t) => {
   const root = await tempProject(t);
   const agents = path.join(root, "AGENTS.md");
-  assert.equal((await init(root)).code, 0);
+  assert.equal((await initializeCorpus(root)).code, 0);
 
-  let output = parse(await run(["wiring", "--project-root", root, "--json"]));
+  let output = parse(
+    await run(["wiring", "project", "install", "--corpus-context", "project", "--project-root-path", root]),
+  );
   assert.equal(output.action, "install");
   assert.equal(output.changed, true);
   assert.equal(output.created, true);
@@ -86,15 +101,30 @@ test("bare wiring installs idempotently without enabling automatic memory", asyn
   assert.equal((await fs.stat(agents)).mode & 0o777, 0o644);
 
   const before = await fs.readFile(agents);
-  output = parse(await run(["wiring", "install", "--project-root", root, "--json"]));
+  output = parse(
+    await run(["wiring", "project", "install", "--corpus-context", "project", "--project-root-path", root]),
+  );
   assert.equal(output.changed, false);
   assert.equal(output.state, "installed");
   assert.deepEqual(await fs.readFile(agents), before);
 
-  output = parse(await run(["wiring", "status", "--project-root", root, "--json"]));
+  output = parse(
+    await run(["wiring", "project", "status", "--corpus-context", "project", "--project-root-path", root]),
+  );
   assert.equal(output.installed, true);
-  const policy = parse(await run(["auto-memory", "status", "--project-root", root, "--json"]));
-  assert.equal(policy.autoMemory, "off");
+  const policy = parse(
+    await run([
+      "policy",
+      "project",
+      "automatic-memory",
+      "status",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      root,
+    ]),
+  );
+  assert.equal(policy.automaticMemory, "off");
   assert.equal(policy.generation, 0);
 });
 
@@ -102,16 +132,20 @@ test("wiring prepends to and removes from an existing AGENTS.md without changing
   const root = await tempProject(t, "engram wiring preserve ");
   const agents = path.join(root, "AGENTS.md");
   const original = "# Existing instructions\r\n\r\nKeep this exact.\r\n";
-  assert.equal((await init(root)).code, 0);
+  assert.equal((await initializeCorpus(root)).code, 0);
   await fs.writeFile(agents, original, { mode: 0o640 });
 
-  let output = parse(await run(["wiring", "install", "--project-root", root, "--json"]));
+  let output = parse(
+    await run(["wiring", "project", "install", "--corpus-context", "project", "--project-root-path", root]),
+  );
   assert.equal(output.changed, true);
   assert.equal(output.created, false);
   assert.equal(await fs.readFile(agents, "utf8"), `${expectedBlock}\n\n${original}`);
   assert.equal((await fs.stat(agents)).mode & 0o777, 0o640);
 
-  output = parse(await run(["wiring", "remove", "--project-root", root, "--json"]));
+  output = parse(
+    await run(["wiring", "project", "remove", "--corpus-context", "project", "--project-root-path", root]),
+  );
   assert.equal(output.changed, true);
   assert.equal(output.deletedFile, false);
   assert.equal(await fs.readFile(agents, "utf8"), original);
@@ -121,16 +155,20 @@ test("wiring prepends to and removes from an existing AGENTS.md without changing
 test("wiring remove cleans its sole AGENTS.md block even after bundle removal", async (t) => {
   const root = await tempProject(t, "engram wiring remove ");
   const agents = path.join(root, "AGENTS.md");
-  assert.equal((await init(root)).code, 0);
-  parse(await run(["wiring", "install", "--project-root", root, "--json"]));
+  assert.equal((await initializeCorpus(root)).code, 0);
+  parse(await run(["wiring", "project", "install", "--corpus-context", "project", "--project-root-path", root]));
   await fs.rm(path.join(root, ".agents"), { recursive: true });
 
-  let output = parse(await run(["wiring", "remove", "--project-root", root, "--json"]));
+  let output = parse(
+    await run(["wiring", "project", "remove", "--corpus-context", "project", "--project-root-path", root]),
+  );
   assert.equal(output.changed, true);
   assert.equal(output.deletedFile, true);
   await assert.rejects(() => fs.access(agents), { code: "ENOENT" });
 
-  output = parse(await run(["wiring", "remove", "--project-root", root, "--json"]));
+  output = parse(
+    await run(["wiring", "project", "remove", "--corpus-context", "project", "--project-root-path", root]),
+  );
   assert.equal(output.changed, false);
   assert.equal(output.state, "not-installed");
 });
@@ -146,16 +184,28 @@ test("wiring refuses modified, malformed, duplicate, and unsafe marker state", a
     await t.test(name, async () => {
       const root = await tempProject(t, `engram wiring ${name} `);
       const agents = path.join(root, "AGENTS.md");
-      assert.equal((await init(root)).code, 0);
+      assert.equal((await initializeCorpus(root)).code, 0);
       await fs.writeFile(agents, content);
       const before = await fs.readFile(agents);
-      const status = parse(await run(["wiring", "status", "--project-root", root, "--json"]));
+      const status = parse(
+        await run(["wiring", "project", "status", "--corpus-context", "project", "--project-root-path", root]),
+      );
       assert.ok(["modified", "malformed"].includes(status.state));
-      const preview = parse(await run(["wiring", "preview", "--project-root", root, "--json"]));
+      const preview = parse(
+        await run(["wiring", "project", "preview", "--corpus-context", "project", "--project-root-path", root]),
+      );
       assert.equal(preview.canInstall, false);
       assert.equal(preview.wouldChange, false);
       for (const action of ["install", "remove"]) {
-        const result = await run(["wiring", action, "--project-root", root, "--json"]);
+        const result = await run([
+          "wiring",
+          "project",
+          action,
+          "--corpus-context",
+          "project",
+          "--project-root-path",
+          root,
+        ]);
         assert.equal(result.code, 4);
         assert.match(result.stderr, /WIRING_(?:MODIFIED|MALFORMED)/);
         assert.deepEqual(await fs.readFile(agents), before);
@@ -166,10 +216,18 @@ test("wiring refuses modified, malformed, duplicate, and unsafe marker state", a
   await t.test("invalid UTF-8", async () => {
     const root = await tempProject(t, "engram wiring encoding ");
     const agents = path.join(root, "AGENTS.md");
-    assert.equal((await init(root)).code, 0);
+    assert.equal((await initializeCorpus(root)).code, 0);
     const bytes = Buffer.from([0xff, 0xfe, 0x0a]);
     await fs.writeFile(agents, bytes);
-    const result = await run(["wiring", "install", "--project-root", root, "--json"]);
+    const result = await run([
+      "wiring",
+      "project",
+      "install",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      root,
+    ]);
     assert.equal(result.code, 4);
     assert.match(result.stderr, /WIRING_ENCODING/);
     assert.deepEqual(await fs.readFile(agents), bytes);
@@ -178,9 +236,17 @@ test("wiring refuses modified, malformed, duplicate, and unsafe marker state", a
   await t.test("directory", async () => {
     const root = await tempProject(t, "engram wiring directory ");
     const agents = path.join(root, "AGENTS.md");
-    assert.equal((await init(root)).code, 0);
+    assert.equal((await initializeCorpus(root)).code, 0);
     await fs.mkdir(agents);
-    const result = await run(["wiring", "install", "--project-root", root, "--json"]);
+    const result = await run([
+      "wiring",
+      "project",
+      "install",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      root,
+    ]);
     assert.equal(result.code, 9);
     assert.match(result.stderr, /regular file/);
     assert.equal((await fs.stat(agents)).isDirectory(), true);
@@ -190,10 +256,18 @@ test("wiring refuses modified, malformed, duplicate, and unsafe marker state", a
     const root = await tempProject(t, "engram wiring symlink ");
     const agents = path.join(root, "AGENTS.md");
     const outside = path.join(root, "outside.md");
-    assert.equal((await init(root)).code, 0);
+    assert.equal((await initializeCorpus(root)).code, 0);
     await fs.writeFile(outside, "outside\n");
     await fs.symlink(outside, agents);
-    const result = await run(["wiring", "install", "--project-root", root, "--json"]);
+    const result = await run([
+      "wiring",
+      "project",
+      "install",
+      "--corpus-context",
+      "project",
+      "--project-root-path",
+      root,
+    ]);
     assert.equal(result.code, 9);
     assert.match(result.stderr, /UNSAFE_PATH/);
     assert.equal(await fs.readFile(outside, "utf8"), "outside\n");
@@ -205,15 +279,20 @@ test("wiring rejects explicit bundles and human init suggests without editing", 
   const agents = path.join(root, "AGENTS.md");
   const original = "# Existing project instructions\n";
   await fs.writeFile(agents, original);
-  let result = await init(root, { json: false });
+  let result = await initializeCorpus(root, { outputFormat: "text" });
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Optional.*\/engram wiring/s);
+  assert.match(result.stdout, /Optional.*\/engram wire/s);
   assert.equal(await fs.readFile(agents, "utf8"), original);
 
   result = await run([
-    "wiring", "status", "--bundle", path.join(root, ".agents", "data", "okf-engram", "bundle"),
-    "--project-root", root, "--json",
+    "wiring",
+    "project",
+    "status",
+    "--corpus-bundle-path",
+    path.join(root, ".agents", "data", "okf-engram", "bundle"),
+    "--project-root-path",
+    root,
   ]);
   assert.equal(result.code, 2);
-  assert.match(result.stderr, /default project context/);
+  assert.match(result.stderr, /does not accept --corpus-bundle-path/);
 });

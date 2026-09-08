@@ -14,8 +14,12 @@ function run(args) {
     const child = spawn(process.execPath, [cli, ...args]);
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
@@ -25,13 +29,18 @@ async function project(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram validation "));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const bundle = path.join(root, ".agents", "data", "okf-engram", "bundle");
-  assert.equal((await run(["init", "--project-root", root])).code, 0);
+  assert.equal(
+    (await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root])).code,
+    0,
+  );
   return { root, bundle };
 }
 
 test("R4 malformed source metadata yields structured diagnostics without crashing readers", async (t) => {
   const { root, bundle } = await project(t);
-  await fs.writeFile(path.join(bundle, "bad-sources.md"), `---
+  await fs.writeFile(
+    path.join(bundle, "bad-sources.md"),
+    `---
 type: Note
 title: Bad sources
 description: Hand-edited malformed source metadata.
@@ -40,27 +49,48 @@ sources: { resource: project:missing.md }
 # Note
 
 Still searchable.
-`);
+`,
+  );
 
-  let result = await run(["lint", "--project-root", root, "--json"]);
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   let parsed = JSON.parse(result.stdout);
   assert.equal(parsed.valid, true);
-  assert.ok(parsed.issues.some((issue) => (
-    issue.code === "sources-shape" && issue.category === "profile" && issue.id === "bad-sources"
-  )));
+  assert.ok(
+    parsed.issues.some(
+      (issue) => issue.code === "sources-shape" && issue.category === "profile" && issue.id === "bad-sources",
+    ),
+  );
 
-  result = await run(["status", "--project-root", root, "--json"]);
+  result = await run(["corpus", "status", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).sourceStates.invalid, 1);
 
-  result = await run(["check-sources", "bad-sources", "--project-root", root, "--json"]);
+  result = await run([
+    "sources",
+    "check",
+    "--corpus-context",
+    "project",
+    "--concept-id",
+    "bad-sources",
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 0, result.stderr);
   parsed = JSON.parse(result.stdout);
-  assert.equal(parsed[0].state, "invalid");
-  assert.match(parsed[0].error, /sources must be a list/i);
+  assert.equal(parsed.sourceClaims[0].state, "invalid");
+  assert.match(parsed.sourceClaims[0].error, /sources must be a list/i);
 
-  result = await run(["search", "bad sources", "--project-root", root, "--json"]);
+  result = await run([
+    "concepts",
+    "search",
+    "--query",
+    "bad sources",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).results[0].id, "bad-sources");
 });
@@ -68,18 +98,17 @@ Still searchable.
 test("R4 malformed root index is a conformance error and fix never overwrites it", async (t) => {
   const { root, bundle } = await project(t);
   const index = path.join(bundle, "index.md");
-  const malformed = "---\nokf_version: [broken\n---\n# Valuable user text\n\n<!-- engram:index:start -->\nSTALE\n<!-- engram:index:end -->\n";
+  const malformed =
+    "---\nokf_version: [broken\n---\n# Valuable user text\n\n<!-- engram:index:start -->\nSTALE\n<!-- engram:index:end -->\n";
   await fs.writeFile(index, malformed);
 
-  let result = await run(["lint", "--project-root", root, "--json"]);
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 4, result.stderr);
   let parsed = JSON.parse(result.stdout);
   assert.equal(parsed.valid, false);
-  assert.ok(parsed.issues.some((issue) => (
-    issue.code === "invalid-root-index" && issue.category === "conformance"
-  )));
+  assert.ok(parsed.issues.some((issue) => issue.code === "invalid-root-index" && issue.category === "conformance"));
 
-  result = await run(["lint", "--fix", "--project-root", root, "--json"]);
+  result = await run(["corpus", "repair-indexes", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 4, result.stderr);
   assert.equal(await fs.readFile(index, "utf8"), malformed);
 });
@@ -91,12 +120,12 @@ test("R4 reserved index and log structure are validated as conformance", async (
   await fs.writeFile(path.join(group, "index.md"), "---\ntitle: forbidden\n---\n# Group\n");
   await fs.writeFile(path.join(group, "log.md"), "# Log\n\n## someday\nNot a dated bullet.\n");
 
-  const result = await run(["lint", "--project-root", root, "--json"]);
+  const result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 4, result.stderr);
   const issues = JSON.parse(result.stdout).issues;
-  assert.ok(issues.some((issue) => (
-    issue.code === "subdirectory-index-frontmatter" && issue.category === "conformance"
-  )));
+  assert.ok(
+    issues.some((issue) => issue.code === "subdirectory-index-frontmatter" && issue.category === "conformance"),
+  );
   assert.ok(issues.some((issue) => issue.code === "invalid-log" && issue.category === "conformance"));
 });
 
@@ -105,25 +134,47 @@ test("R4 type-only OKF concepts remain consumable while Engram-authored puts sta
   const minimal = "---\ntype: Note\ncustom: preserve\n---\nBody.\n";
   await fs.writeFile(path.join(bundle, "minimal.md"), minimal);
 
-  let result = await run(["lint", "--project-root", root, "--json"]);
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   let parsed = JSON.parse(result.stdout);
   assert.equal(parsed.valid, true);
-  assert.ok(parsed.issues.some((issue) => (
-    issue.code === "title-required" && issue.category === "profile" && issue.severity === "warning"
-  )));
+  assert.ok(
+    parsed.issues.some(
+      (issue) => issue.code === "title-required" && issue.category === "profile" && issue.severity === "warning",
+    ),
+  );
 
-  result = await run(["list", "--project-root", root, "--json"]);
+  result = await run(["concepts", "list", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).concepts.find((item) => item.id === "minimal").title, "minimal");
 
-  result = await run(["search", "minimal", "--project-root", root, "--json"]);
+  result = await run([
+    "concepts",
+    "search",
+    "--query",
+    "minimal",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).results[0].id, "minimal");
 
   const draft = path.join(root, "minimal.md");
   await fs.writeFile(draft, minimal);
-  result = await run(["put", "authored-minimal", "--from", draft, "--project-root", root, "--json"]);
+  result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    "authored-minimal",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    draft,
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 4);
 });
 
@@ -145,16 +196,30 @@ Body.
 `;
   await fs.writeFile(path.join(bundle, "invalid-time.md"), invalid);
 
-  let result = await run(["lint", "--project-root", root, "--json"]);
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   const issues = JSON.parse(result.stdout).issues;
   for (const code of ["generated-at", "stale-after", "source-last-modified"]) {
-    assert.ok(issues.some((issue) => issue.code === code && issue.category === "profile"), code);
+    assert.ok(
+      issues.some((issue) => issue.code === code && issue.category === "profile"),
+      code,
+    );
   }
 
   const draft = path.join(root, "invalid.md");
   await fs.writeFile(draft, invalid);
-  result = await run(["put", "authored-invalid-time", "--from", draft, "--project-root", root, "--json"]);
+  result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    "authored-invalid-time",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    draft,
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 4);
 });
 
@@ -184,18 +249,30 @@ Body.
 `;
   await fs.writeFile(path.join(bundle, "invalid-source-identity.md"), invalid);
 
-  let result = await run(["lint", "--project-root", root, "--json"]);
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   const issues = JSON.parse(result.stdout).issues;
   for (const code of ["source-selector", "source-git", "source-id-duplicate"]) {
-    assert.ok(issues.some((issue) => (
-      issue.code === code && issue.category === "profile" && issue.severity === "warning"
-    )), code);
+    assert.ok(
+      issues.some((issue) => issue.code === code && issue.category === "profile" && issue.severity === "warning"),
+      code,
+    );
   }
 
   const draft = path.join(root, "invalid-source.md");
   await fs.writeFile(draft, invalid);
-  result = await run(["put", "invalid-authored-source", "--from", draft, "--project-root", root, "--json"]);
+  result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    "invalid-authored-source",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    draft,
+    "--project-root-path",
+    root,
+  ]);
   assert.equal(result.code, 4);
   assert.equal(JSON.parse(result.stderr).error, "VALIDATION_ERROR");
 });
