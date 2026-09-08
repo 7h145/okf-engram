@@ -130,8 +130,9 @@ async function main() {
     if (matchingSkills.length !== 1 || matchingPrompts.length !== 1 || diagnostics.length) {
       throw new Error("packed Pi skill/prompt discovery failed");
     }
-    if (!matchingPrompts[0].argumentHint?.includes("wiring")) {
-      throw new Error("packed /engram prompt omits wiring");
+    if (!matchingPrompts[0].argumentHint?.includes("wire")
+        || matchingPrompts[0].argumentHint.includes("forget")) {
+      throw new Error("packed /engram prompt does not expose the strict safe human subset");
     }
 
     console.log(
