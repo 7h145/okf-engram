@@ -18,7 +18,7 @@
   },
   {
     "name": "opportunistic memory inference after project opt-in",
-    "fixture": "Project auto-memory is on and the user accepts SQLite for offline transactional updates.",
+    "fixture": "Project automatic memory is on and the user accepts SQLite for offline transactional updates.",
     "reject": ["claims enqueue means remembered", "stores a transcript", "uses a stale policy generation"],
     "expect": ["submits a bounded candidate", "uses the automatic-memory generation gate", "presents a verified inferred Memory job result", "announces write", "offers undo"]
   },
@@ -70,7 +70,7 @@
   {
     "name": "grouped source status inventory",
     "prompt": "/engram sources inventory --corpus-context project",
-    "reject": ["fetches URL or URN references", "silently omits digestless or malformed claims", "rewrites drifted concepts", "changes bare check-sources output"],
+    "reject": ["fetches URL or URN references", "silently omits digestless or malformed claims", "rewrites drifted concepts", "changes claim-level sources check output"],
     "expect": ["groups exact resource strings", "reports reference and concept IDs", "distinguishes unchanged changed missing unresolvable not-checkable conflicting and invalid", "reports immutable Git state separately"]
   },
   {
