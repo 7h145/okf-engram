@@ -71,6 +71,7 @@ test("human help is bounded, strict, and contains no destructive shortcut", asyn
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /\/engram remember STATEMENT/);
   assert.match(result.stdout, /\/engram jobs \[JOB_ID\]/);
+  assert.match(result.stdout, /queue artifact for async ingest/);
   assert.match(result.stdout, /Commands are strict/);
   assert.doesNotMatch(result.stdout, /\b(?:delete|forget|remove concept)\b/i);
 });

@@ -48,7 +48,7 @@ Common commands:
   /engram remember STATEMENT      remember established knowledge
   /engram recall QUESTION         retrieve knowledge
   /engram ingest FILE...          ingest artifacts now
-  /engram queue FILE...           queue artifact ingest
+  /engram queue FILE...           queue artifact for async ingest
   /engram jobs [JOB_ID]           inspect deferred work
   /engram cancel JOB_ID           cancel deferred work
 
