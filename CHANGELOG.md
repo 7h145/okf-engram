@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.1 — 2026-09-08
+
 - Replace the pre-stability helper grammar with the canonical agent DSL: domain
   subcommands, explicit corpus context, descriptive typed long options, JSON by
   default, context-qualified results, semantic-operation declarations, and strict
@@ -16,6 +18,10 @@
 - Use automatic-memory settings schema version 3 and private job-record schema
   version 2. Invalid private pre-release state fails closed and can be discarded
   explicitly; no compatibility branches are retained.
+- Let multiple pre-enqueued artifact jobs run serially against a fresh execution-
+  time corpus baseline while retaining frozen source digests and conditional
+  writes; later jobs no longer misreport an earlier job's corpus changes as their
+  own never-run result.
 - Raise new worker event capture from 1 MiB to 10 MiB after dogfood measured a
   successful 11-source job at about 2 MiB; retain a hard 16 MiB capsule bound and
   validate each capsule's frozen limit instead of equating it with today's default.
