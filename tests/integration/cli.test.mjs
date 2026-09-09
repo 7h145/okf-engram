@@ -60,7 +60,7 @@ test("help is concise for users while --help retains the detailed reference", as
   assert.equal(concise.code, 0, concise.stderr);
   assert.equal(noArgs.stdout, concise.stdout);
   assert.ok(Buffer.byteLength(concise.stdout) < 1_024);
-  assert.match(concise.stdout, /\/engram\s+show project corpus status/);
+  assert.match(concise.stdout, /\/engram — project status/);
   assert.match(concise.stdout, /\/engram --help/);
   assert.doesNotMatch(concise.stdout, /--automatic-memory-policy-generation/);
   assert.ok(detailed.stdout.length > concise.stdout.length * 2);
