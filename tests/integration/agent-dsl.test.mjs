@@ -83,7 +83,7 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.ok(result.stdout.indexOf("Common work:") < result.stdout.indexOf("Further actions:"));
   assert.ok(result.stdout.indexOf("Further actions:") < result.stdout.indexOf("Setup and policy:"));
   assert.ok(result.stdout.indexOf("/engram queue FILE...") < result.stdout.indexOf("/engram ingest FILE..."));
-  assert.match(result.stdout, /prefer background ingest/);
+  assert.match(result.stdout, /ingest asynchronously/);
   assert.match(result.stdout, /ingest in the foreground/);
   assert.match(result.stdout, /Commands are strict/);
   assert.doesNotMatch(result.stdout, /\bforget\b/i);

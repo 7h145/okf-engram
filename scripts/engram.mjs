@@ -45,7 +45,7 @@ Common work:
   /engram ls — list concepts
   /engram find WORDS — search concepts
   /engram show CONCEPT_ID — read concept
-  /engram queue FILE... — prefer background ingest
+  /engram queue FILE... — ingest asynchronously
   /engram jobs [JOB_ID] — inspect jobs
   /engram sources — list referenced local files
 
