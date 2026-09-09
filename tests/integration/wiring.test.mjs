@@ -173,14 +173,14 @@ test("wiring remove cleans its sole AGENTS.md block even after bundle removal", 
   assert.equal(output.state, "not-installed");
 });
 
-test("wiring refuses modified, malformed, duplicate, and unsafe marker state", async (t) => {
+test("wiring distinguishes misplaced blocks and refuses every non-canonical or unsafe state", async (t) => {
   const cases = [
-    ["modified", expectedBlock.replace("prior rationale", "changed rationale") + "\n"],
-    ["misplaced", `${expectedBlock}\n\n# Existing\n`],
-    ["start only", "<!-- okf-engram:project-wiring:start -->\nchanged\n"],
-    ["duplicate", `${expectedBlock}\n\n${expectedBlock}\n`],
+    ["modified", expectedBlock.replace("prior rationale", "changed rationale") + "\n", "modified", "WIRING_MODIFIED"],
+    ["misplaced", `${expectedBlock}\n\n# Existing\n`, "misplaced", "WIRING_MISPLACED"],
+    ["start only", "<!-- okf-engram:project-wiring:start -->\nchanged\n", "malformed", "WIRING_MALFORMED"],
+    ["duplicate", `${expectedBlock}\n\n${expectedBlock}\n`, "malformed", "WIRING_MALFORMED"],
   ];
-  for (const [name, content] of cases) {
+  for (const [name, content, expectedState, expectedError] of cases) {
     await t.test(name, async () => {
       const root = await tempProject(t, `engram wiring ${name} `);
       const agents = path.join(root, "AGENTS.md");
@@ -190,7 +190,11 @@ test("wiring refuses modified, malformed, duplicate, and unsafe marker state", a
       const status = parse(
         await run(["wiring", "project", "status", "--corpus-context", "project", "--project-root-path", root]),
       );
-      assert.ok(["modified", "malformed"].includes(status.state));
+      assert.equal(status.state, expectedState);
+      if (expectedState === "misplaced") {
+        assert.equal(status.reason, "canonical-block-not-terminal");
+        assert.equal(status.requiredAction, "move-canonical-block-to-end-manually");
+      }
       const preview = parse(
         await run(["wiring", "project", "preview", "--corpus-context", "project", "--project-root-path", root]),
       );
@@ -207,7 +211,8 @@ test("wiring refuses modified, malformed, duplicate, and unsafe marker state", a
           root,
         ]);
         assert.equal(result.code, 4);
-        assert.match(result.stderr, /WIRING_(?:MODIFIED|MALFORMED)/);
+        assert.match(result.stderr, new RegExp(expectedError));
+        if (expectedState === "misplaced") assert.match(result.stderr, /present but not at the end.*move.*manually/i);
         assert.deepEqual(await fs.readFile(agents), before);
       }
     });

@@ -37,14 +37,18 @@ function classify(text) {
     return { state: "malformed", installed: false, starts, ends };
   }
   const blockOffset = text.indexOf(PROJECT_WIRING_BLOCK);
-  const prefix = blockOffset >= 0 ? text.slice(0, blockOffset) : undefined;
-  const suffix = blockOffset >= 0 ? text.slice(blockOffset + PROJECT_WIRING_BLOCK.length) : undefined;
-  if (
-    blockOffset < 0 ||
-    !(suffix === "" || suffix === "\n") ||
-    !(blockOffset === 0 || prefix.endsWith("\n\n"))
-  ) {
-    return { state: "modified", installed: false, starts, ends };
+  if (blockOffset < 0) return { state: "modified", installed: false, starts, ends };
+  const prefix = text.slice(0, blockOffset);
+  const suffix = text.slice(blockOffset + PROJECT_WIRING_BLOCK.length);
+  if (!(suffix === "" || suffix === "\n") || !(blockOffset === 0 || prefix.endsWith("\n\n"))) {
+    return {
+      state: "misplaced",
+      installed: false,
+      starts,
+      ends,
+      reason: "canonical-block-not-terminal",
+      requiredAction: "move-canonical-block-to-end-manually",
+    };
   }
   return { state: "installed", installed: true, starts, ends, blockOffset };
 }
@@ -95,6 +99,7 @@ function publicStatus(status) {
 }
 
 function assertCanonicalOrAbsent(status) {
+  if (status.state === "misplaced") throw errors.wiringMisplaced(status.path);
   if (status.state === "modified") throw errors.wiringModified(status.path);
   if (status.state === "malformed") {
     throw errors.wiringMalformed(status.path, { starts: status.starts, ends: status.ends });

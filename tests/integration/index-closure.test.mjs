@@ -97,6 +97,69 @@ test("R3 deleting the last nested concept clears generated summaries in empty an
   assert.match(nested, /Human footer remains/);
 });
 
+test("R3 generated-only empty group indexes and directories are pruned", async (t) => {
+  const { root, bundle } = await project(t);
+  const file = path.join(root, "draft.md");
+  await fs.writeFile(file, draft);
+  let result = await run([
+    "concepts",
+    "write",
+    "--concept-id",
+    "dogfood/nested/test",
+    "--corpus-context",
+    "project",
+    "--document-file-path",
+    file,
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  const created = JSON.parse(result.stdout);
+
+  result = await run([
+    "concepts",
+    "delete",
+    "--concept-id",
+    "dogfood/nested/test",
+    "--corpus-context",
+    "project",
+    "--expected-current-sha256",
+    created.hash,
+    "--confirm-current-tree-deletion",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  await assert.rejects(() => fs.access(path.join(bundle, "dogfood")), { code: "ENOENT" });
+  assert.equal((await fs.stat(path.join(bundle, "memories"))).isDirectory(), true);
+  assert.doesNotMatch(await fs.readFile(path.join(bundle, "index.md"), "utf8"), /dogfood/);
+});
+
+test("R3 repair removes an existing generated-only orphan group", async (t) => {
+  const { root, bundle } = await project(t);
+  const directory = path.join(bundle, "dogfood");
+  const index = path.join(directory, "index.md");
+  await fs.mkdir(directory);
+  await fs.writeFile(index, `# dogfood
+
+<!-- engram:index:start -->
+
+No concepts yet.
+
+<!-- engram:index:end -->
+
+`);
+
+  let result = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(JSON.parse(result.stdout).issues.some((issue) => issue.code === "index-drift" && issue.path === index));
+
+  result = await run(["corpus", "repair-indexes", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(JSON.parse(result.stdout).repairedIndexFilePaths.includes(index));
+  await assert.rejects(() => fs.access(directory), { code: "ENOENT" });
+});
+
 test("R3 corpus validation discovers and index repair fixes stale managed indexes in empty groups", async (t) => {
   const { root, bundle } = await project(t);
   const staleDirectory = path.join(bundle, "old", "nested");

@@ -28,6 +28,15 @@ export const errors = {
       exitCode: 4,
       details: { path, state: "modified" },
     }),
+  wiringMisplaced: (path) =>
+    new EngramError(
+      `The canonical Engram project-wiring block is present but not at the end of ${path}; move the exact block to the end manually`,
+      {
+        code: "WIRING_MISPLACED",
+        exitCode: 4,
+        details: { path, state: "misplaced", requiredAction: "move-canonical-block-to-end-manually" },
+      },
+    ),
   wiringMalformed: (path, details = {}) =>
     new EngramError(`Engram project-wiring markers are partial or duplicated in ${path}; reconcile them manually`, {
       code: "WIRING_MALFORMED",

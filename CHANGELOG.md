@@ -22,6 +22,9 @@
   fail-closed default; unguarded permits relevant sensitive data without relaxing
   trust/provenance rules, and returning to guarded preserves a monotonic history
   warning rather than claiming old content was sanitized.
+- Prune wholly generated empty group indexes/directories while preserving any
+  human or additional content, and distinguish a misplaced canonical wiring block
+  with actionable manual-reconciliation guidance.
 
 ## 0.1.1 — 2026-09-08
 

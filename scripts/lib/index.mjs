@@ -237,7 +237,21 @@ function emptyIndex(file, bundle) {
 }
 
 async function obsoleteIndexFiles(bundle, desired) {
-  return (await existingIndexFiles(bundle)).filter((item) => !desired.has(item.file));
+  return (await existingIndexFiles(bundle))
+    .filter((item) => !desired.has(item.file))
+    .sort((left, right) => right.file.split(path.sep).length - left.file.split(path.sep).length);
+}
+
+async function isPrunableGeneratedIndex(file, current, bundle) {
+  const state = markerState(current);
+  if (state.kind !== "managed") return false;
+  const canonical = emptyIndex(file, bundle);
+  const canonicalState = markerState(canonical);
+  const currentShell = `${current.slice(0, state.start)}${current.slice(state.end)}`;
+  const canonicalShell = `${canonical.slice(0, canonicalState.start)}${canonical.slice(canonicalState.end)}`;
+  if (currentShell !== canonicalShell) return false;
+  const entries = await fs.readdir(path.dirname(file), { withFileTypes: true });
+  return entries.length === 1 && entries[0].name === "index.md" && entries[0].isFile();
 }
 
 export async function indexDrift(concepts, bundle) {
@@ -282,7 +296,9 @@ export async function indexDrift(concepts, bundle) {
       addIssue(issue);
       continue;
     }
-    if (current.slice(state.start, state.end) !== managedSection(emptyIndex(item.file, bundle))) {
+    if (await isPrunableGeneratedIndex(item.file, current, bundle)) {
+      drift.push({ file: item.file, reason: "obsolete" });
+    } else if (current.slice(state.start, state.end) !== managedSection(emptyIndex(item.file, bundle))) {
       drift.push({ file: item.file, reason: "stale" });
     }
   }
@@ -330,6 +346,13 @@ export async function writeIndexes(concepts, bundle) {
     const issue = ownershipIssue(item.file, state);
     if (issue) {
       issues.push(issue);
+      continue;
+    }
+    if (await isPrunableGeneratedIndex(item.file, current, bundle)) {
+      await rejectInternalSymlinks(bundle, item.file);
+      await fs.unlink(item.file);
+      await fs.rmdir(path.dirname(item.file));
+      files.push(item.file);
       continue;
     }
     const content = emptyIndex(item.file, bundle);

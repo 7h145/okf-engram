@@ -107,10 +107,11 @@ explicit user request.
 
 The operation preserves existing bytes and mode and is idempotent. Treating the
 project's instructions as primary keeps Engram in its proper role as one tool used
-by the project. `/engram unwire` removes only the exact canonical block. Modified,
-malformed, non-UTF-8,
-and unsafe symlink states are never overwritten. Wiring never changes automatic-
-memory policy.
+by the project. `/engram unwire` removes only the exact terminal canonical block.
+An exact block in any other position is reported as `misplaced` with instructions
+to move it to the end manually; Engram does not relocate it implicitly. Modified,
+malformed, non-UTF-8, and unsafe symlink states are never overwritten. Wiring
+never changes automatic-memory or sensitive-data policy.
 
 Canonical inspection is available through:
 
@@ -353,7 +354,9 @@ inventory; Engram never fetches them.
   policy again.
 - `PERSISTED_INDEX_STALE`: the concept mutation persisted but index maintenance
   failed. Inspect the current concept/hash or deletion and run `corpus
-  repair-indexes`; do not repeat semantic synthesis blindly.
+  repair-indexes`; do not repeat semantic synthesis blindly. Repair prunes an
+  obsolete empty group only when its index and directory are entirely
+  Engram-generated; any human-authored or additional content is preserved.
 - Reconcile changed/missing source evidence before conditional updates.
 - Use `jobs retry` only for unchanged failed/cancelled work. Reconcile
   `needs-review`, acknowledge inferred-memory results, then clean explicitly.

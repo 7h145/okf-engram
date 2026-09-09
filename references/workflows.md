@@ -11,9 +11,11 @@ sensitive-data policy.
 Canonical operations are `wiring project status|preview|install|remove` with
 `--corpus-context project`.
 
-Install preserves existing bytes/mode. Remove restores them exactly. Reject
-symlinks, non-UTF-8 files, and modified, partial, or duplicate managed markers.
-Never edit parent, global, or nested instruction files.
+Install preserves existing bytes/mode. Remove restores them exactly. An exact
+canonical block outside the terminal position is `misplaced`: report that it must
+be moved to the end manually and refuse mutation. Reject symlinks, non-UTF-8 files,
+and modified, partial, or duplicate managed markers. Never edit parent, global, or
+nested instruction files.
 
 ## Sensitive-data mode
 
@@ -168,4 +170,6 @@ shortcut.
 Replace only with the current SHA-256 from `concepts read`. Use `concepts
 deprecate` when superseded knowledge remains historically useful. `concepts delete`
 requires `--confirm-current-tree-deletion`; it cannot erase Git history, backups,
-sessions, remotes, or clones.
+sessions, remotes, or clones. Generated-index closure prunes an obsolete group
+directory only when its index is wholly Engram-generated and it contains nothing
+else; preserve every group with human-authored or additional content.
