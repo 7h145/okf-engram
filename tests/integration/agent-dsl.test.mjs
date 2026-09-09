@@ -55,6 +55,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /\[D\] concepts write/);
   assert.match(result.stdout, /\[D\] sources list/);
   assert.match(result.stdout, /\[D\] jobs enqueue artifact-ingest-batch/);
+  assert.match(result.stdout, /\[D\] policy project sensitive-data status\|allow\|deny/);
   assert.match(result.stdout, /--corpus-context project\|global/);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
@@ -70,6 +71,7 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.ok(Buffer.byteLength(result.stdout) < 1_280);
   assert.match(result.stdout, /\/engram wire\|unwire/);
   assert.match(result.stdout, /\/engram auto status\|on\|off/);
+  assert.match(result.stdout, /\/engram mode status\|guarded\|unguarded — manage sensitive data/);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /An agent-maintained, project-local knowledge base built from project data and memories\./);
   assert.match(result.stdout, /Use it to retain, find, and apply durable knowledge across working sessions\./);
@@ -106,6 +108,7 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
     "wire",
     "unwire",
     "auto",
+    "mode",
     "ls",
     "find",
     "show",
@@ -128,8 +131,11 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.doesNotMatch(prompt, /\b(?:forget|delete)\b/);
   assert.match(skill, /\| Human request \| Canonical intent \| User purpose \|/);
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest-batch/);
+  assert.match(skill, /\| `mode status\\\|guarded\\\|unguarded` \| `policy project sensitive-data status\\\|deny\\\|allow`/);
   assert.match(skill, /`sources` is the data-file analogue of `ls`/);
   assert.match(skill, /background-else-foreground/);
+  assert.match(skill, /Unguarded mode relaxes only the sensitivity filter/);
+  assert.match(skill, /Previously unguarded: yes — stored knowledge may still contain sensitive data/);
   assert.match(skill, /Launch the single returned `runnerCommand`/);
   assert.match(skill, /Never launch one runner per partition/);
   assert.match(skill, /\| `sources` \| `sources list --corpus-context project` \|/);

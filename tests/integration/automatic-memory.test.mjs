@@ -118,9 +118,11 @@ test("R1 automatic-memory policy defaults off, persists opt-in, and gates automa
 
   const settings = path.join(root, ".agents", "data", "okf-engram", "settings.json");
   assert.deepEqual(JSON.parse(await fs.readFile(settings, "utf8")), {
-    version: 3,
+    version: 4,
     automaticMemory: "on",
     generation: 1,
+    sensitiveData: "deny",
+    previouslyUnguarded: false,
   });
   assert.equal((await fs.stat(settings)).mode & 0o777, 0o600);
 
@@ -260,6 +262,58 @@ test("R1 canonical automatic-memory policy actions share one state", async (t) =
   assert.equal(JSON.parse(result.stdout).automaticMemory, "off");
 });
 
+test("sensitive-data policy defaults guarded and retains conservative unguarded history", async (t) => {
+  const root = await tempProject(t, "engram sensitive data ");
+  assert.equal(
+    (await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root])).code,
+    0,
+  );
+
+  const policyArgs = ["--corpus-context", "project", "--project-root-path", root];
+  let result = await run(["policy", "project", "sensitive-data", "status", ...policyArgs]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    corpusContext: "project",
+    projectRootPath: root,
+    settingsFilePath: path.join(root, ".agents", "data", "okf-engram", "settings.json"),
+    configured: false,
+    valid: true,
+    sensitiveData: "deny",
+    knowledgeMode: "guarded",
+    previouslyUnguarded: false,
+  });
+
+  result = await run(["policy", "project", "automatic-memory", "enable", ...policyArgs]);
+  assert.equal(result.code, 0, result.stderr);
+
+  result = await run(["policy", "project", "sensitive-data", "allow", ...policyArgs]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).knowledgeMode, "unguarded");
+  assert.equal(JSON.parse(result.stdout).previouslyUnguarded, true);
+
+  result = await run(["policy", "project", "sensitive-data", "deny", ...policyArgs]);
+  assert.equal(result.code, 0, result.stderr);
+  const guardedAgain = JSON.parse(result.stdout);
+  assert.equal(guardedAgain.knowledgeMode, "guarded");
+  assert.equal(guardedAgain.previouslyUnguarded, true);
+
+  const settings = JSON.parse(
+    await fs.readFile(path.join(root, ".agents", "data", "okf-engram", "settings.json"), "utf8"),
+  );
+  assert.deepEqual(settings, {
+    version: 4,
+    automaticMemory: "on",
+    generation: 1,
+    sensitiveData: "deny",
+    previouslyUnguarded: true,
+  });
+
+  result = await run(["corpus", "status", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).sensitiveData.knowledgeMode, "guarded");
+  assert.equal(JSON.parse(result.stdout).sensitiveData.previouslyUnguarded, true);
+});
+
 test("R1 invalid settings fail closed without being overwritten", async (t) => {
   const root = await tempProject(t);
   assert.equal(
@@ -285,7 +339,37 @@ test("R1 invalid settings fail closed without being overwritten", async (t) => {
   assert.equal(status.automaticMemory, "off");
   assert.equal(status.configured, true);
   assert.equal(status.valid, false);
-  assert.match(status.issue, /disabled/i);
+  assert.match(status.issue, /unavailable|invalid/i);
+
+  result = await run([
+    "policy",
+    "project",
+    "sensitive-data",
+    "status",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  const sensitiveStatus = JSON.parse(result.stdout);
+  assert.equal(sensitiveStatus.sensitiveData, "deny");
+  assert.equal(sensitiveStatus.knowledgeMode, "guarded");
+  assert.equal(sensitiveStatus.previouslyUnguarded, "unknown");
+  assert.equal(sensitiveStatus.valid, false);
+
+  result = await run([
+    "policy",
+    "project",
+    "sensitive-data",
+    "allow",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 4);
+  assert.equal(await fs.readFile(settings, "utf8"), invalid);
 
   result = await run([
     "policy",
@@ -351,7 +435,10 @@ test("R1 setting follows a canonical .agents root and rejects a settings symlink
   );
 
   const outside = path.join(root, "outside.json");
-  await fs.writeFile(outside, '{"version":3,"automaticMemory":"on","generation":1}\n');
+  await fs.writeFile(
+    outside,
+    '{"version":4,"automaticMemory":"on","generation":1,"sensitiveData":"deny","previouslyUnguarded":false}\n',
+  );
   await fs.unlink(path.join(root, ".pi", "data", "okf-engram", "settings.json"));
   await fs.symlink(outside, path.join(root, ".pi", "data", "okf-engram", "settings.json"));
   result = await run([
@@ -412,6 +499,10 @@ test("R1 automatic-write marker only accepts inferred Memory and no explicit bun
 
   const bundle = path.join(root, ".agents", "data", "okf-engram", "bundle");
   result = await run(["policy", "project", "automatic-memory", "status", "--corpus-bundle-path", bundle]);
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /does not accept --corpus-bundle-path/i);
+
+  result = await run(["policy", "project", "sensitive-data", "status", "--corpus-bundle-path", bundle]);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /does not accept --corpus-bundle-path/i);
 });

@@ -18,6 +18,10 @@
   to surface their entities, and reorder concise help around common work, further
   actions, then setup/policy; introduce Engram in human terms, call inputs data,
   and prefer queued ingest with a foreground fallback.
+- Add explicit project `guarded|unguarded` knowledge modes. Guarded remains the
+  fail-closed default; unguarded permits relevant sensitive data without relaxing
+  trust/provenance rules, and returning to guarded preserves a monotonic history
+  warning rather than claiming old content was sanitized.
 
 ## 0.1.1 — 2026-09-08
 

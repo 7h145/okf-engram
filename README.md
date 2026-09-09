@@ -48,7 +48,8 @@ From the intended project directory:
 ```
 
 Initialization creates `<project-root>/.agents/data/okf-engram/bundle/`. It does
-not modify `AGENTS.md`, Git, ignore rules, or automatic-memory policy. `/engram`
+not modify `AGENTS.md`, Git, ignore rules, automatic-memory policy, or
+sensitive-data policy. `/engram`
 without arguments reports the project knowledge-base status.
 
 `/engram help` is a fixed, bounded one-screen human summary. `/engram --help`
@@ -144,6 +145,32 @@ Manage consent with:
 The canonical operation is `policy project automatic-memory
 status|enable|disable`.
 
+## Sensitive data
+
+Project knowledge is guarded by default. A human may explicitly allow relevant
+sensitive data—including customer information, personal data, confidential
+material, credentials, and secrets—with:
+
+```text
+/engram mode status
+/engram mode unguarded
+/engram mode guarded
+```
+
+The canonical operation is `policy project sensitive-data status|allow|deny`.
+Unguarded mode relaxes only the sensitivity filter; provenance, durability,
+project scope, uncertainty, prompt-injection resistance, and command/source/Git
+safety remain mandatory. Automatic memory remains separate and default-off.
+
+This is a model-facing content policy, not encryption, access control, or a
+secrets vault. Knowledge is plaintext and may be indexed, versioned, backed up,
+sent to configured model providers, or exposed through tools and logs. Returning
+to guarded mode affects subsequent operations but does not remove existing
+sensitive content. Policy status continues to report `Previously unguarded: yes`
+after the mode has ever been enabled, warning that stored knowledge may still
+contain sensitive data. Invalid or unavailable history is reported as unknown
+with the same conservative warning.
+
 ## Development
 
 Runtime support is Node.js 20+. Current ESLint tooling requires Node.js 20.19 or
@@ -196,7 +223,8 @@ uses managed background execution when available and clearly falls back to
 foreground semantic ingest otherwise, without leaving a stranded job. It accepts
 up to 256 deterministically resolved local files
 and partitions them into ordered jobs of at most sixteen sources. Launch exactly
-one agent-owned runner for the batch, never one runner per partition. Normal
+one agent-owned runner for the batch, never one runner per partition. Each job
+uses the sensitive-data mode effective when its model invocation begins. Normal
 deferred work returns control without inline polling. Worker traces stay in
 private job files. Foreground results contain only bounded state, concept
 IDs/hashes, coverage, warnings, and review/error reasons.
@@ -332,7 +360,7 @@ inventory; Engram never fetches them.
 - Bundle-internal symlinks and unsafe paths are rejected. A symlinked project
   `.agents` root is canonicalized and supported.
 
-v0.1 uses OKF v0.2 concepts, automatic-memory settings schema version 3, and
+v0.1 uses OKF v0.2 concepts, project-policy settings schema version 4, and
 private job-record schema version 2. Unknown concept frontmatter is preserved.
 There is no automatic content migration or raw-source archive.
 

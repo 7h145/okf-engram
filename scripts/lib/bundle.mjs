@@ -13,7 +13,11 @@ import { searchConcepts } from "./search.mjs";
 import { digestResource, resolveLocalResource } from "./sources.mjs";
 import { resolvePinnedSource } from "./git-sources.mjs";
 import { gitTrackingState } from "./project.mjs";
-import { getAutomaticMemoryPolicyStatus, requireAutomaticMemoryEnabledLocked } from "./settings.mjs";
+import {
+  getAutomaticMemoryPolicyStatus,
+  getSensitiveDataPolicyStatus,
+  requireAutomaticMemoryEnabledLocked,
+} from "./settings.mjs";
 import { validateSelector } from "./selectors.mjs";
 
 async function assertBundle(context) {
@@ -672,6 +676,10 @@ export async function inspectCorpusStatus(context) {
     tolerateInvalid: true,
     allowExplicitBundle: true,
   });
+  const sensitiveData = await getSensitiveDataPolicyStatus(context, {
+    tolerateInvalid: true,
+    allowExplicitBundle: true,
+  });
   const sourceStates = {};
   const gitSourceStates = {};
   for (const item of sources) {
@@ -692,6 +700,7 @@ export async function inspectCorpusStatus(context) {
     sourceStates,
     gitSourceStates,
     automaticMemory,
+    sensitiveData,
     git,
   };
 }

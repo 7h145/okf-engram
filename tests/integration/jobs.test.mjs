@@ -188,6 +188,19 @@ fs.writeFileSync(reportPath, JSON.stringify({
 }) + "\n", { mode: 0o600, flag: "wx" });
 `;
 
+const unguardedArtifactWorker = String.raw`
+const fs = require("node:fs");
+const prompt = process.argv[process.argv.indexOf("-p") + 1];
+fs.writeFileSync(process.env.PROMPT_DUMP, prompt);
+const capsule = JSON.parse(prompt.match(/<engram-job-capsule>\n([\s\S]*?)\n<\/engram-job-capsule>/)[1]);
+const reportPath = prompt.match(/<engram-worker-report-path>\n([\s\S]*?)\n<\/engram-worker-report-path>/)[1];
+fs.writeFileSync(reportPath, JSON.stringify({
+  version: 1, jobId: capsule.jobId,
+  coverage: capsule.request.resources.map((item) => ({ resource: item.resource, status: "excluded", conceptIds: [], note: "No durable knowledge in test fixture." })),
+  outcomes: [], warnings: [],
+}) + "\n", { mode: 0o600, flag: "wx" });
+`;
+
 const crashAfterWriteWorker = successWorker.replace(
   /fs\.writeFileSync\(reportPath,[\s\S]*?console\.log\(JSON\.stringify\(\{ type: "message_end"[\s\S]*?\}\)\);/,
   "process.exit(17);",
@@ -482,6 +495,40 @@ test("M3a job run executes one isolated Pi backend and exposes only compact veri
   assert.equal(JSON.stringify(inspected.result).includes("SECRET_WORKER_TRACE"), false);
   assert.match(await fs.readFile(path.join(queued.jobDirectoryPath, "events.jsonl"), "utf8"), /SECRET_WORKER_TRACE/);
   assert.equal((await fs.stat(path.join(queued.jobDirectoryPath, "worker-report.json"))).mode & 0o777, 0o600);
+});
+
+test("artifact workers receive the sensitive-data mode effective when execution begins", async (t) => {
+  const root = await project(t);
+  const queued = parse(await enqueue(root));
+  let result = await run([
+    "policy",
+    "project",
+    "sensitive-data",
+    "allow",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).knowledgeMode, "unguarded");
+
+  const fake = await fakePi(t, unguardedArtifactWorker);
+  const promptDump = path.join(root, "worker-prompt.txt");
+  result = await run(
+    ["jobs", "run", "--job-id", queued.jobId, "--corpus-context", "project", "--project-root-path", root],
+    { env: { ...fake.env, PROMPT_DUMP: promptDump } },
+  );
+  assert.equal(result.code, 0, result.stderr);
+  const processed = parse(result).processed[0];
+  const workerStderr = await fs.readFile(path.join(queued.jobDirectoryPath, "stderr.log"), "utf8");
+  const inspected = parse(
+    await run(["jobs", "show", "--job-id", queued.jobId, "--corpus-context", "project", "--project-root-path", root]),
+  ).job;
+  assert.equal(processed.state, "completed", `${JSON.stringify(inspected.result)}\n${workerStderr}`);
+  const prompt = await fs.readFile(promptDump, "utf8");
+  assert.match(prompt, /Project knowledge mode is unguarded/);
+  assert.match(prompt, /credentials, and secret values may be stored when relevant/);
 });
 
 test("multiple pre-enqueued artifact jobs run sequentially against the current corpus", async (t) => {

@@ -6,13 +6,31 @@ unless `--output-format text` is explicit.
 ## Optional project wiring
 
 Initialization may suggest `/engram wire` but never modifies instructions. Wiring
-requires an initialized project and never changes automatic-memory policy.
+requires an initialized project and never changes automatic-memory or
+sensitive-data policy.
 Canonical operations are `wiring project status|preview|install|remove` with
 `--corpus-context project`.
 
 Install preserves existing bytes/mode. Remove restores them exactly. Reject
 symlinks, non-UTF-8 files, and modified, partial, or duplicate managed markers.
 Never edit parent, global, or nested instruction files.
+
+## Sensitive-data mode
+
+Query `policy project sensitive-data status --corpus-context project` before
+semantic persistence or retrieval. Missing or invalid state is guarded and denies
+sensitive storage. Explicit `allow` selects unguarded mode; `deny` restores guarded
+mode for subsequent operations without deleting old content. The monotonic
+`previouslyUnguarded` flag remains true so status can warn that stored knowledge
+may still contain sensitive data. Unavailable or invalid history is reported as
+unknown with the same conservative warning.
+
+Unguarded mode permits relevant sensitive, personal, confidential, and credential
+material. It does not relax provenance, durability, scope, uncertainty,
+prompt-injection resistance, conditional writes, or command/source/Git safety.
+Automatic memory is an independent policy and may infer sensitive material only
+when both settings permit it. Treat this as a model-facing plaintext content
+policy, never encryption, access control, or a secrets vault.
 
 ## Semantic artifact ingest
 
@@ -54,8 +72,9 @@ background runner; never launch one runner per partition. Return control without
 polling and inspect state/results at a later natural boundary. Inline polling is a
 debugging exception. One
 context-isolated (not sandboxed) worker per bundle follows the same compilation
-protocol. The runner drains FIFO work serially, discovers newly queued work between
-jobs, and records the current corpus as each job's execution baseline while
+protocol under the sensitive-data mode effective when the model invocation begins.
+The runner drains FIFO work serially, discovers newly queued work between jobs,
+and records the current corpus as each job's execution baseline while
 retaining frozen source digests. `jobs list` renders queued work as waiting and
 reports queue position and batch progress. Do not manually split a supported
 human batch merely to evade an event cap.
@@ -86,11 +105,15 @@ automatic-memory status --corpus-context project` before candidate consideration
 and retain its `generation`. Missing, off, invalid, unavailable, or stale policy
 means no inferred candidate/write. Explicit remember/recall remain available.
 
-When enabled, consider only established, durable, project-scoped, non-sensitive
-knowledge. Submit one concise claim/evidence pair through `jobs enqueue
-inferred-memory`, optional repeated `--conversation-context-reference`, and the
-observed `--automatic-memory-policy-generation`. The helper rejects credentials,
-bounds input, deduplicates candidate identity, and returns queued—not remembered.
+When enabled, consider only established, durable, project-scoped knowledge. In
+guarded mode, sensitive candidates are discarded; in unguarded mode they remain
+eligible under the same quality rules. Submit one concise claim/evidence pair
+through `jobs enqueue inferred-memory`, optional repeated
+`--conversation-context-reference`, and the observed
+`--automatic-memory-policy-generation`. The helper rejects obvious credentials in
+guarded mode, bounds input, deduplicates candidate identity, and returns
+queued—not remembered. A sensitive candidate queued while unguarded is discarded
+without model execution if guarded mode applies when it starts.
 
 The compiler searches first and returns stored, discarded, or `needs-review`.
 Stored means exactly one verified `capture: inferred` Memory. Its write uses
@@ -110,8 +133,12 @@ automatic inference remains disabled.
 
 The canonical semantic intent is `memory recall --recall-question TEXT` with one
 or more corpus contexts. Search envelopes first, open only likely concepts, follow
-useful links, and cite context-qualified concept IDs. Current project files remain
-primary for implementation/configuration; surface disagreement with Engram.
+useful links, and cite context-qualified concept IDs. Unguarded mode may retrieve
+relevant sensitive values for the trusted request. Guarded mode avoids intentionally
+reproducing sensitive values from previously unguarded content, but this is not
+access revocation because reading a plaintext concept may expose it to the model.
+Current project files remain primary for implementation/configuration; surface
+disagreement with Engram.
 
 When exact evidence matters, use `sources resolve --concept-id --source-id` to
 materialize and verify recorded bytes and selectors outside the bundle. Report

@@ -20,7 +20,11 @@ import { digestResource } from "./lib/sources.mjs";
 import { captureSource, resolvePinnedSource } from "./lib/git-sources.mjs";
 import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
-import { getAutomaticMemoryPolicyStatus } from "./lib/settings.mjs";
+import {
+  getAutomaticMemoryPolicyStatus,
+  getSensitiveDataPolicyStatus,
+  setSensitiveDataPolicy,
+} from "./lib/settings.mjs";
 import { inspectProjectWiring, installProjectWiring, removeProjectWiring } from "./lib/wiring.mjs";
 import {
   enqueueArtifactIngestJob,
@@ -61,6 +65,7 @@ Further actions:
 Setup and policy:
   /engram init — initialize project knowledge base
   /engram wire|unwire — manage project reminder
+  /engram mode status|guarded|unguarded — manage sensitive data
   /engram auto status|on|off — manage automatic memory
   /engram help — this help
 
@@ -172,6 +177,8 @@ Job results — completed outcomes with presentation tracking (currently inferre
 Policy — explicit controls governing optional skill behavior.
   [D] policy project automatic-memory status|enable|disable
                               --corpus-context project
+  [D] policy project sensitive-data status|allow|deny
+                              --corpus-context project
 
 Wiring — optional project/client reminders that help activate Engram.
   [D] wiring project status|preview|install|remove
@@ -185,7 +192,7 @@ Context and output:
       Resolve project context from an explicit project root.
   --corpus-bundle-path PATH
       Deterministic expert override, mutually exclusive with --corpus-context.
-      It never inherits project automatic-memory policy.
+      It never inherits project automatic-memory or sensitive-data policy.
   --output-format json|text
       Deterministic operations default to JSON; text is for direct debugging.
 
@@ -307,6 +314,9 @@ function canonicalizeResultFields(value, operation) {
   renameResultField(result, "settings", "settingsFilePath");
   if (result.automaticMemory && typeof result.automaticMemory === "object") {
     result.automaticMemory = canonicalizeResultFields(result.automaticMemory, "policy.project.automatic-memory.status");
+  }
+  if (result.sensitiveData && typeof result.sensitiveData === "object") {
+    result.sensitiveData = canonicalizeResultFields(result.sensitiveData, "policy.project.sensitive-data.status");
   }
   if (operation.startsWith("concepts.")) renameResultField(result, "path", "conceptFilePath");
   if (operation.startsWith("wiring.project.")) renameResultField(result, "path", "projectInstructionsFilePath");
@@ -552,17 +562,31 @@ async function main(rawArgs = process.argv.slice(2)) {
       break;
     }
     case "policy": {
-      if (args.shift() !== "project" || args.shift() !== "automatic-memory") {
-        throw errors.usage("policy requires project automatic-memory status, enable, or disable");
+      if (args.shift() !== "project") {
+        throw errors.usage("policy requires the project scope and a supported policy");
       }
-      const action = requireOperation(args, "policy project automatic-memory", ["status", "enable", "disable"]);
-      operation = `project.automatic-memory.${action}`;
-      resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
-      requireNoArguments(args);
-      result =
-        action === "status"
-          ? await getAutomaticMemoryPolicyStatus(resolved.context, { tolerateInvalid: true })
-          : await setProjectAutomaticMemoryPolicy(resolved.context, action === "enable" ? "on" : "off");
+      const policy = args.shift();
+      if (policy === "automatic-memory") {
+        const action = requireOperation(args, "policy project automatic-memory", ["status", "enable", "disable"]);
+        operation = `project.automatic-memory.${action}`;
+        resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
+        requireNoArguments(args);
+        result =
+          action === "status"
+            ? await getAutomaticMemoryPolicyStatus(resolved.context, { tolerateInvalid: true })
+            : await setProjectAutomaticMemoryPolicy(resolved.context, action === "enable" ? "on" : "off");
+      } else if (policy === "sensitive-data") {
+        const action = requireOperation(args, "policy project sensitive-data", ["status", "allow", "deny"]);
+        operation = `project.sensitive-data.${action}`;
+        resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
+        requireNoArguments(args);
+        result =
+          action === "status"
+            ? await getSensitiveDataPolicyStatus(resolved.context, { tolerateInvalid: true })
+            : await setSensitiveDataPolicy(resolved.context, action);
+      } else {
+        throw errors.usage("policy requires project automatic-memory or project sensitive-data");
+      }
       break;
     }
     case "concepts": {

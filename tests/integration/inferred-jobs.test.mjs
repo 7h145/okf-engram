@@ -55,6 +55,21 @@ async function enable(root) {
   return parse(result);
 }
 
+async function setKnowledgeMode(root, mode) {
+  const result = await run([
+    "policy",
+    "project",
+    "sensitive-data",
+    mode === "unguarded" ? "allow" : "deny",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  return parse(result);
+}
+
 async function fakePi(t, source) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "engram inferred fake pi "));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
@@ -181,6 +196,20 @@ const reportPath = prompt.match(/<engram-worker-report-path>\n([\s\S]*?)\n<\/eng
 fs.writeFileSync(reportPath, JSON.stringify({
   version: 1, jobId: capsule.jobId,
   candidate: { status: "${status}", conceptIds: [], reason: "${reason}", note: "Bounded candidate disposition." },
+  outcomes: [], warnings: [],
+}) + "\n", { mode: 0o600, flag: "wx" });
+`;
+
+const unguardedDecisionWorker = String.raw`
+const fs = require("node:fs");
+const prompt = process.argv[process.argv.indexOf("-p") + 1];
+if (!prompt.includes("Project knowledge mode is unguarded")) process.exit(23);
+if (!prompt.includes("credentials, and secret values may be stored when relevant")) process.exit(24);
+const capsule = JSON.parse(prompt.match(/<engram-job-capsule>\n([\s\S]*?)\n<\/engram-job-capsule>/)[1]);
+const reportPath = prompt.match(/<engram-worker-report-path>\n([\s\S]*?)\n<\/engram-worker-report-path>/)[1];
+fs.writeFileSync(reportPath, JSON.stringify({
+  version: 1, jobId: capsule.jobId,
+  candidate: { status: "discarded", conceptIds: [], reason: "duplicate-existing", note: "Tested unguarded worker policy." },
   outcomes: [], warnings: [],
 }) + "\n", { mode: 0o600, flag: "wx" });
 `;
@@ -313,6 +342,59 @@ test("M3b1 rejects obvious secrets and coordinator relabeling before persistence
     ).code,
     7,
   );
+});
+
+test("unguarded mode admits sensitive inferred candidates and is explicit in the worker prompt", async (t) => {
+  const root = await project(t);
+  const policy = await enable(root);
+  await setKnowledgeMode(root, "unguarded");
+  const secret = "api_key=sk-abcdefghijklmnopqrstuvwxyz012345";
+  const queued = parse(
+    await enqueueCandidate(root, policy.generation, {
+      claim: "The project records a customer API credential for integration work.",
+      evidence: secret,
+    }),
+  );
+  assert.equal(queued.state, "queued");
+
+  const env = await fakePi(t, unguardedDecisionWorker);
+  const result = await run(
+    ["jobs", "run", "--job-id", queued.jobId, "--corpus-context", "project", "--project-root-path", root],
+    { env },
+  );
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "completed");
+});
+
+test("returning to guarded mode discards a queued sensitive candidate before model execution", async (t) => {
+  const root = await project(t);
+  const policy = await enable(root);
+  await setKnowledgeMode(root, "unguarded");
+  const queued = parse(
+    await enqueueCandidate(root, policy.generation, {
+      claim: "A second integration credential is currently used by the project.",
+      evidence: "api_key=sk-abcdefghijklmnopqrstuvwxyz012345",
+    }),
+  );
+  await setKnowledgeMode(root, "guarded");
+
+  const result = await run([
+    "jobs",
+    "run",
+    "--job-id",
+    queued.jobId,
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "cancelled");
+  const inspected = parse(
+    await run(["jobs", "show", "--job-id", queued.jobId, "--corpus-context", "project", "--project-root-path", root]),
+  ).job;
+  assert.equal(inspected.result.reason, "guarded-before-start");
+  assert.equal(inspected.result.candidate.reason, "sensitive");
 });
 
 test("M3b1 compiler stores only a verified inferred Memory through the generation gate", async (t) => {
