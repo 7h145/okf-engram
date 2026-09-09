@@ -82,25 +82,30 @@ or ingesting concepts.
 Ordinary natural-language requests outside `/engram` may activate this skill
 normally.
 
-| Human request | Canonical intent |
-|---|---|
-| no arguments | `corpus status --corpus-context project` |
-| `help` | return exact deterministic human help |
-| `init` | `corpus initialize --corpus-context project` |
-| `wire` / `unwire` | `wiring project install` / `wiring project remove` |
-| `auto status\|on\|off` | `policy project automatic-memory status\|enable\|disable` |
-| `ls` | `concepts list --corpus-context project` |
-| `find WORDS` | `concepts search --query WORDS` |
-| `show CONCEPT_ID` | `concepts read --concept-id CONCEPT_ID` |
-| `sources` | `sources list --corpus-context project` |
-| `inventory` | `sources inventory --corpus-context project` |
-| `remember STATEMENT` | `memory remember --memory-statement STATEMENT` |
-| `recall QUESTION` | `memory recall --recall-question QUESTION` |
-| `ingest FILE...` | `knowledge ingest --source-resource ...` |
-| `queue FILE...` | `jobs enqueue artifact-ingest-batch --source-resource ...` |
-| `jobs [JOB_ID]` | `jobs list` or `jobs show --job-id JOB_ID` |
-| `cancel JOB_ID` | `jobs cancel --job-id JOB_ID` |
-| `remove CONCEPT_ID` | guided `concepts delete --concept-id CONCEPT_ID` workflow |
+| Human request | Canonical intent | User purpose |
+|---|---|---|
+| no arguments | `corpus status --corpus-context project` | Show whether project knowledge is ready and healthy. |
+| `help` | return exact deterministic human help | Discover the supported human commands. |
+| `init` | `corpus initialize --corpus-context project` | Create project knowledge storage deliberately. |
+| `wire` / `unwire` | `wiring project install` / `wiring project remove` | Manage the optional project reminder. |
+| `auto status\|on\|off` | `policy project automatic-memory status\|enable\|disable` | Inspect or change project inference consent. |
+| `ls` | `concepts list --corpus-context project` | Browse the concepts themselves. |
+| `find WORDS` | `concepts search --query WORDS` | Locate likely knowledge without opening everything. |
+| `show CONCEPT_ID` | `concepts read --concept-id CONCEPT_ID` | Read one selected concept. |
+| `sources` | `sources list --corpus-context project` | Surface the referenced local files; never replace the file list with an aggregate. |
+| `inventory` | `sources inventory --corpus-context project` | Diagnose complete provenance and source state. |
+| `remember STATEMENT` | `memory remember --memory-statement STATEMENT` | Deliberately retain durable project knowledge. |
+| `recall QUESTION` | `memory recall --recall-question QUESTION` | Answer from relevant project knowledge. |
+| `ingest FILE...` | `knowledge ingest --source-resource ...` | Compile artifacts in the foreground when immediate work is wanted or background work is unavailable. |
+| `queue FILE...` | `jobs enqueue artifact-ingest-batch --source-resource ...` | Prefer background artifact compilation and return control quickly. |
+| `jobs [JOB_ID]` | `jobs list` or `jobs show --job-id JOB_ID` | See all work, including running and waiting jobs, or inspect one job. |
+| `cancel JOB_ID` | `jobs cancel --job-id JOB_ID` | Stop unwanted deferred work safely. |
+| `remove CONCEPT_ID` | guided `concepts delete --concept-id CONCEPT_ID` workflow | Deliberately remove one current-tree concept. |
+
+Preserve the listed user purpose when presenting results. For collection commands,
+surface the requested entities; a helpful aggregate may accompany but must not
+replace them. In particular, `sources` is the source-file analogue of `ls`: show
+the files, even when pagination or a compact table is useful.
 
 Human shortcuts select project corpus context. `remove` is deliberately spelled
 out and deletes exactly one concept through a mandatory two-turn confirmation:
@@ -290,13 +295,13 @@ use an invisible untracked shell process. Return control without polling. Inspec
 state/results at a later natural boundary. Inline polling is only for explicit
 debugging.
 
-If no managed background runner is available, leave the batch queued and explain
-the explicit blocking fallback:
-
-```bash
-node <skill-dir>/scripts/engram.mjs jobs run-all-queued \
-  --corpus-context project --confirm-run-all-queued
-```
+For the human `queue` shortcut, confirm that a managed background runner is
+available before enqueueing. If none is available, do not create stranded deferred
+state: clearly report the fallback and perform the same request through foreground
+`knowledge ingest`. This is the user's preferred background-else-foreground
+experience. A canonical `jobs enqueue` request remains literal and may instead be
+left queued; `jobs run-all-queued --confirm-run-all-queued` is its explicit
+blocking fallback.
 
 Inspect compact state without reading private worker traces:
 

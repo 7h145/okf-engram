@@ -38,24 +38,28 @@ import {
 
 const HUMAN_HELP = `okf-engram ${VERSION} — project knowledge and memory
 
-Common commands:
+Common work:
   /engram — project status
-  /engram help — this help
-  /engram init — initialize project corpus
-  /engram wire|unwire — manage project reminder
-  /engram auto status|on|off — manage automatic memory
+  /engram recall QUESTION — answer from knowledge
+  /engram remember STATEMENT — retain knowledge
   /engram ls — list concepts
   /engram find WORDS — search concepts
   /engram show CONCEPT_ID — read concept
-  /engram sources — list referenced local files
-  /engram inventory — inspect all source references
-  /engram remember STATEMENT — remember knowledge
-  /engram recall QUESTION — retrieve knowledge
-  /engram ingest FILE... — ingest artifacts now
-  /engram queue FILE... — queue artifact for async ingest
+  /engram queue FILE... — prefer background ingest
   /engram jobs [JOB_ID] — inspect jobs
-  /engram cancel JOB_ID — cancel job
+  /engram sources — list referenced local files
+
+Further actions:
+  /engram ingest FILE... — ingest in the foreground
+  /engram inventory — inspect all source references
+  /engram cancel JOB_ID — cancel deferred work
   /engram remove CONCEPT_ID — delete after confirmation
+
+Setup and policy:
+  /engram init — initialize project corpus
+  /engram wire|unwire — manage project reminder
+  /engram auto status|on|off — manage automatic memory
+  /engram help — this help
 
 Commands are strict. Ask normally for anything else.
 Run /engram --help for the canonical agent DSL.`;

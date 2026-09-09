@@ -68,6 +68,12 @@
     "expect": ["redacts sensitive details", "preserves unresolved and historical status", "records claim-level provenance", "runs focused retrieval probes"]
   },
   {
+    "name": "human source list preserves its user purpose",
+    "prompt": "/engram sources",
+    "reject": ["replaces the file list with aggregate counts", "presents non-file resources as local files", "hashes file contents"],
+    "expect": ["surfaces each referenced local file", "may supplement the file list with a concise aggregate", "reports omitted non-file resources"]
+  },
+  {
     "name": "grouped source status inventory",
     "prompt": "/engram sources inventory --corpus-context project",
     "reject": ["fetches URL or URN references", "silently omits digestless or malformed claims", "rewrites drifted concepts", "changes claim-level sources check output"],
@@ -95,8 +101,8 @@
     "name": "explicit large deferred artifact batch",
     "prompt": "/engram queue docs/*.md",
     "fixture": "The deterministic glob expansion contains 40 unique local files.",
-    "reject": ["claims queued work is persisted", "polls the background job inline during a normal turn", "launches one runner per partition", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],
-    "expect": ["freezes every project source digest", "creates one batch with three ordered jobs", "reports the batch and all job IDs", "launches one serial queue runner", "returns control without waiting", "shows one running job and later jobs waiting", "checks compact durable results at a later boundary", "supports cancellation and reconciliation"]
+    "reject": ["claims queued work is persisted", "polls the background job inline during a normal turn", "launches one runner per partition", "creates stranded deferred state when no managed runner exists", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],
+    "expect": ["prefers managed background execution", "falls back clearly to foreground ingest when no runner is available", "freezes every project source digest when queued", "creates one batch with three ordered jobs", "reports the batch and all job IDs", "launches one serial queue runner", "returns control without waiting", "shows one running job and later jobs waiting", "checks compact durable results at a later boundary", "supports cancellation and reconciliation"]
   },
   {
     "name": "canonical agent DSL concept search",

@@ -40,13 +40,11 @@ From the intended project directory:
 ```text
 /engram init
 /engram wire
-/engram remember this project targets Python 3.13
 /engram recall which Python version does this project target?
-/engram sources
-/engram inventory
-/engram ingest docs/architecture.md
-/engram queue docs/runbook.md
+/engram remember this project targets Python 3.13
+/engram queue docs/*.md
 /engram jobs
+/engram sources
 ```
 
 Initialization creates `<project-root>/.agents/data/okf-engram/bundle/`. It does
@@ -80,9 +78,11 @@ or inaccessible contexts fail; project operations never fall back to global or
 vice versa. Deterministic helper output defaults to JSON. Use
 `--output-format text` only for direct debugging.
 
-The human `/engram` grammar is strict and intentionally small. Unknown forms are
-rejected with concise help. Ask the agent normally outside `/engram` for free-form
-requests. `/engram remove CONCEPT_ID` is the sole destructive shortcut: it reads
+The human `/engram` grammar is strict and intentionally small. Its routing table
+also states each shortcut's user purpose: collection requests surface their actual
+entities rather than replacing them with an aggregate. Unknown forms are rejected
+with concise help. Ask the agent normally outside `/engram` for free-form requests.
+`/engram remove CONCEPT_ID` is the sole destructive shortcut: it reads
 and identifies one concept, asks for yes/no confirmation in a separate turn, then
 rechecks its SHA-256 before invoking the guarded canonical deletion.
 
@@ -190,7 +190,10 @@ node scripts/engram.mjs jobs cancel \
 ```
 
 The batch enqueue result contains one `runnerCommand` plus the batch ID and all
-job IDs. `/engram queue` accepts up to 256 deterministically resolved local files
+job IDs. The human `/engram queue` command is the preferred ingest experience: it
+uses managed background execution when available and clearly falls back to
+foreground semantic ingest otherwise, without leaving a stranded job. It accepts
+up to 256 deterministically resolved local files
 and partitions them into ordered jobs of at most sixteen sources. Launch exactly
 one agent-owned runner for the batch, never one runner per partition. Normal
 deferred work returns control without inline polling. Worker traces stay in

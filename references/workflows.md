@@ -45,10 +45,14 @@ settings, and pre-work bundle hashes. It partitions the request into ordered job
 of at most sixteen sources and stores no source bytes or transcript. `queued` is
 not a persistence claim.
 
-Launch the single returned command with one agent-owned background runner; never
-launch one runner per partition. Return control without polling and inspect
-state/results at a later natural boundary. Inline polling is a debugging exception.
-`jobs run-all-queued --confirm-run-all-queued` is the blocking fallback. One
+For the human `queue` shortcut, confirm that a managed runner exists before
+creating deferred state. Prefer that background path; if it is unavailable,
+clearly fall back to synchronous semantic ingest. A literal canonical enqueue may
+remain queued and use `jobs run-all-queued --confirm-run-all-queued` as its
+blocking fallback. Launch the single returned command with one agent-owned
+background runner; never launch one runner per partition. Return control without
+polling and inspect state/results at a later natural boundary. Inline polling is a
+debugging exception. One
 context-isolated (not sandboxed) worker per bundle follows the same compilation
 protocol. The runner drains FIFO work serially, discovers newly queued work between
 jobs, and records the current corpus as each job's execution baseline while

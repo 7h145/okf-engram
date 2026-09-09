@@ -4,5 +4,6 @@ argument-hint: "[help|init|wire|unwire|auto|ls|find|show|sources|inventory|remem
 ---
 Activate and follow the `okf-engram` skill. Treat this as a strict `/engram`
 request; resolve human shortcuts through its routing table before invoking the
-helper, and reject unknown forms with concise help.
+helper, preserve each shortcut's documented user purpose when presenting results,
+and reject unknown forms with concise help.
 Engram request: $ARGUMENTS
