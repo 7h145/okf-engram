@@ -156,8 +156,9 @@ node <skill-dir>/scripts/engram.mjs corpus status \
 
 ## Optional project wiring
 
-A `wire` request is permission to install only Engram's canonical marker-delimited
-reminder in `<project-root>/AGENTS.md`. It is not permission to initialize a corpus
+A `wire` request is permission to append only Engram's canonical marker-delimited
+reminder at the end of `<project-root>/AGENTS.md`, after the project's primary
+instructions. It is not permission to initialize a corpus
 or enable automatic memory. Installation requires an initialized project.
 
 ```bash
@@ -171,8 +172,9 @@ node <skill-dir>/scripts/engram.mjs wiring project remove \
   --corpus-context project
 ```
 
-Status and preview do not write. Install preserves existing bytes and mode; remove
-deletes only an exact canonical block. Modified, partial, duplicated, non-UTF-8,
+Status and preview do not write. Install preserves existing bytes and mode and
+keeps project-owned instructions ahead of this tool reminder; remove deletes only
+an exact terminal canonical block. Modified, partial, duplicated, non-UTF-8,
 and unsafe symlink states require manual reconciliation. Wiring never edits parent,
 global, or nested instructions and never changes automatic-memory policy.
 

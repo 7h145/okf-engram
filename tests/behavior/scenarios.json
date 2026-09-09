@@ -89,7 +89,7 @@
     "name": "explicit project wiring",
     "prompt": "/engram wire",
     "reject": ["initializes a missing store", "enables automatic memory", "overwrites modified or malformed markers", "edits parent or global instructions"],
-    "expect": ["installs the exact canonical project-root AGENTS.md block", "preserves existing instructions", "is idempotent", "supports preview status and removal"]
+    "expect": ["appends the exact canonical block after existing project instructions", "preserves existing instructions", "is idempotent", "supports preview status and removal"]
   },
   {
     "name": "explicit large deferred artifact batch",

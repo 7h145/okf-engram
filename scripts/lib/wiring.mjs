@@ -37,8 +37,13 @@ function classify(text) {
     return { state: "malformed", installed: false, starts, ends };
   }
   const blockOffset = text.indexOf(PROJECT_WIRING_BLOCK);
-  const suffix = blockOffset === 0 ? text.slice(PROJECT_WIRING_BLOCK.length) : undefined;
-  if (blockOffset !== 0 || !(suffix === "" || suffix === "\n" || suffix.startsWith("\n\n"))) {
+  const prefix = blockOffset >= 0 ? text.slice(0, blockOffset) : undefined;
+  const suffix = blockOffset >= 0 ? text.slice(blockOffset + PROJECT_WIRING_BLOCK.length) : undefined;
+  if (
+    blockOffset < 0 ||
+    !(suffix === "" || suffix === "\n") ||
+    !(blockOffset === 0 || prefix.endsWith("\n\n"))
+  ) {
     return { state: "modified", installed: false, starts, ends };
   }
   return { state: "installed", installed: true, starts, ends, blockOffset };
@@ -125,8 +130,8 @@ export async function installProjectWiring(context) {
     if (status.installed) {
       return { action: "install", changed: false, created: false, ...publicStatus(status) };
     }
-    const text = status.exists
-      ? `${PROJECT_WIRING_BLOCK}\n\n${status.text}`
+    const text = status.exists && status.text
+      ? `${status.text}\n\n${PROJECT_WIRING_BLOCK}\n`
       : `${PROJECT_WIRING_BLOCK}\n`;
     await atomicWrite(status.path, text, { mode: status.mode });
     return {
@@ -148,9 +153,9 @@ export async function removeProjectWiring(context) {
       };
     }
 
-    const suffix = status.text.slice(PROJECT_WIRING_BLOCK.length);
-    const text = suffix.startsWith("\n\n") ? suffix.slice(2) : suffix;
-    if (text === "" || text === "\n") {
+    const prefix = status.text.slice(0, status.blockOffset);
+    const text = prefix.endsWith("\n\n") ? prefix.slice(0, -2) : prefix;
+    if (text === "") {
       await fs.unlink(status.path);
       return {
         action: "remove",

@@ -128,7 +128,7 @@ test("bare wiring installs idempotently without enabling automatic memory", asyn
   assert.equal(policy.generation, 0);
 });
 
-test("wiring prepends to and removes from an existing AGENTS.md without changing its bytes", async (t) => {
+test("wiring appends to and removes from an existing AGENTS.md without changing its bytes", async (t) => {
   const root = await tempProject(t, "engram wiring preserve ");
   const agents = path.join(root, "AGENTS.md");
   const original = "# Existing instructions\r\n\r\nKeep this exact.\r\n";
@@ -140,7 +140,7 @@ test("wiring prepends to and removes from an existing AGENTS.md without changing
   );
   assert.equal(output.changed, true);
   assert.equal(output.created, false);
-  assert.equal(await fs.readFile(agents, "utf8"), `${expectedBlock}\n\n${original}`);
+  assert.equal(await fs.readFile(agents, "utf8"), `${original}\n\n${expectedBlock}\n`);
   assert.equal((await fs.stat(agents)).mode & 0o777, 0o640);
 
   output = parse(
@@ -176,7 +176,7 @@ test("wiring remove cleans its sole AGENTS.md block even after bundle removal", 
 test("wiring refuses modified, malformed, duplicate, and unsafe marker state", async (t) => {
   const cases = [
     ["modified", expectedBlock.replace("prior rationale", "changed rationale") + "\n"],
-    ["misplaced", `# Existing\n\n${expectedBlock}\n`],
+    ["misplaced", `${expectedBlock}\n\n# Existing\n`],
     ["start only", "<!-- okf-engram:project-wiring:start -->\nchanged\n"],
     ["duplicate", `${expectedBlock}\n\n${expectedBlock}\n`],
   ];

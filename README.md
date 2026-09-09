@@ -88,8 +88,8 @@ rechecks its SHA-256 before invoking the guarded canonical deletion.
 
 ## Optional project wiring
 
-`/engram wire` installs a short canonical marker-delimited reminder at the start
-of `<project-root>/AGENTS.md`:
+`/engram wire` appends a short canonical marker-delimited reminder to the end of
+`<project-root>/AGENTS.md`, after the project's own instructions:
 
 ```md
 <!-- okf-engram:project-wiring:start -->
@@ -103,8 +103,10 @@ explicit user request.
 <!-- okf-engram:project-wiring:end -->
 ```
 
-The operation preserves existing bytes and mode and is idempotent. `/engram
-unwire` removes only the exact canonical block. Modified, malformed, non-UTF-8,
+The operation preserves existing bytes and mode and is idempotent. Treating the
+project's instructions as primary keeps Engram in its proper role as one tool used
+by the project. `/engram unwire` removes only the exact canonical block. Modified,
+malformed, non-UTF-8,
 and unsafe symlink states are never overwritten. Wiring never changes automatic-
 memory policy.
 

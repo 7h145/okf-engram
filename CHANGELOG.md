@@ -12,6 +12,8 @@
 - Make `/engram queue` accept large user batches: deterministically partition up
   to 256 sources into ordered 16-source jobs, return one serial queue runner, and
   expose running/waiting positions plus batch progress through `jobs list`.
+- Append optional Engram wiring after existing `AGENTS.md` project instructions
+  instead of placing a tool reminder before the project's primary material.
 
 ## 0.1.1 — 2026-09-08
 
