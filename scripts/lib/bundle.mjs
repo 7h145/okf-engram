@@ -10,7 +10,7 @@ import { withBundleLock } from "./lock.mjs";
 import { scanBundle } from "./scan.mjs";
 import { indexDrift, inspectExistingIndexes, inspectExistingLogs, validateRootIndex, writeIndexes } from "./index.mjs";
 import { searchConcepts } from "./search.mjs";
-import { digestResource } from "./sources.mjs";
+import { digestResource, resolveLocalResource } from "./sources.mjs";
 import { resolvePinnedSource } from "./git-sources.mjs";
 import { gitTrackingState } from "./project.mjs";
 import { getAutomaticMemoryPolicyStatus, requireAutomaticMemoryEnabledLocked } from "./settings.mjs";
@@ -377,6 +377,90 @@ async function inspectSummaryLive(context, resource, expectedDigests) {
       error: error.message,
     };
   }
+}
+
+export async function listSourceFiles(context, id) {
+  await assertBundle(context);
+  const { concepts } = await scanBundle(context.bundle);
+  const selected = id ? concepts.filter((item) => item.id === id) : concepts;
+  if (id && !selected.length) throw errors.notFound(`Concept ${id}`);
+
+  const grouped = new Map();
+  const nonFileResources = new Set();
+  let omittedNonFileReferences = 0;
+  const invalidClaims = [];
+  for (const item of selected) {
+    const sources = item.concept.data.sources;
+    if (sources === undefined) continue;
+    if (!Array.isArray(sources)) {
+      invalidClaims.push({ conceptId: item.id, sourceIndex: null, state: "invalid", error: "sources must be a list" });
+      continue;
+    }
+    sources.forEach((source, sourceIndex) => {
+      if (!source || typeof source !== "object" || Array.isArray(source)) {
+        invalidClaims.push({
+          conceptId: item.id,
+          sourceIndex,
+          state: "invalid",
+          error: "source entry must be a mapping",
+        });
+        return;
+      }
+      if (typeof source.resource !== "string" || !source.resource.trim()) {
+        invalidClaims.push({
+          conceptId: item.id,
+          sourceIndex,
+          state: "invalid",
+          error: "source resource must be a non-empty string",
+        });
+        return;
+      }
+      if (!/^(?:project:|file:)/.test(source.resource)) {
+        nonFileResources.add(source.resource);
+        omittedNonFileReferences += 1;
+        return;
+      }
+      const group = grouped.get(source.resource) ?? { references: 0, conceptIds: new Set(), sourceIds: new Set() };
+      group.references += 1;
+      group.conceptIds.add(item.id);
+      if (typeof source.id === "string" && source.id.trim()) group.sourceIds.add(source.id);
+      grouped.set(source.resource, group);
+    });
+  }
+
+  const sourceFiles = [];
+  for (const [resource, group] of [...grouped.entries()].sort(([left], [right]) => compareText(left, right))) {
+    const item = {
+      resource,
+      referenceCount: group.references,
+      conceptIds: [...group.conceptIds].sort(compareText),
+      sourceIds: [...group.sourceIds].sort(compareText),
+    };
+    try {
+      item.sourceFilePath = await resolveLocalResource(resource, context.projectRoot);
+      item.state = (await fs.stat(item.sourceFilePath)).isFile() ? "available" : "not-file";
+    } catch (error) {
+      item.state = error.code === "NOT_FOUND" ? "missing" : error.code === "UNSAFE_PATH" ? "unsafe" : "unresolvable";
+      item.error = error.message;
+    }
+    sourceFiles.push(item);
+  }
+
+  invalidClaims.sort(
+    (left, right) =>
+      compareText(left.conceptId, right.conceptId) || (left.sourceIndex ?? -1) - (right.sourceIndex ?? -1),
+  );
+  return {
+    sourceFiles,
+    invalidClaims,
+    totals: {
+      sourceFiles: sourceFiles.length,
+      references: sourceFiles.reduce((sum, item) => sum + item.referenceCount, 0),
+      omittedNonFileResources: nonFileResources.size,
+      omittedNonFileReferences,
+      invalidClaims: invalidClaims.length,
+    },
+  };
 }
 
 export async function inventorySources(context, id) {

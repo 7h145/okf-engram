@@ -53,6 +53,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /\[S\] knowledge ingest/);
   assert.match(result.stdout, /\[S\] memory remember/);
   assert.match(result.stdout, /\[D\] concepts write/);
+  assert.match(result.stdout, /\[D\] sources list/);
   assert.match(result.stdout, /--corpus-context project\|global/);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
@@ -60,7 +61,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.doesNotMatch(result.stdout, /--(?:from|to|if-match|yes|json)(?:\s|$)/m);
 });
 
-test("human help is bounded, strict, and contains no destructive shortcut", async () => {
+test("human help is bounded and exposes only a guarded destructive shortcut", async () => {
   const result = await run(["help"]);
   const noArguments = await run([]);
   assert.equal(result.code, 0, result.stderr);
@@ -69,14 +70,17 @@ test("human help is bounded, strict, and contains no destructive shortcut", asyn
   assert.match(result.stdout, /\/engram wire\|unwire/);
   assert.match(result.stdout, /\/engram auto status\|on\|off/);
   assert.doesNotMatch(result.stdout, / \| /);
+  assert.match(result.stdout, /\/engram sources — list referenced local files/);
+  assert.match(result.stdout, /\/engram inventory — inspect all source references/);
   assert.match(result.stdout, /\/engram remember STATEMENT/);
   assert.match(result.stdout, /\/engram jobs \[JOB_ID\]/);
+  assert.match(result.stdout, /\/engram remove CONCEPT_ID — delete after confirmation/);
   assert.match(result.stdout, /queue artifact for async ingest/);
   assert.match(result.stdout, /Commands are strict/);
-  assert.doesNotMatch(result.stdout, /\b(?:delete|forget|remove concept)\b/i);
+  assert.doesNotMatch(result.stdout, /\bforget\b/i);
 });
 
-test("Pi prompt and skill define one strict human router without destructive shortcuts", async () => {
+test("Pi prompt and skill define one strict human router with guarded removal", async () => {
   const prompt = await fs.readFile(path.join(repository, "prompts", "engram.md"), "utf8");
   const skill = await fs.readFile(path.join(repository, "SKILL.md"), "utf8");
   for (const shortcut of [
@@ -88,20 +92,27 @@ test("Pi prompt and skill define one strict human router without destructive sho
     "ls",
     "find",
     "show",
+    "sources",
+    "inventory",
     "remember",
     "recall",
     "ingest",
     "queue",
     "jobs",
     "cancel",
+    "remove",
   ])
     assert.match(prompt, new RegExp(`\\b${shortcut}\\b`));
   assert.match(prompt, /strict `\/engram`/);
+  assert.match(prompt, /resolve human shortcuts through its routing table/);
   assert.match(prompt, /Engram request: \$ARGUMENTS/);
   assert.doesNotMatch(prompt, /\$\{ARGUMENTS\}/);
   assert.doesNotMatch(prompt, /\b(?:forget|delete)\b/);
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest/);
-  assert.match(skill, /There is no destructive human\s+shortcut/);
+  assert.match(skill, /\| `sources` \| `sources list --corpus-context project` \|/);
+  assert.match(skill, /\| `inventory` \| `sources inventory --corpus-context project` \|/);
+  assert.match(skill, /\| `remove CONCEPT_ID` \| guided `concepts delete/);
+  assert.match(skill, /mandatory two-turn confirmation/);
   assert.match(skill, /Reject an unknown slash command with concise help/);
 });
 

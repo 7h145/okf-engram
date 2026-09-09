@@ -11,6 +11,7 @@ import {
   validateCorpus,
   inspectCorpusStatus,
   inspectSourceClaims,
+  listSourceFiles,
   inventorySources,
   deprecateConcept,
   deleteConcept,
@@ -37,22 +38,25 @@ import {
 const HUMAN_HELP = `okf-engram ${VERSION} — project knowledge and memory
 
 Common commands:
-  /engram                         show project corpus status
-  /engram help                    show this concise help
-  /engram init                    initialize the project corpus
-  /engram wire|unwire             add or remove the project reminder
-  /engram auto status|on|off      manage automatic project memory
-  /engram ls                      list concept envelopes
-  /engram find WORDS              find concepts
-  /engram show CONCEPT_ID         read one concept
-  /engram remember STATEMENT      remember established knowledge
-  /engram recall QUESTION         retrieve knowledge
-  /engram ingest FILE...          ingest artifacts now
-  /engram queue FILE...           queue artifact for async ingest
-  /engram jobs [JOB_ID]           inspect deferred work
-  /engram cancel JOB_ID           cancel deferred work
+  /engram — project status
+  /engram help — this help
+  /engram init — initialize project corpus
+  /engram wire|unwire — manage project reminder
+  /engram auto status|on|off — manage automatic memory
+  /engram ls — list concepts
+  /engram find WORDS — search concepts
+  /engram show CONCEPT_ID — read concept
+  /engram sources — list referenced local files
+  /engram inventory — inspect all source references
+  /engram remember STATEMENT — remember knowledge
+  /engram recall QUESTION — retrieve knowledge
+  /engram ingest FILE... — ingest artifacts now
+  /engram queue FILE... — queue artifact for async ingest
+  /engram jobs [JOB_ID] — inspect jobs
+  /engram cancel JOB_ID — cancel job
+  /engram remove CONCEPT_ID — delete after confirmation
 
-Commands are strict. Ask the agent normally for requests outside this list.
+Commands are strict. Ask normally for anything else.
 Run /engram --help for the canonical agent DSL.`;
 
 const AGENT_HELP = `okf-engram ${VERSION} — canonical agent DSL
@@ -111,6 +115,7 @@ Sources — evidence capture, provenance, exact reopening, and freshness checks.
   [D] sources resolve         --corpus-context CONTEXT --concept-id ID
                               --source-id ID --output-file-path PATH
                               [--selected-region-output-file-path PATH]
+  [D] sources list            --corpus-context CONTEXT [--concept-id ID]
   [D] sources check           --corpus-context CONTEXT [--concept-id ID]
   [D] sources inventory       --corpus-context CONTEXT [--concept-id ID]
 
@@ -358,6 +363,23 @@ function printText(result, operation) {
       console.log(result.changed ? "Canonical reminder installed." : "Canonical reminder already installed.");
     if (result.action === "remove")
       console.log(result.changed ? "Canonical reminder removed." : "No canonical reminder installed.");
+    return;
+  }
+  if (operation === "sources.list") {
+    console.log("STATE\tFILE\tRESOURCE\tCONCEPTS");
+    for (const item of result.sourceFiles) {
+      console.log(
+        [
+          item.state,
+          JSON.stringify(item.sourceFilePath ?? null),
+          JSON.stringify(item.resource),
+          JSON.stringify(item.conceptIds),
+        ].join("\t"),
+      );
+    }
+    console.log(
+      `${result.totals.sourceFiles} source file${result.totals.sourceFiles === 1 ? "" : "s"}; ${result.totals.omittedNonFileResources} non-file resource${result.totals.omittedNonFileResources === 1 ? "" : "s"} omitted; ${result.totals.invalidClaims} invalid claim${result.totals.invalidClaims === 1 ? "" : "s"}`,
+    );
     return;
   }
   if (operation === "sources.inventory") {
@@ -674,7 +696,7 @@ async function main(rawArgs = process.argv.slice(2)) {
       break;
     }
     case "sources": {
-      operation = requireOperation(args, domain, ["digest", "capture", "resolve", "check", "inventory"]);
+      operation = requireOperation(args, domain, ["digest", "capture", "resolve", "list", "check", "inventory"]);
       const sourceResource = takeOption(args, "--source-resource");
       const conceptId = takeOption(args, "--concept-id");
       const sourceId = takeOption(args, "--source-id");
@@ -749,7 +771,7 @@ async function main(rawArgs = process.argv.slice(2)) {
           output: outputFilePath,
           regionOutput: selectedRegionOutputFilePath,
         });
-      } else if (operation === "check" || operation === "inventory") {
+      } else if (["list", "check", "inventory"].includes(operation)) {
         if (
           sourceResource ||
           sourceId ||
@@ -761,11 +783,12 @@ async function main(rawArgs = process.argv.slice(2)) {
         ) {
           throw errors.usage(`sources ${operation} accepts only optional --concept-id and corpus options`);
         }
-        result =
-          operation === "inventory"
-            ? await inventorySources(resolved.context, conceptId)
-            : await inspectSourceClaims(resolved.context, conceptId);
-        if (operation === "check") arrayProperty = "sourceClaims";
+        if (operation === "list") result = await listSourceFiles(resolved.context, conceptId);
+        else if (operation === "inventory") result = await inventorySources(resolved.context, conceptId);
+        else {
+          result = await inspectSourceClaims(resolved.context, conceptId);
+          arrayProperty = "sourceClaims";
+        }
       }
       break;
     }

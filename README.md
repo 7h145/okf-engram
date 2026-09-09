@@ -42,6 +42,8 @@ From the intended project directory:
 /engram wire
 /engram remember this project targets Python 3.13
 /engram recall which Python version does this project target?
+/engram sources
+/engram inventory
 /engram ingest docs/architecture.md
 /engram queue docs/runbook.md
 /engram jobs
@@ -80,7 +82,9 @@ vice versa. Deterministic helper output defaults to JSON. Use
 
 The human `/engram` grammar is strict and intentionally small. Unknown forms are
 rejected with concise help. Ask the agent normally outside `/engram` for free-form
-requests. Human shortcuts include no destructive operation.
+requests. `/engram remove CONCEPT_ID` is the sole destructive shortcut: it reads
+and identifies one concept, asks for yes/no confirmation in a separate turn, then
+rechecks its SHA-256 before invoking the guarded canonical deletion.
 
 ## Optional project wiring
 
@@ -257,16 +261,19 @@ files outside the corpus and must be removed after use.
 ## Source status
 
 ```bash
+node scripts/engram.mjs sources list --corpus-context project
 node scripts/engram.mjs sources check --corpus-context project
 node scripts/engram.mjs sources inventory --corpus-context project
 node scripts/engram.mjs sources inventory \
   --corpus-context project --concept-id decisions/storage
 ```
 
-`check` reports each local digest-bearing claim. `inventory` groups exact resource
-strings and reports reference/concept IDs, digests, selectors, current-byte state,
-and immutable Git state. URL, conversation-URN, and digestless resources are
-`not-checkable`; Engram never fetches them.
+`list` returns distinct referenced local files and reports how many non-file
+resources were omitted without hashing file contents. `check` reports each local
+digest-bearing claim. `inventory` groups every exact resource string and reports
+reference/concept IDs, digests, selectors, current-byte state, and immutable Git
+state. URL, conversation-URN, and digestless resources are `not-checkable` in the
+inventory; Engram never fetches them.
 
 ## Known limitations
 

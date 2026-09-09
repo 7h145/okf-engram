@@ -262,7 +262,7 @@ Fixture knowledge.
   assert.equal(requests, 0, "human summary must not fetch URL resources");
 });
 
-test("M4 source checks stay claim-level while inventory groups an optional concept", async (t) => {
+test("M4 source list stays file-focused, checks stay claim-level, and inventory groups an optional concept", async (t) => {
   const root = await tempProject(t);
   await fs.mkdir(path.join(root, "docs"));
   await fs.writeFile(path.join(root, "docs", "shared.md"), "shared\n");
@@ -283,6 +283,42 @@ test("M4 source checks stay claim-level while inventory groups an optional conce
       { id: "two-digestless", resource: "project:docs/shared.md" },
     ]),
   );
+
+  const listed = await run(["sources", "list", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(listed.code, 0, listed.stderr);
+  const fileList = JSON.parse(listed.stdout);
+  assert.equal(fileList.corpusContext, "project");
+  assert.deepEqual(fileList.totals, {
+    sourceFiles: 1,
+    references: 3,
+    omittedNonFileResources: 1,
+    omittedNonFileReferences: 1,
+    invalidClaims: 0,
+  });
+  assert.deepEqual(fileList.sourceFiles, [
+    {
+      resource: "project:docs/shared.md",
+      referenceCount: 3,
+      conceptIds: ["evidence/one", "evidence/two"],
+      sourceIds: ["one", "two", "two-digestless"],
+      sourceFilePath: path.join(root, "docs", "shared.md"),
+      state: "available",
+    },
+  ]);
+
+  const listedText = await run([
+    "sources",
+    "list",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+    "--output-format",
+    "text",
+  ]);
+  assert.equal(listedText.code, 0, listedText.stderr);
+  assert.match(listedText.stdout, /^STATE\tFILE\tRESOURCE\tCONCEPTS\n/);
+  assert.match(listedText.stdout, /1 source file; 1 non-file resource omitted; 0 invalid claims/);
 
   const bare = await run(["sources", "check", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(bare.code, 0, bare.stderr);

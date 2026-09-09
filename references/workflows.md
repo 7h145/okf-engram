@@ -112,14 +112,23 @@ LFS pointers are not resolved evidence. Remove outputs afterward.
 
 ## Source status
 
-Use `sources check [--concept-id]` for claim-level local digest/Git checks. Use
-`sources inventory [--concept-id]` for grouped exact resources, including non-local
+Use `sources list [--concept-id]` for distinct referenced local files without
+content hashing; it reports omitted non-file resources separately. Use `sources
+check [--concept-id]` for claim-level local digest/Git checks. Use `sources
+inventory [--concept-id]` for grouped exact resources, including non-local
 and digestless references. Inventory reports reference/concept/source IDs,
 expected digests, selectors, live state, and aggregate Git state without fetching
 URL/URN values. Keep conflicts, malformed metadata, and invalid claims visible;
 `not-checkable` means neither missing nor unchanged.
 
 ## Correction and deletion
+
+The human `remove CONCEPT_ID` shortcut starts a guided deletion but never deletes
+in its request turn. Read and identify one concept, warn about current-tree-only
+deletion, and ask a yes/no question. After an affirmative answer, re-read it and
+proceed only if the displayed SHA-256 is unchanged. Wildcards and multi-concept
+forms require an explicit canonical or natural-language workflow rather than this
+shortcut.
 
 Replace only with the current SHA-256 from `concepts read`. Use `concepts
 deprecate` when superseded knowledge remains historically useful. `concepts delete`

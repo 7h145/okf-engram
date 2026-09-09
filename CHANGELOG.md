@@ -5,6 +5,10 @@
 - Standardize help-output disjunctions on the compact `a|b` form.
 - Fix `/engram` prompt argument forwarding by using Pi's supported `$ARGUMENTS`
   token and contract-testing expansion from the packed prompt.
+- Add `sources list` plus `/engram sources` for a concise referenced-local-file
+  view, while `/engram inventory` exposes the complete grouped source inventory.
+- Add deliberate `/engram remove CONCEPT_ID` as a guided two-turn deletion that
+  preserves canonical SHA-256 concurrency and confirmation guards.
 
 ## 0.1.1 — 2026-09-08
 
