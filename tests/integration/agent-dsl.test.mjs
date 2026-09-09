@@ -67,11 +67,14 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   const noArguments = await run([]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(noArguments.stdout, result.stdout);
-  assert.ok(Buffer.byteLength(result.stdout) < 1_024);
+  assert.ok(Buffer.byteLength(result.stdout) < 1_280);
   assert.match(result.stdout, /\/engram wire\|unwire/);
   assert.match(result.stdout, /\/engram auto status\|on\|off/);
   assert.doesNotMatch(result.stdout, / \| /);
-  assert.match(result.stdout, /\/engram sources — list referenced local files/);
+  assert.match(result.stdout, /An agent-maintained, project-local knowledge base built from project data and memories\./);
+  assert.match(result.stdout, /Use it to retain, find, and apply durable knowledge across working sessions\./);
+  assert.match(result.stdout, /\/engram — status of the project knowledge base/);
+  assert.match(result.stdout, /\/engram sources — list referenced data files/);
   assert.match(result.stdout, /\/engram inventory — inspect all source references/);
   assert.match(result.stdout, /\/engram remember STATEMENT/);
   assert.match(result.stdout, /\/engram ls — list concepts/);
@@ -82,10 +85,15 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.match(result.stdout, /Setup and policy:/);
   assert.ok(result.stdout.indexOf("Common work:") < result.stdout.indexOf("Further actions:"));
   assert.ok(result.stdout.indexOf("Further actions:") < result.stdout.indexOf("Setup and policy:"));
+  assert.ok(result.stdout.indexOf("/engram queue FILE...") < result.stdout.indexOf("/engram ls"));
   assert.ok(result.stdout.indexOf("/engram queue FILE...") < result.stdout.indexOf("/engram ingest FILE..."));
-  assert.match(result.stdout, /ingest asynchronously/);
-  assert.match(result.stdout, /ingest in the foreground/);
+  assert.ok(result.stdout.indexOf("/engram inventory") < result.stdout.indexOf("/engram jobs"));
+  assert.match(result.stdout, /ingest data asynchronously/);
+  assert.match(result.stdout, /ingest data in the foreground/);
+  assert.match(result.stdout, /\/engram show CONCEPT_ID — show concept/);
+  assert.match(result.stdout, /\/engram init — initialize project knowledge base/);
   assert.match(result.stdout, /Commands are strict/);
+  assert.match(result.stdout, /See \/engram --help for all options\./);
   assert.doesNotMatch(result.stdout, /\bforget\b/i);
 });
 
@@ -120,7 +128,7 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.doesNotMatch(prompt, /\b(?:forget|delete)\b/);
   assert.match(skill, /\| Human request \| Canonical intent \| User purpose \|/);
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest-batch/);
-  assert.match(skill, /`sources` is the source-file analogue of `ls`/);
+  assert.match(skill, /`sources` is the data-file analogue of `ls`/);
   assert.match(skill, /background-else-foreground/);
   assert.match(skill, /Launch the single returned `runnerCommand`/);
   assert.match(skill, /Never launch one runner per partition/);

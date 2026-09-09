@@ -71,7 +71,7 @@
     "name": "human source list preserves its user purpose",
     "prompt": "/engram sources",
     "reject": ["replaces the file list with aggregate counts", "presents non-file resources as local files", "hashes file contents"],
-    "expect": ["surfaces each referenced local file", "may supplement the file list with a concise aggregate", "reports omitted non-file resources"]
+    "expect": ["surfaces each referenced data file", "may supplement the file list with a concise aggregate", "reports omitted non-file resources"]
   },
   {
     "name": "grouped source status inventory",

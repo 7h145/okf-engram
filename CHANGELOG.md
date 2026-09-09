@@ -16,7 +16,8 @@
   instead of placing a tool reminder before the project's primary material.
 - Give every human shortcut an explicit user purpose, require collection commands
   to surface their entities, and reorder concise help around common work, further
-  actions, then setup/policy; prefer queued ingest with a foreground fallback.
+  actions, then setup/policy; introduce Engram in human terms, call inputs data,
+  and prefer queued ingest with a foreground fallback.
 
 ## 0.1.1 — 2026-09-08
 

@@ -84,27 +84,27 @@ normally.
 
 | Human request | Canonical intent | User purpose |
 |---|---|---|
-| no arguments | `corpus status --corpus-context project` | Show whether project knowledge is ready and healthy. |
+| no arguments | `corpus status --corpus-context project` | Show whether the project knowledge base is ready and healthy. |
 | `help` | return exact deterministic human help | Discover the supported human commands. |
-| `init` | `corpus initialize --corpus-context project` | Create project knowledge storage deliberately. |
+| `init` | `corpus initialize --corpus-context project` | Initialize the project knowledge base deliberately. |
 | `wire` / `unwire` | `wiring project install` / `wiring project remove` | Manage the optional project reminder. |
 | `auto status\|on\|off` | `policy project automatic-memory status\|enable\|disable` | Inspect or change project inference consent. |
 | `ls` | `concepts list --corpus-context project` | Browse the concepts themselves. |
 | `find WORDS` | `concepts search --query WORDS` | Locate likely knowledge without opening everything. |
-| `show CONCEPT_ID` | `concepts read --concept-id CONCEPT_ID` | Read one selected concept. |
-| `sources` | `sources list --corpus-context project` | Surface the referenced local files; never replace the file list with an aggregate. |
+| `show CONCEPT_ID` | `concepts read --concept-id CONCEPT_ID` | Show one selected concept. |
+| `sources` | `sources list --corpus-context project` | Surface the referenced data files; never replace the file list with an aggregate. |
 | `inventory` | `sources inventory --corpus-context project` | Diagnose complete provenance and source state. |
 | `remember STATEMENT` | `memory remember --memory-statement STATEMENT` | Deliberately retain durable project knowledge. |
 | `recall QUESTION` | `memory recall --recall-question QUESTION` | Answer from relevant project knowledge. |
-| `ingest FILE...` | `knowledge ingest --source-resource ...` | Compile artifacts in the foreground when immediate work is wanted or background work is unavailable. |
-| `queue FILE...` | `jobs enqueue artifact-ingest-batch --source-resource ...` | Prefer background artifact compilation and return control quickly. |
+| `ingest FILE...` | `knowledge ingest --source-resource ...` | Ingest data in the foreground when immediate work is wanted or background work is unavailable. |
+| `queue FILE...` | `jobs enqueue artifact-ingest-batch --source-resource ...` | Ingest data asynchronously and return control quickly. |
 | `jobs [JOB_ID]` | `jobs list` or `jobs show --job-id JOB_ID` | See all work, including running and waiting jobs, or inspect one job. |
 | `cancel JOB_ID` | `jobs cancel --job-id JOB_ID` | Stop unwanted deferred work safely. |
 | `remove CONCEPT_ID` | guided `concepts delete --concept-id CONCEPT_ID` workflow | Deliberately remove one current-tree concept. |
 
 Preserve the listed user purpose when presenting results. For collection commands,
 surface the requested entities; a helpful aggregate may accompany but must not
-replace them. In particular, `sources` is the source-file analogue of `ls`: show
+replace them. In particular, `sources` is the data-file analogue of `ls`: show
 the files, even when pagination or a compact table is useful.
 
 Human shortcuts select project corpus context. `remove` is deliberately spelled

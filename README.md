@@ -49,10 +49,11 @@ From the intended project directory:
 
 Initialization creates `<project-root>/.agents/data/okf-engram/bundle/`. It does
 not modify `AGENTS.md`, Git, ignore rules, or automatic-memory policy. `/engram`
-without arguments reports project corpus status.
+without arguments reports the project knowledge-base status.
 
-`/engram help` is a fixed sub-1-KiB human summary. `/engram --help` presents the
-complete canonical agent DSL with a one-line definition for each domain.
+`/engram help` is a fixed, bounded one-screen human summary. `/engram --help`
+presents the complete canonical agent DSL with a one-line definition for each
+domain.
 
 ## Command model
 

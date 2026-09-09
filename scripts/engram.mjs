@@ -38,31 +38,34 @@ import {
 
 const HUMAN_HELP = `okf-engram ${VERSION} — project knowledge and memory
 
+An agent-maintained, project-local knowledge base built from project data and memories.
+Use it to retain, find, and apply durable knowledge across working sessions.
+
 Common work:
-  /engram — project status
+  /engram — status of the project knowledge base
   /engram recall QUESTION — answer from knowledge
   /engram remember STATEMENT — retain knowledge
+  /engram queue FILE... — ingest data asynchronously
   /engram ls — list concepts
   /engram find WORDS — search concepts
-  /engram show CONCEPT_ID — read concept
-  /engram queue FILE... — ingest asynchronously
-  /engram jobs [JOB_ID] — inspect jobs
-  /engram sources — list referenced local files
+  /engram show CONCEPT_ID — show concept
+  /engram sources — list referenced data files
 
 Further actions:
-  /engram ingest FILE... — ingest in the foreground
+  /engram ingest FILE... — ingest data in the foreground
   /engram inventory — inspect all source references
+  /engram jobs [JOB_ID] — inspect jobs
   /engram cancel JOB_ID — cancel deferred work
   /engram remove CONCEPT_ID — delete after confirmation
 
 Setup and policy:
-  /engram init — initialize project corpus
+  /engram init — initialize project knowledge base
   /engram wire|unwire — manage project reminder
   /engram auto status|on|off — manage automatic memory
   /engram help — this help
 
 Commands are strict. Ask normally for anything else.
-Run /engram --help for the canonical agent DSL.`;
+See /engram --help for all options.`;
 
 const AGENT_HELP = `okf-engram ${VERSION} — canonical agent DSL
 
