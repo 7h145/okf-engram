@@ -367,6 +367,11 @@ v0.1 uses OKF v0.2 concepts, project-policy settings schema version 4, and
 private job-record schema version 2. Unknown concept frontmatter is preserved.
 There is no automatic content migration or raw-source archive.
 
+## Authors
+
+- thias <github.attic@typedef.net>
+- OpenAI Codex (5.6)
+
 ## Acknowledgements
 
 Inspired by Andrej Karpathy's LLM Wiki pattern. Storage follows Open Knowledge

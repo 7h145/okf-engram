@@ -60,8 +60,11 @@ export async function loadConfig(configPath, overrides = {}) {
     ...(overrides.thinking ? { thinking: overrides.thinking } : {}),
   };
   if (config.version !== 1) throw new TriageError("invalid-config", "Triage config version must be 1");
-  if (typeof config.model !== "string" || !config.model.trim() || config.model.length > 300) {
-    throw new TriageError("invalid-config", "Triage model must be a non-empty bounded string");
+  if (
+    config.model !== undefined &&
+    (typeof config.model !== "string" || !config.model.trim() || config.model.length > 300)
+  ) {
+    throw new TriageError("invalid-config", "Triage model must be a non-empty bounded string when configured");
   }
   if (!THINKING_LEVELS.has(config.thinking)) {
     throw new TriageError("invalid-config", `Unsupported thinking level: ${config.thinking}`);
@@ -271,10 +274,13 @@ export async function invokePiReviewer({ prompt, repository, config }) {
     "--no-extensions",
     "--no-skills",
     "--no-prompt-templates",
-    "--model", config.model,
-    "--thinking", config.thinking,
-    "Review the failed-log triage request supplied on stdin and return only the required JSON.",
   ];
+  if (config.model) args.push("--model", config.model);
+  args.push(
+    "--thinking",
+    config.thinking,
+    "Review the failed-log triage request supplied on stdin and return only the required JSON.",
+  );
   const child = spawn("pi", args, {
     cwd: repository,
     env: { ...process.env, PI_SKIP_VERSION_CHECK: "1" },
@@ -423,7 +429,7 @@ function resultMarkdown(summary) {
   const lines = [
     `# Failed-log triage: ${summary.overall}`,
     "",
-    `- Model: \`${summary.model}\``,
+    `- Model: \`${summary.model ?? "configured Pi default"}\``,
     `- Thinking: \`${summary.thinking}\``,
     `- Verification commit: \`${summary.verification?.commit ?? "unknown"}\``,
     `- Source changed during triage: ${summary.sourceChanged ? "yes" : "no"}`,
@@ -462,7 +468,7 @@ export async function runTriage(options, dependencies = {}) {
     overall: "failed",
     startedAt,
     finishedAt: null,
-    model: options.config.model,
+    model: options.config.model ?? null,
     thinking: options.config.thinking,
     verification: null,
     sourceStart: null,

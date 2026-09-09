@@ -1,7 +1,19 @@
 {
   "name": "okf-engram",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Project knowledge and memory as an agent-maintained OKF bundle",
+  "author": "thias <github.attic@typedef.net>",
+  "contributors": [
+    "OpenAI Codex (5.6)"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/7h145/okf-engram.git"
+  },
+  "bugs": {
+    "url": "https://github.com/7h145/okf-engram/issues"
+  },
+  "homepage": "https://github.com/7h145/okf-engram#readme",
   "type": "module",
   "license": "MIT",
   "engines": {

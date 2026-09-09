@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.2 — 2026-09-09
+
+- Sanitize private-provider identities from public test evidence, make failed-log
+  triage use Pi's configured model by default, and add public repository,
+  authorship, and CI metadata.
 - Standardize help-output disjunctions on the compact `a|b` form.
 - Fix `/engram` prompt argument forwarding by using Pi's supported `$ARGUMENTS`
   token and contract-testing expansion from the packed prompt.

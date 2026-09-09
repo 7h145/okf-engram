@@ -71,11 +71,11 @@ strict review schema before writing compact results under:
 ../.agents/run/subagents/failed-log-triage/<triage-run-id>/
 ```
 
-The default model and bounds are in `triage/config.json`. Current defaults use
-`private-openai-compatible.example/deepseek-ai/DeepSeek-V4-Flash-0731` with `high` thinking.
-Change the config file, pass `--model`/`--thinking` to `triage/run.mjs`, or set
-`ENGRAM_TRIAGE_MODEL`/`ENGRAM_TRIAGE_THINKING` for the boxed launcher. Select a
-complete alternate config with `ENGRAM_TRIAGE_CONFIG`.
+The default bounds are in `triage/config.json`; no provider-specific model is
+bundled, so Pi's configured default is used unless explicitly overridden. Pass
+`--model`/`--thinking` to `triage/run.mjs`, set `ENGRAM_TRIAGE_MODEL`/
+`ENGRAM_TRIAGE_THINKING` for the boxed launcher, or select a complete alternate
+config with `ENGRAM_TRIAGE_CONFIG`.
 
 Redaction is defense in depth, not a credential scanner. Do not triage logs
 known to contain secrets. Read `result.md`/`summary.json` only after `done`;

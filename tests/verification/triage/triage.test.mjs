@@ -266,7 +266,10 @@ test("documented review schema matches the manual validator contract", async () 
   );
 });
 
-test("triage model and thinking defaults have explicit override points", async () => {
+test("triage uses the configured Pi model by default and supports explicit overrides", async () => {
+  const defaults = await loadConfig(path.join(directory, "config.json"));
+  assert.equal(defaults.model, undefined);
+  assert.equal(defaults.thinking, "high");
   const config = await loadConfig(path.join(directory, "config.json"), {
     model: "replacement-provider/replacement-model",
     thinking: "medium",
