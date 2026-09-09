@@ -168,9 +168,10 @@ Private operational state is adjacent to, not inside, the OKF bundle.
 ### Deferred artifact ingest
 
 ```bash
-node scripts/engram.mjs jobs enqueue artifact-ingest \
+node scripts/engram.mjs jobs enqueue artifact-ingest-batch \
   --corpus-context project \
   --source-resource project:docs/architecture.md \
+  --source-resource project:docs/runbook.md \
   --ingest-instruction "Compile accepted architecture decisions." \
   --worker-model-id openrouter/google/gemma-4-31b-it \
   --worker-timeout-seconds 900
@@ -178,24 +179,29 @@ node scripts/engram.mjs jobs enqueue artifact-ingest \
 node scripts/engram.mjs jobs show \
   --corpus-context project --job-id <job-id>
 
-# Explicit blocking fallback for one job:
-node scripts/engram.mjs jobs run \
-  --corpus-context project --job-id <job-id>
+# Explicit blocking fallback for the queue:
+node scripts/engram.mjs jobs run-all-queued \
+  --corpus-context project --confirm-run-all-queued
 
 node scripts/engram.mjs jobs cancel \
   --corpus-context project --job-id <job-id>
 ```
 
-The enqueue result contains `workerCommand` for an agent-owned background runner.
-Normal deferred work returns control without inline polling. Worker traces stay in
+The batch enqueue result contains one `runnerCommand` plus the batch ID and all
+job IDs. `/engram queue` accepts up to 256 deterministically resolved local files
+and partitions them into ordered jobs of at most sixteen sources. Launch exactly
+one agent-owned runner for the batch, never one runner per partition. Normal
+deferred work returns control without inline polling. Worker traces stay in
 private job files. Foreground results contain only bounded state, concept
 IDs/hashes, coverage, warnings, and review/error reasons.
 
 Jobs are source- and corpus-bound, serialized per bundle, cancellable, and never
-blindly replay `needs-review` changes. Multiple pre-enqueued jobs run serially
-against a fresh execution-time corpus baseline; source drift still stops a job
-before worker execution. One job supports one to sixteen sources and
-a frozen 1–16 MiB event limit; new jobs use 10 MiB.
+blindly replay `needs-review` changes. The queue runner drains jobs in FIFO order
+against a fresh execution-time corpus baseline and discovers work enqueued while
+it is active. `jobs list` reports the running job, waiting positions, batch parts,
+and source counts. Source drift still stops only the affected job before worker
+execution. Each internal job retains a frozen 1–16 MiB event limit; new jobs use
+10 MiB.
 
 Terminal state remains until explicit cleanup:
 

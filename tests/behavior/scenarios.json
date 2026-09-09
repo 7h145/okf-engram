@@ -92,10 +92,11 @@
     "expect": ["installs the exact canonical project-root AGENTS.md block", "preserves existing instructions", "is idempotent", "supports preview status and removal"]
   },
   {
-    "name": "explicit deferred artifact ingest",
-    "prompt": "/engram queue docs/architecture.md",
-    "reject": ["claims queued work is persisted", "polls the background job inline during a normal turn", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],
-    "expect": ["freezes project corpus and source digest", "reports queued job ID", "returns control without waiting", "uses one bounded isolated worker", "checks compact durable results at a later boundary", "supports cancellation and reconciliation"]
+    "name": "explicit large deferred artifact batch",
+    "prompt": "/engram queue docs/*.md",
+    "fixture": "The deterministic glob expansion contains 40 unique local files.",
+    "reject": ["claims queued work is persisted", "polls the background job inline during a normal turn", "launches one runner per partition", "copies source bytes or transcript into the capsule", "returns worker trace to foreground", "describes process isolation as a sandbox", "blindly retries needs-review changes", "enables automatic memory"],
+    "expect": ["freezes every project source digest", "creates one batch with three ordered jobs", "reports the batch and all job IDs", "launches one serial queue runner", "returns control without waiting", "shows one running job and later jobs waiting", "checks compact durable results at a later boundary", "supports cancellation and reconciliation"]
   },
   {
     "name": "canonical agent DSL concept search",

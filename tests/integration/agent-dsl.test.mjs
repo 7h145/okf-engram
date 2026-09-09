@@ -54,6 +54,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /\[S\] memory remember/);
   assert.match(result.stdout, /\[D\] concepts write/);
   assert.match(result.stdout, /\[D\] sources list/);
+  assert.match(result.stdout, /\[D\] jobs enqueue artifact-ingest-batch/);
   assert.match(result.stdout, /--corpus-context project\|global/);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
@@ -108,7 +109,9 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.match(prompt, /Engram request: \$ARGUMENTS/);
   assert.doesNotMatch(prompt, /\$\{ARGUMENTS\}/);
   assert.doesNotMatch(prompt, /\b(?:forget|delete)\b/);
-  assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest/);
+  assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest-batch/);
+  assert.match(skill, /Launch the single returned `runnerCommand`/);
+  assert.match(skill, /Never launch one runner per partition/);
   assert.match(skill, /\| `sources` \| `sources list --corpus-context project` \|/);
   assert.match(skill, /\| `inventory` \| `sources inventory --corpus-context project` \|/);
   assert.match(skill, /\| `remove CONCEPT_ID` \| guided `concepts delete/);

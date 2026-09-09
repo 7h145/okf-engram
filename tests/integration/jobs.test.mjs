@@ -275,6 +275,149 @@ test("M3a enqueue writes a bounded private capsule outside the OKF bundle and de
   assert.equal(oversized.code, 4);
 });
 
+test("large artifact batches expose one running job and ordered waiting work under one queue runner", async (t) => {
+  const root = await project(t);
+  const resources = [];
+  for (let index = 0; index < 17; index += 1) {
+    const name = `batch-${String(index).padStart(2, "0")}.md`;
+    await fs.writeFile(path.join(root, "docs", name), `# Batch source ${index}\n`);
+    resources.push("--source-resource", `project:docs/${name}`);
+  }
+  const enqueued = await run([
+    "jobs",
+    "enqueue",
+    "artifact-ingest-batch",
+    "--corpus-context",
+    "project",
+    ...resources,
+    "--ingest-instruction",
+    "Compile the complete large batch.",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(enqueued.code, 0, enqueued.stderr);
+  const batch = parse(enqueued);
+  assert.match(batch.batchId, /^batch-/);
+  assert.equal(batch.sourceCount, 17);
+  assert.equal(batch.jobCount, 2);
+  assert.deepEqual(
+    batch.jobs.map((job) => ({ part: job.part, total: job.total, sourceCount: job.sourceCount, state: job.state })),
+    [
+      { part: 1, total: 2, sourceCount: 16, state: "queued" },
+      { part: 2, total: 2, sourceCount: 1, state: "queued" },
+    ],
+  );
+  assert.deepEqual(batch.runnerCommand.slice(2, 5), ["jobs", "run-all-queued", "--confirm-run-all-queued"]);
+
+  let listed = parse(
+    await run(["jobs", "list", "--corpus-context", "project", "--project-root-path", root]),
+  );
+  assert.equal(listed.runner.state, "idle");
+  assert.deepEqual(
+    listed.jobs.map((job) => [job.displayState, job.queuePosition, job.batchPart, job.batchSize]),
+    [
+      ["waiting", 1, 1, 2],
+      ["waiting", 2, 2, 2],
+    ],
+  );
+  const textList = await run([
+    "jobs",
+    "list",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+    "--output-format",
+    "text",
+  ]);
+  assert.match(textList.stdout, /Runner: idle/);
+  assert.match(textList.stdout, new RegExp(`waiting\\t1\\t${batch.batchId}\\t1/2`));
+
+  const fake = await fakePi(t, reportOnlyWorker);
+  const invocations = path.join(root, "batch-worker-invocations.log");
+  const draining = run(batch.runnerCommand.slice(2), {
+    env: { ...fake.env, WORKER_INVOCATIONS: invocations },
+  });
+  await waitForState(root, batch.jobs[0].jobId, "running");
+  listed = parse(await run(["jobs", "list", "--corpus-context", "project", "--project-root-path", root]));
+  assert.deepEqual(
+    listed.jobs.map((job) => [job.displayState, job.queuePosition]),
+    [
+      ["running", undefined],
+      ["waiting", 1],
+    ],
+  );
+  assert.equal(listed.runner.jobId, batch.jobs[0].jobId);
+
+  const drained = await draining;
+  assert.equal(drained.code, 0, drained.stderr);
+  assert.deepEqual(
+    parse(drained).processed.filter((job) => batch.jobs.some((item) => item.jobId === job.jobId)).map((job) => job.state),
+    ["completed", "completed"],
+  );
+  assert.deepEqual((await fs.readFile(invocations, "utf8")).trim().split("\n"), batch.jobs.map((job) => job.jobId));
+  listed = parse(await run(["jobs", "list", "--corpus-context", "project", "--project-root-path", root]));
+  assert.deepEqual(listed.batches[0].states, { completed: 2 });
+
+  const tooMany = [];
+  for (let index = 0; index < 257; index += 1) {
+    tooMany.push("--source-resource", `project:docs/too-many-${index}.md`);
+  }
+  const rejected = await run([
+    "jobs",
+    "enqueue",
+    "artifact-ingest-batch",
+    "--corpus-context",
+    "project",
+    ...tooMany,
+    "--ingest-instruction",
+    "Reject this oversized batch before reading sources.",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(rejected.code, 4);
+  assert.match(JSON.parse(rejected.stderr).message, /1 to 256 resources/);
+});
+
+test("the active queue runner discovers a batch enqueued while it is working", async (t) => {
+  const root = await project(t);
+  const first = parse(await enqueue(root));
+  const fake = await fakePi(t, reportOnlyWorker);
+  const invocations = path.join(root, "dynamic-batch-worker-invocations.log");
+  const draining = run(
+    ["jobs", "run-all-queued", "--confirm-run-all-queued", "--corpus-context", "project", "--project-root-path", root],
+    { env: { ...fake.env, WORKER_INVOCATIONS: invocations } },
+  );
+  await waitForState(root, first.jobId, "running");
+
+  await fs.writeFile(path.join(root, "docs", "later.md"), "# Later queue work\n");
+  const later = await run([
+    "jobs",
+    "enqueue",
+    "artifact-ingest-batch",
+    "--corpus-context",
+    "project",
+    "--source-resource",
+    "project:docs/later.md",
+    "--ingest-instruction",
+    "Compile later queued work.",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(later.code, 0, later.stderr);
+  const laterBatch = parse(later);
+  const laterJob = laterBatch.jobs[0];
+  const coalescedRunner = run(laterBatch.runnerCommand.slice(2), {
+    env: { ...fake.env, WORKER_INVOCATIONS: invocations },
+  });
+
+  const [drained, coalesced] = await Promise.all([draining, coalescedRunner]);
+  assert.equal(drained.code, 0, drained.stderr);
+  assert.equal(coalesced.code, 0, coalesced.stderr);
+  assert.deepEqual((await fs.readFile(invocations, "utf8")).trim().split("\n"), [first.jobId, laterJob.jobId]);
+  assert.equal((await waitForState(root, laterJob.jobId, "completed")).state.state, "completed");
+});
+
 test("M3a queued cancellation prevents execution and safe retry requeues unchanged input", async (t) => {
   const root = await project(t);
   const queued = parse(await enqueue(root));

@@ -9,6 +9,9 @@
   view, while `/engram inventory` exposes the complete grouped source inventory.
 - Add deliberate `/engram remove CONCEPT_ID` as a guided two-turn deletion that
   preserves canonical SHA-256 concurrency and confirmation guards.
+- Make `/engram queue` accept large user batches: deterministically partition up
+  to 256 sources into ordered 16-source jobs, return one serial queue runner, and
+  expose running/waiting positions plus batch progress through `jobs list`.
 
 ## 0.1.1 — 2026-09-08
 

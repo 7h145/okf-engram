@@ -39,18 +39,22 @@ and perform focused plus broad retrieval probes.
 ## Explicit deferred artifact ingest
 
 Only an explicit request or accepted proposal changes synchronous ingest into a
-job. `jobs enqueue artifact-ingest` freezes one to sixteen source resources,
-SHA-256 digests, project corpus identity, bounded instruction, worker settings,
-and pre-work bundle hashes. It stores no source bytes or transcript. `queued` is
+job. `jobs enqueue artifact-ingest-batch` freezes up to 256 sorted, unique source
+resources, SHA-256 digests, project corpus identity, bounded instruction, worker
+settings, and pre-work bundle hashes. It partitions the request into ordered jobs
+of at most sixteen sources and stores no source bytes or transcript. `queued` is
 not a persistence claim.
 
-Launch the returned command with an agent-owned background runner. Return control
-without polling and inspect state/results at a later natural boundary. Inline
-polling is a debugging exception. `jobs run --job-id` is the blocking fallback.
-One context-isolated (not sandboxed) worker per bundle follows the same compilation
-protocol. Multiple jobs may be pre-enqueued and run serially; each records the
-current corpus as its execution baseline while retaining frozen source digests.
-Do not split a supported job merely to evade an event cap.
+Launch the single returned command with one agent-owned background runner; never
+launch one runner per partition. Return control without polling and inspect
+state/results at a later natural boundary. Inline polling is a debugging exception.
+`jobs run-all-queued --confirm-run-all-queued` is the blocking fallback. One
+context-isolated (not sandboxed) worker per bundle follows the same compilation
+protocol. The runner drains FIFO work serially, discovers newly queued work between
+jobs, and records the current corpus as each job's execution baseline while
+retaining frozen source digests. `jobs list` renders queued work as waiting and
+reports queue position and batch progress. Do not manually split a supported
+human batch merely to evade an event cap.
 
 Keep JSONL/stderr private. Surface only compact job state/results. Source or corpus
 drift, malformed reports, invalid/index-stale bundles, unreported writes,

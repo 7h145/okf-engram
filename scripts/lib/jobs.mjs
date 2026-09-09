@@ -20,6 +20,7 @@ import { requireAutomaticMemoryEnabledLocked, setAutomaticMemoryPolicy } from ".
 const JOB_RECORD_VERSION = 2;
 const WORKER_REPORT_VERSION = 1;
 const MAX_RESOURCES = 16;
+const MAX_BATCH_RESOURCES = 256;
 const MAX_INSTRUCTION_CHARS = 4_000;
 const MAX_CLAIM_CHARS = 1_000;
 const MAX_EVIDENCE_CHARS = 2_000;
@@ -38,6 +39,7 @@ const MAX_STDERR_BYTES = 64 * 1024;
 const MAX_REPORT_BYTES = 64 * 1024;
 const HEARTBEAT_MS = 2_000;
 const JOB_ID_RE = /^job-[0-9a-z]{8,16}-[0-9a-f]{12}$/;
+const BATCH_ID_RE = /^batch-[0-9a-z]{8,16}-[0-9a-f]{12}$/;
 const STATES = new Set(["queued", "running", "completed", "failed", "cancelled", "needs-review"]);
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 const CANDIDATE_ORIGINS = new Set(["foreground", "automatic-review"]);
@@ -160,6 +162,19 @@ async function readJsonFile(file, label, { optional = false, maxBytes = 1024 * 1
   }
 }
 
+function batchMetadataIsValid(batch) {
+  return (
+    batch === undefined ||
+    (batch &&
+      BATCH_ID_RE.test(batch.batchId) &&
+      Number.isInteger(batch.part) &&
+      Number.isInteger(batch.total) &&
+      batch.part >= 1 &&
+      batch.total >= batch.part &&
+      batch.total <= Math.ceil(MAX_BATCH_RESOURCES / MAX_RESOURCES))
+  );
+}
+
 function validateState(value, jobId) {
   if (
     !value ||
@@ -167,7 +182,8 @@ function validateState(value, jobId) {
     value.jobId !== jobId ||
     !STATES.has(value.state) ||
     !Number.isInteger(value.attempt) ||
-    value.attempt < 1
+    value.attempt < 1 ||
+    !batchMetadataIsValid(value.batch)
   ) {
     throw errors.validation(`Invalid state record for job ${jobId}`);
   }
@@ -415,6 +431,10 @@ function newJobId() {
   return `job-${Date.now().toString(36).padStart(8, "0")}-${randomBytes(6).toString("hex")}`;
 }
 
+function newBatchId() {
+  return `batch-${Date.now().toString(36).padStart(8, "0")}-${randomBytes(6).toString("hex")}`;
+}
+
 function normalizeCandidateText(value) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
 }
@@ -501,9 +521,9 @@ function validateInferredMemoryOptions(request, options) {
   };
 }
 
-function validateArtifactIngestOptions(resources, options) {
-  if (!Array.isArray(resources) || resources.length < 1 || resources.length > MAX_RESOURCES) {
-    throw errors.validation(`artifact-ingest enqueue requires 1 to ${MAX_RESOURCES} resources`);
+function validateArtifactResources(resources, maximum) {
+  if (!Array.isArray(resources) || resources.length < 1 || resources.length > maximum) {
+    throw errors.validation(`artifact-ingest enqueue requires 1 to ${maximum} resources`);
   }
   if (new Set(resources).size !== resources.length)
     throw errors.validation("artifact-ingest source resources must be unique");
@@ -516,6 +536,10 @@ function validateArtifactIngestOptions(resources, options) {
       throw errors.validation("queued ingest resources must be bounded project: or file: locators");
     }
   }
+}
+
+function validateArtifactIngestOptions(resources, options, { maximum = MAX_RESOURCES } = {}) {
+  validateArtifactResources(resources, maximum);
   const instruction = options.instruction ?? "Compile durable project knowledge from the requested artifacts.";
   if (typeof instruction !== "string" || !instruction.trim() || instruction.length > MAX_INSTRUCTION_CHARS) {
     throw errors.validation(`job instruction must contain 1 to ${MAX_INSTRUCTION_CHARS} characters`);
@@ -625,6 +649,146 @@ export async function enqueueArtifactIngestJob(context, resources, options = {})
         "--project-root-path",
         context.projectRoot,
       ],
+    };
+  });
+}
+
+export async function enqueueArtifactIngestBatch(context, resources, options = {}) {
+  requireInitialized(context);
+  const orderedResources = [...resources].sort((a, b) => a.localeCompare(b));
+  const validated = validateArtifactIngestOptions(orderedResources, options, { maximum: MAX_BATCH_RESOURCES });
+  const capturedResources = [];
+  for (const resource of orderedResources) {
+    const digest = await digestResource(resource, context.projectRoot, { maxBytes: MAX_SOURCE_BYTES });
+    capturedResources.push({ resource, digest: digest.digest });
+  }
+  const bundleSnapshot = await snapshotBundle(context);
+  if (bundleSnapshot.issues.length)
+    throw errors.unsafePath("Cannot enqueue a job batch with unsafe bundle entries", bundleSnapshot.issues);
+
+  const chunks = [];
+  for (let index = 0; index < capturedResources.length; index += MAX_RESOURCES) {
+    chunks.push(capturedResources.slice(index, index + MAX_RESOURCES));
+  }
+  const batchId = newBatchId();
+
+  return withJobsLock(context, async () => {
+    const listed = await listJobIds(context);
+    if (listed.ids.length + chunks.length > MAX_JOBS) {
+      throw errors.validation(`Job store cannot fit this batch within its ${MAX_JOBS}-record limit`);
+    }
+    const existingJobs = [];
+    for (const id of listed.ids) {
+      try {
+        existingJobs.push(await readJob(context, id));
+      } catch {
+        // Malformed neighboring records are surfaced by jobs; they do not block a distinct enqueue.
+      }
+    }
+
+    const jobs = [];
+    const createdDirectories = [];
+    try {
+      for (let index = 0; index < chunks.length; index += 1) {
+        const requestIdentity = {
+          kind: "artifact-ingest",
+          corpus: {
+            context: "project",
+            projectRootPath: context.projectRoot,
+            bundlePath: context.bundle,
+          },
+          request: { resources: chunks[index], instruction: validated.instruction },
+          worker: { model: options.model, thinking: validated.thinking },
+          limits: {
+            runtimeSeconds: validated.runtimeSeconds,
+            maxEventBytes: DEFAULT_EVENT_BYTES,
+            maxReportBytes: MAX_REPORT_BYTES,
+          },
+        };
+        const immutableInput = {
+          ...requestIdentity,
+          requestHash: inputHash(requestIdentity),
+          bundleSnapshot,
+        };
+        const inputDigest = inputHash(immutableInput);
+        const duplicate = existingJobs.find(
+          (job) =>
+            job.capsule.inputHash === inputDigest ||
+            (job.state.state === "needs-review" && job.capsule.requestHash === immutableInput.requestHash),
+        );
+        if (duplicate) {
+          jobs.push({
+            jobId: duplicate.capsule.jobId,
+            state: duplicate.state.state,
+            duplicate: true,
+            part: index + 1,
+            total: chunks.length,
+            sourceCount: chunks[index].length,
+          });
+          continue;
+        }
+
+        const jobId = newJobId();
+        const directory = jobDirectory(context, jobId);
+        await fs.mkdir(directory, { mode: 0o700 });
+        createdDirectories.push(directory);
+        await fs.chmod(directory, 0o700);
+        const createdAt = now();
+        const capsule = {
+          version: JOB_RECORD_VERSION,
+          jobId,
+          createdAt,
+          inputHash: inputDigest,
+          ...immutableInput,
+        };
+        await fs.writeFile(path.join(directory, "capsule.json"), `${JSON.stringify(capsule, null, 2)}\n`, {
+          encoding: "utf8",
+          mode: 0o600,
+          flag: "wx",
+        });
+        await writeJson(path.join(directory, "state.json"), {
+          version: JOB_RECORD_VERSION,
+          jobId,
+          state: "queued",
+          attempt: 1,
+          createdAt,
+          updatedAt: createdAt,
+          batch: { batchId, part: index + 1, total: chunks.length },
+        });
+        jobs.push({
+          jobId,
+          state: "queued",
+          duplicate: false,
+          part: index + 1,
+          total: chunks.length,
+          sourceCount: chunks[index].length,
+        });
+      }
+    } catch (error) {
+      for (const directory of createdDirectories.reverse()) await fs.rm(directory, { recursive: true, force: true });
+      throw error;
+    }
+
+    const hasQueuedWork = jobs.some((job) => job.state === "queued");
+    return {
+      batchId,
+      state: hasQueuedWork ? "queued" : "already-recorded",
+      sourceCount: capturedResources.length,
+      jobCount: jobs.length,
+      jobs,
+      runnerCommand: hasQueuedWork
+        ? [
+            process.execPath,
+            helperPath,
+            "jobs",
+            "run-all-queued",
+            "--confirm-run-all-queued",
+            "--corpus-context",
+            "project",
+            "--project-root-path",
+            context.projectRoot,
+          ]
+        : undefined,
     };
   });
 }
@@ -837,6 +1001,12 @@ function stateSummary(job, stale = false) {
     jobId: job.capsule.jobId,
     kind: job.capsule.kind,
     state: job.state.state,
+    displayState: job.state.state === "queued" ? "waiting" : job.state.state,
+    queuePosition: undefined,
+    batchId: job.state.batch?.batchId,
+    batchPart: job.state.batch?.part,
+    batchSize: job.state.batch?.total,
+    sourceCount: job.capsule.kind === "artifact-ingest" ? job.capsule.request.resources.length : undefined,
     attempt: job.state.attempt,
     createdAt: job.capsule.createdAt,
     updatedAt: job.state.updatedAt,
@@ -865,18 +1035,51 @@ export async function inspectJobs(context, jobId, options = {}) {
     return { job: { ...job, state: job.state, stale: stateLooksStale(job.state) }, issues: [] };
   }
   const listed = await listJobIds(context);
-  const jobs = [];
+  const allJobs = [];
   const issues = [...listed.issues];
   for (const id of listed.ids) {
     try {
       const job = await readJob(context, id);
-      if (!options.state || job.state.state === options.state) jobs.push(stateSummary(job, stateLooksStale(job.state)));
+      allJobs.push(stateSummary(job, stateLooksStale(job.state)));
     } catch (error) {
       issues.push({ code: error.code ?? "job-read", jobId: id, message: error.message });
     }
   }
-  jobs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return { jobs, issues };
+  allJobs.sort(
+    (a, b) =>
+      a.createdAt.localeCompare(b.createdAt) ||
+      (a.batchPart ?? 0) - (b.batchPart ?? 0) ||
+      a.jobId.localeCompare(b.jobId),
+  );
+  let queuePosition = 0;
+  for (const job of allJobs) {
+    if (job.state === "queued") job.queuePosition = ++queuePosition;
+    else delete job.queuePosition;
+  }
+  const jobs = options.state ? allJobs.filter((job) => job.state === options.state) : allJobs;
+  const running = allJobs.find((job) => job.state === "running");
+  const batches = [];
+  for (const batchId of [...new Set(allJobs.map((job) => job.batchId).filter(Boolean))]) {
+    const members = allJobs.filter((job) => job.batchId === batchId);
+    const expectedJobCount = Math.max(...members.map((job) => job.batchSize ?? 0));
+    batches.push({
+      batchId,
+      jobCount: members.length,
+      expectedJobCount,
+      completeRecordSet: members.length === expectedJobCount,
+      sourceCount: members.reduce((total, job) => total + (job.sourceCount ?? 0), 0),
+      states: Object.fromEntries(
+        [...STATES].map((state) => [state, members.filter((job) => job.state === state).length]).filter(([, count]) => count),
+      ),
+      jobIds: members.map((job) => job.jobId),
+    });
+  }
+  return {
+    runner: running ? { state: "running", jobId: running.jobId } : { state: "idle" },
+    jobs,
+    batches,
+    issues,
+  };
 }
 
 const RESULT_ACKNOWLEDGEMENT_FILE = "result-acknowledgement.json";
@@ -1752,6 +1955,17 @@ async function recoverPersistedTerminalResult(context, job) {
   });
 }
 
+async function orderJobIdsForQueue(context, ids) {
+  const jobs = await Promise.all(ids.map((id) => readJob(context, id)));
+  jobs.sort(
+    (a, b) =>
+      a.capsule.createdAt.localeCompare(b.capsule.createdAt) ||
+      (a.state.batch?.part ?? 0) - (b.state.batch?.part ?? 0) ||
+      a.capsule.jobId.localeCompare(b.capsule.jobId),
+  );
+  return jobs.map((job) => job.capsule.jobId);
+}
+
 async function recoverUnownedRunningJob(context, job) {
   const current = await snapshotBundle(context);
   const baseline = job.state.beforeSnapshot ?? job.capsule.bundleSnapshot;
@@ -1768,36 +1982,51 @@ export async function runJobs(context, options = {}) {
   return withWorkerLock(
     context,
     async () => {
-      const listed = await listJobIds(context);
-      const selected = options.jobId ? [validateJobId(options.jobId)] : listed.ids;
       const processed = [];
-      for (const id of selected) {
-        let job = await readJob(context, id);
-        const recovered = await recoverPersistedTerminalResult(context, job);
-        if (recovered) {
-          processed.push(recovered);
-          continue;
+      const processedIds = new Set();
+      const issues = new Map();
+      let selected = options.jobId ? [validateJobId(options.jobId)] : undefined;
+
+      for (;;) {
+        const listed = await listJobIds(context);
+        for (const issue of listed.issues) issues.set(`${issue.jobId}:${issue.code}`, issue);
+        const available = listed.ids.filter((id) => !processedIds.has(id));
+        const current = selected ?? (await orderJobIdsForQueue(context, available));
+        if (!current.length) break;
+
+        for (const id of current) {
+          processedIds.add(id);
+          let job = await readJob(context, id);
+          const recovered = await recoverPersistedTerminalResult(context, job);
+          if (recovered) {
+            processed.push(recovered);
+            continue;
+          }
+          if (job.state.state === "running") {
+            processed.push(await recoverUnownedRunningJob(context, job));
+            continue;
+          }
+          if (job.state.state !== "queued") {
+            if (options.jobId)
+              processed.push({
+                jobId: id,
+                state: job.state.state,
+                reason: "not-queued",
+                changes: job.result?.changes?.length ?? 0,
+              });
+            continue;
+          }
+          job = await readJob(context, id);
+          processed.push(await runQueuedJob(context, job));
         }
-        if (job.state.state === "running") {
-          processed.push(await recoverUnownedRunningJob(context, job));
-          continue;
-        }
-        if (job.state.state !== "queued") {
-          if (options.jobId)
-            processed.push({
-              jobId: id,
-              state: job.state.state,
-              reason: "not-queued",
-              changes: job.result?.changes?.length ?? 0,
-            });
-          continue;
-        }
-        job = await readJob(context, id);
-        processed.push(await runQueuedJob(context, job));
+        if (options.jobId) break;
+        selected = undefined;
       }
+
       const after = await inspectJobs(context, undefined, { state: "queued" });
-      return { processed, remaining: after.jobs.length, issues: [...listed.issues, ...after.issues] };
+      for (const issue of after.issues) issues.set(`${issue.jobId}:${issue.code}`, issue);
+      return { processed, remaining: after.jobs.length, issues: [...issues.values()] };
     },
-    { retries: 0 },
+    { retries: options.waitForWorker ? 300 : 0 },
   );
 }

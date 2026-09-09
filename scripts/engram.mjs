@@ -24,6 +24,7 @@ import { getAutomaticMemoryPolicyStatus } from "./lib/settings.mjs";
 import { inspectProjectWiring, installProjectWiring, removeProjectWiring } from "./lib/wiring.mjs";
 import {
   enqueueArtifactIngestJob,
+  enqueueArtifactIngestBatch,
   enqueueInferredMemoryJob,
   inspectJobs,
   cleanJob,
@@ -122,7 +123,14 @@ Sources — evidence capture, provenance, exact reopening, and freshness checks.
 Jobs — durable lifecycle management for deferred semantic work.
   [D] jobs enqueue artifact-ingest
                               --corpus-context project
-                              --source-resource RESOURCE...
+                              --source-resource RESOURCE... (1–16)
+                              --ingest-instruction TEXT
+                              [--worker-model-id PROVIDER/MODEL]
+                              [--worker-thinking-level LEVEL]
+                              [--worker-timeout-seconds INTEGER]
+  [D] jobs enqueue artifact-ingest-batch
+                              --corpus-context project
+                              --source-resource RESOURCE... (1–256)
                               --ingest-instruction TEXT
                               [--worker-model-id PROVIDER/MODEL]
                               [--worker-thinking-level LEVEL]
@@ -363,6 +371,23 @@ function printText(result, operation) {
       console.log(result.changed ? "Canonical reminder installed." : "Canonical reminder already installed.");
     if (result.action === "remove")
       console.log(result.changed ? "Canonical reminder removed." : "No canonical reminder installed.");
+    return;
+  }
+  if (operation === "jobs.list") {
+    console.log(`Runner: ${result.runner.state}${result.runner.jobId ? ` (${result.runner.jobId})` : ""}`);
+    console.log("STATE\tPOSITION\tBATCH\tPART\tSOURCES\tJOB");
+    for (const job of result.jobs) {
+      console.log(
+        [
+          job.displayState,
+          job.queuePosition ?? "-",
+          job.batchId ?? "-",
+          job.batchPart ? `${job.batchPart}/${job.batchSize}` : "-",
+          job.sourceCount ?? "-",
+          job.jobId,
+        ].join("\t"),
+      );
+    }
     return;
   }
   if (operation === "sources.list") {
@@ -796,7 +821,11 @@ async function main(rawArgs = process.argv.slice(2)) {
       const first = args.shift();
       if (!first) throw errors.usage("jobs requires an operation");
       if (first === "enqueue") {
-        const kind = requireOperation(args, "jobs enqueue", ["artifact-ingest", "inferred-memory"]);
+        const kind = requireOperation(args, "jobs enqueue", [
+          "artifact-ingest",
+          "artifact-ingest-batch",
+          "inferred-memory",
+        ]);
         operation = `enqueue.${kind}`;
         const sourceResources = takeOptions(args, "--source-resource");
         const ingestInstruction = takeOption(args, "--ingest-instruction");
@@ -812,7 +841,7 @@ async function main(rawArgs = process.argv.slice(2)) {
         const generationRaw = takeOption(args, "--automatic-memory-policy-generation");
         resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
         requireNoArguments(args);
-        if (kind === "artifact-ingest") {
+        if (kind === "artifact-ingest" || kind === "artifact-ingest-batch") {
           if (
             !sourceResources.length ||
             !ingestInstruction ||
@@ -823,10 +852,11 @@ async function main(rawArgs = process.argv.slice(2)) {
             generationRaw !== undefined
           ) {
             throw errors.usage(
-              "jobs enqueue artifact-ingest requires --source-resource and --ingest-instruction with worker options",
+              `jobs enqueue ${kind} requires --source-resource and --ingest-instruction with worker options`,
             );
           }
-          result = await enqueueArtifactIngestJob(resolved.context, sourceResources, {
+          const enqueue = kind === "artifact-ingest-batch" ? enqueueArtifactIngestBatch : enqueueArtifactIngestJob;
+          result = await enqueue(resolved.context, sourceResources, {
             instruction: ingestInstruction,
             model: workerModelId,
             thinking: workerThinkingLevel,
@@ -911,7 +941,7 @@ async function main(rawArgs = process.argv.slice(2)) {
             throw errors.usage("jobs run-all-queued accepts only its confirmation and corpus options");
           }
           if (!confirmRunAll) throw errors.confirmation("Running all queued jobs requires --confirm-run-all-queued");
-          result = await runJobs(resolved.context);
+          result = await runJobs(resolved.context, { waitForWorker: true });
         } else if (operation === "cancel" || operation === "retry") {
           if (!jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion) {
             throw errors.usage(`jobs ${operation} requires only --job-id and corpus options`);

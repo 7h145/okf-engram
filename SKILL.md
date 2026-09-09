@@ -97,7 +97,7 @@ normally.
 | `remember STATEMENT` | `memory remember --memory-statement STATEMENT` |
 | `recall QUESTION` | `memory recall --recall-question QUESTION` |
 | `ingest FILE...` | `knowledge ingest --source-resource ...` |
-| `queue FILE...` | `jobs enqueue artifact-ingest --source-resource ...` |
+| `queue FILE...` | `jobs enqueue artifact-ingest-batch --source-resource ...` |
 | `jobs [JOB_ID]` | `jobs list` or `jobs show --job-id JOB_ID` |
 | `cancel JOB_ID` | `jobs cancel --job-id JOB_ID` |
 | `remove CONCEPT_ID` | guided `concepts delete --concept-id CONCEPT_ID` workflow |
@@ -264,11 +264,13 @@ alone does not establish semantic quality.
 ## Explicit deferred artifact ingest
 
 Use deferred ingest only after explicit user request or accepted proposal.
-Synchronous ingest remains the portable default. Freeze one to sixteen local
-source resources and their digests without embedding source bytes:
+Synchronous ingest remains the portable default. Resolve every requested file or glob deterministically, reject an empty match,
+sort and deduplicate the resulting local resources, and freeze their digests
+without embedding source bytes. A human queue request may contain up to 256
+sources; the helper partitions it into ordered jobs of at most sixteen sources:
 
 ```bash
-node <skill-dir>/scripts/engram.mjs jobs enqueue artifact-ingest \
+node <skill-dir>/scripts/engram.mjs jobs enqueue artifact-ingest-batch \
   --corpus-context project \
   --source-resource project:docs/architecture.md \
   --source-resource project:docs/runbook.md \
@@ -278,18 +280,20 @@ node <skill-dir>/scripts/engram.mjs jobs enqueue artifact-ingest \
   --worker-timeout-seconds 900
 ```
 
-Report the job ID and `queued` state; this is not completed persistence. Launch the
-returned `workerCommand` through an agent-owned background mechanism such as
-boxed-tmux. Do not use an invisible untracked shell process. Return control without
-polling. Inspect state/results at a later natural boundary. Inline polling is only
-for explicit debugging.
+Report the batch ID, all job IDs, and their `queued` state; this is not completed
+persistence. Launch the single returned `runnerCommand` through one agent-owned
+background mechanism such as boxed-tmux. Never launch one runner per partition.
+The runner drains queued jobs serially through the corpus-wide worker lock. Do not
+use an invisible untracked shell process. Return control without polling. Inspect
+state/results at a later natural boundary. Inline polling is only for explicit
+debugging.
 
-If no managed background runner is available, leave the job queued and explain
+If no managed background runner is available, leave the batch queued and explain
 the explicit blocking fallback:
 
 ```bash
-node <skill-dir>/scripts/engram.mjs jobs run \
-  --corpus-context project --job-id <job-id>
+node <skill-dir>/scripts/engram.mjs jobs run-all-queued \
+  --corpus-context project --confirm-run-all-queued
 ```
 
 Inspect compact state without reading private worker traces:
@@ -300,11 +304,14 @@ node <skill-dir>/scripts/engram.mjs jobs show \
   --corpus-context project --job-id <job-id>
 ```
 
-Only one semantic worker runs per canonical bundle. Multiple jobs may be
-pre-enqueued and run serially: each run establishes a current corpus baseline,
-searches current concepts, and uses conditional writes. Source drift still stops
-that job before worker execution. Do not split a supported job merely to evade
-event-output limits. Failed/cancelled work may use `jobs retry`;
+Only one semantic worker runs per canonical bundle. `jobs list` exposes the active
+runner job, batch part/size, source count, and FIFO queue position; canonical
+`queued` state is presented to people as `waiting`. A batch runner discovers newly
+queued work between jobs and serially establishes a current corpus baseline,
+searches current concepts, and uses conditional writes for each partition. Source
+drift still stops only the affected job before worker execution. Do not manually
+split a supported human batch or launch competing per-job runners. Failed/cancelled
+work may use `jobs retry`;
 changed sources/bundles require reconciliation, and `needs-review` is never blindly
 replayed.
 
