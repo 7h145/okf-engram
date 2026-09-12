@@ -77,9 +77,21 @@ judgment; deterministic code handles storage integrity and concurrent updates.
 See [DEVELOPMENT.md](DEVELOPMENT.md) for the command contract, data handling,
 source provenance, job lifecycle, recovery behavior, and test setup.
 
-## Installation with Pi
+## Install
 
-Engram requires Node.js 20 or newer. Install the Git package globally with:
+Engram requires Node.js 20 or newer. Follow the installation documentation for
+your agent harness. For example, for the [Pi coding agent](https://pi.dev/), see
+the [skills documentation](https://pi.dev/docs/latest/skills) and
+[package management documentation](https://pi.dev/docs/latest/packages).
+
+Agent skills run with the agent's permissions and can instruct it to execute
+programs, so review third-party skills before installing them. Engram starts no
+daemon and changes project instructions only when you explicitly ask it to wire
+the project.
+
+### Pi example: install from GitHub
+
+Install the Git package globally with:
 
 ```bash
 pi install git:github.com/7h145/okf-engram
@@ -89,16 +101,11 @@ Pi clones Git packages and installs their npm dependencies. The command above
 follows the repository's default branch; append a reviewed tag such as
 `@v0.1.2` if you prefer a pinned release.
 
-Pi packages and skills run with the agent's permissions. Skills can instruct the
-agent to execute programs, so review third-party packages before installing them.
-Engram ships no extension, starts no daemon, and changes project instructions only
-when you explicitly ask it to wire the project.
-
 Start or restart Pi in the project where you want to use Engram. The package adds
 the strict `/engram` prompt command; Pi can also activate the skill from an
 ordinary request.
 
-### Local checkout
+### Pi example: local checkout
 
 Pi does not install dependencies for local-path packages. For a reviewed local
 checkout:
@@ -109,7 +116,17 @@ npm ci
 pi install /path/to/okf-engram
 ```
 
-## A first session
+## Usage
+
+Follow the skill-loading and invocation documentation for your agent harness. Once
+loaded, an agent can activate `okf-engram` when a request involves project
+knowledge, prior rationale, artifact ingest, or explicit memory.
+
+For the [Pi coding agent](https://pi.dev/), see the
+[skills documentation](https://pi.dev/docs/latest/skills). The examples below use
+Pi's `/engram` prompt command.
+
+### Pi example: a first session
 
 Engram does not create anything merely because the skill is installed. Initialize
 the knowledge base deliberately from the intended project directory:
@@ -143,7 +160,7 @@ To compile existing project documents without blocking the conversation:
 Engram uses managed background execution when one is available and clearly falls
 back to foreground ingest otherwise, rather than leaving a job without a runner.
 
-## Everyday use
+### Pi example: everyday use
 
 ```text
 /engram                         knowledge-base status

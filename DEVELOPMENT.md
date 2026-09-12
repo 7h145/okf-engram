@@ -5,6 +5,12 @@ This document describes Engram's implementation, canonical command interface,
 persistence rules, and development workflow. Start with [README.md](README.md) for
 the user-facing overview and first-use examples.
 
+Engram aims to be a portable Agent Skill. Its skill contract, OKF corpus, and
+Node.js helper do not depend on Pi, but Pi is the currently tested target and the
+source of the client-specific installation, prompt-command, package, background
+runner, and verification examples in this document. Operation in other Agent
+Skills clients is intended but not yet tested.
+
 The normative agent behavior is in [SKILL.md](SKILL.md). The detailed semantic
 workflows and OKF authoring profile are in
 [references/workflows.md](references/workflows.md),
