@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Rewrite the public README around the human problem, capabilities, broad design,
+  and a Pi-first walkthrough; move detailed command, persistence, recovery, and
+  contributor material into `DEVELOPMENT.md`.
+
 ## 0.1.2 — 2026-09-09
 
 - Sanitize private-provider identities from public test evidence, make failed-log
