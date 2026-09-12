@@ -6,6 +6,10 @@
   and harness-neutral install/usage guidance with clearly labelled Pi examples;
   move detailed command, persistence, recovery, and contributor material into
   `DEVELOPMENT.md`.
+- Keep semantic operations in the skill workflow and preserve the client's current
+  project directory; require flat memory frontmatter, and treat bare tmux as
+  unavailable rather than improvising collision-prone sessions or public temporary
+  logs for `/engram queue`.
 
 ## 0.1.2 — 2026-09-09
 

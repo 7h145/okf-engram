@@ -14,7 +14,10 @@ knowledge and conversation memories are ordinary concepts in the same corpus.
 
 Engram has one canonical agent DSL, a strict human shortcut subset, and a
 deterministic helper. Canonical semantic operations are interpreted by this skill;
-canonical deterministic operations map directly to the helper.
+canonical deterministic operations map directly to the helper. Semantic intents
+such as `memory remember`, `memory recall`, and `knowledge ingest` are deliberately
+rejected by the helper: never invoke them as helper commands. Implement them with
+the deterministic leaves required by their workflow sections below.
 
 Resolve this skill's directory (the directory containing this `SKILL.md`) and
 invoke deterministic operations with an absolute helper path:
@@ -37,6 +40,13 @@ expert override `--corpus-bundle-path <path>` is mutually exclusive with
 policy. Global
 context is reserved but unavailable in this release, and no operation may fall
 back between contexts.
+
+Unless the user explicitly selects another project root, preserve the agent
+client's current project working directory and let the helper discover its
+containing Git worktree. Do not `cd` to the client configuration directory, skill
+directory, or a guessed parent before a project operation. If resolution is in
+doubt, run `corpus locate` from the unchanged current directory; do not infer the
+project from the installed package path.
 
 Never assume the process cwd is the skill directory. Treat installed skill files
 as read-only. Pi does not install dependencies for a local-path package: its
@@ -359,17 +369,21 @@ background mechanism such as boxed-tmux. Never launch one runner per partition.
 The runner drains queued jobs serially through the corpus-wide worker lock. Each
 worker receives the sensitive-data mode effective when that job begins; queued
 work does not preserve an earlier permission to store secrets. Do not use an
-invisible untracked shell process. Return control without polling. Inspect
-state/results at a later natural boundary. Inline polling is only for explicit
-debugging.
+invisible untracked shell process. Return control without polling: do not sleep,
+read runner logs, or inspect jobs after launch unless the user explicitly asks to
+debug. Inspect state/results at a later natural boundary.
 
 For the human `queue` shortcut, confirm that a managed background runner is
-available before enqueueing. If none is available, do not create stranded deferred
-state: clearly report the fallback and perform the same request through foreground
-`knowledge ingest`. This is the user's preferred background-else-foreground
-experience. A canonical `jobs enqueue` request remains literal and may instead be
-left queued; `jobs run-all-queued --confirm-run-all-queued` is its explicit
-blocking fallback.
+available before enqueueing. A raw `tmux` executable alone is not a managed
+runner. Treat tmux as managed only when an active harness facility or loaded skill
+provides an ownership, private-output, and cleanup contract; do not improvise an
+ad hoc server/session, kill a generic session name, or redirect worker output to a
+shared temporary path. If no managed runner is available, do not create stranded
+deferred state: clearly report the fallback and perform the same request through
+foreground `knowledge ingest`. This is the user's preferred
+background-else-foreground experience. A canonical `jobs enqueue` request remains
+literal and may instead be left queued; `jobs run-all-queued
+--confirm-run-all-queued` is its explicit blocking fallback.
 
 Inspect compact state without reading private worker traces:
 
@@ -422,7 +436,9 @@ The canonical semantic request is:
    unavailable in this release; do not put personal/global facts in the project
    corpus merely because unguarded mode is enabled.
 2. Search for equivalent knowledge.
-3. Draft/update `memories/<slug>` with `type: Memory`, `capture: explicit`, and
+3. Read the OKF profile before drafting. Draft/update `memories/<slug>` with
+   top-level frontmatter fields—never a nested `concept` object—including
+   `type: Memory`, a non-empty `title` and `description`, `capture: explicit`, and
    the shortest useful evidence quote.
 4. Include a non-empty `sources` list with an opaque resource such as
    `urn:okf-engram:conversation:<random>`; never copy a transcript.

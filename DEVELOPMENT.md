@@ -102,9 +102,11 @@ The canonical interface is:
 ```
 
 The domains are `corpus`, `knowledge`, `memory`, `concepts`, `sources`, `jobs`,
-`policy`, and `wiring`. Semantic operations such as `knowledge ingest` and
-`memory remember` are interpreted by the active skill. Deterministic operations
-map to `scripts/engram.mjs`.
+`policy`, and `wiring`. Semantic operations such as `knowledge ingest`, `memory
+remember`, and `memory recall` are interpreted by the active skill and are
+intentionally rejected by `scripts/engram.mjs`; the agent implements them through
+the documented deterministic leaves. Deterministic operations map directly to the
+helper.
 
 Every canonical operation identifies its corpus context:
 
@@ -115,8 +117,11 @@ Every canonical operation identifies its corpus context:
 Global context is reserved for a future release and is unavailable in v0.1.
 Unsupported or inaccessible contexts fail; project operations never fall back to
 global or vice versa. `--project-root-path PATH` selects a project root explicitly.
-The deterministic expert override `--corpus-bundle-path PATH` is mutually
-exclusive with `--corpus-context` and does not inherit project policy.
+Without that explicit selection, the agent must preserve the client project cwd
+and let the helper discover its containing Git worktree; it must not change to an
+agent config directory, skill installation, or guessed parent. The deterministic
+expert override `--corpus-bundle-path PATH` is mutually exclusive with
+`--corpus-context` and does not inherit project policy.
 
 Helper output defaults to bounded JSON. Use `--output-format text` only for direct
 debugging. Run the complete generated reference with:
@@ -266,7 +271,9 @@ Three paths are distinct:
 The available inference path is project-only and omits transcripts, tool output,
 and thinking. It never targets a future global corpus. A monotonic policy
 generation prevents candidates accepted before an off/on boundary from writing
-afterward.
+afterward. Explicit memories use the same flat OKF frontmatter profile as other
+concepts: `type`, `title`, `description`, `capture`, and `sources` are top-level
+fields, never members of a nested `concept` object.
 
 ```text
 /engram auto status
@@ -310,8 +317,11 @@ heuristic and cannot be promised complete.
 The human `/engram queue` command resolves, sorts, deduplicates, and freezes up to
 256 local sources, partitions them into ordered jobs of at most sixteen sources,
 and launches one returned runner command through an available agent-owned
-background mechanism. If no managed runner is available, it reports the fallback
-and performs foreground semantic ingest rather than creating a stranded job.
+background mechanism. A raw `tmux` executable does not establish such a mechanism:
+tmux needs an active harness/skill contract for owned names, private output, and
+cleanup. The agent must not improvise generic sessions or shared-temporary logs. If
+no managed runner is available, it reports the fallback and performs foreground
+semantic ingest rather than creating a stranded job.
 
 Canonical enqueue and inspection examples:
 
@@ -341,7 +351,9 @@ queued work, and gives each job a fresh execution-time corpus baseline while
 preserving frozen source digests. Each worker uses the sensitive-data mode
 effective when its model invocation begins.
 
-Normal deferred work returns control without inline polling. Worker traces remain
+Normal deferred work returns control without inline polling, including no
+post-launch sleeps, log reads, or job inspection unless the user explicitly asks
+to debug. Worker traces remain
 in private job files. Foreground results contain only bounded state, concept IDs
 and hashes, coverage, warnings, and review or error reasons. Source drift stops
 only the affected job before worker execution. Jobs are cancellable and never

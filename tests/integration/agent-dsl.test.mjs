@@ -138,6 +138,11 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.match(skill, /Previously unguarded: yes — stored knowledge may still contain sensitive data/);
   assert.match(skill, /Launch the single returned `runnerCommand`/);
   assert.match(skill, /Never launch one runner per partition/);
+  assert.match(skill, /A raw `tmux` executable alone is not a managed\s+runner/);
+  assert.match(skill, /do not sleep,\s+read runner logs, or inspect jobs after launch/);
+  assert.match(skill, /preserve the agent\s+client's current project working directory/);
+  assert.match(skill, /never invoke them as helper commands/);
+  assert.match(skill, /top-level frontmatter fields—never a nested `concept` object/);
   assert.match(skill, /\| `sources` \| `sources list --corpus-context project` \|/);
   assert.match(skill, /\| `inventory` \| `sources inventory --corpus-context project` \|/);
   assert.match(skill, /\| `remove CONCEPT_ID` \| guided `concepts delete/);
