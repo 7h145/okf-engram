@@ -1,7 +1,9 @@
 # Engram workflows
 
-All deterministic examples use canonical project corpus context and return JSON
-unless `--output-format text` is explicit.
+Deterministic examples use an explicit canonical corpus context and return JSON
+unless `--output-format text` is explicit. Artifact, job, source-file, wiring, and
+inferred-memory workflows are project-only. Explicit memory and recall may select
+global context; no workflow falls back between contexts.
 
 ## Optional project wiring
 
@@ -19,10 +21,12 @@ nested instruction files.
 
 ## Sensitive-data mode
 
-Query `policy project sensitive-data status --corpus-context project` before
-semantic persistence or retrieval. Missing or invalid state is guarded and denies
-sensitive storage. Explicit `allow` selects unguarded mode; `deny` restores guarded
-mode for subsequent operations without deleting old content. The monotonic
+Query `policy project sensitive-data status --corpus-context project` or `policy
+global sensitive-data status --corpus-context global` before semantic persistence
+or retrieval, for every selected corpus. Missing or invalid state is guarded and
+denies sensitive storage. Explicit `allow` selects unguarded mode for one corpus;
+`deny` restores guarded mode for subsequent operations without deleting old
+content. In mixed recall, policy follows each supplying corpus. The monotonic
 `previouslyUnguarded` flag remains true so status can warn that stored knowledge
 may still contain sensitive data. Unavailable or invalid history is reported as
 unknown with the same conservative warning.
@@ -96,9 +100,12 @@ rejects valid jobs/symlinks, and cannot bypass result acknowledgement.
 ## Explicit memory
 
 The canonical semantic intent is `memory remember --memory-statement TEXT` with
-one corpus context. Search first, then create or update `memories/<slug>` with
-`type: Memory`, `capture: explicit`, and concise evidence. Report corpus context
-and concept ID.
+exactly one project or global corpus context. Query that context's policy and
+search it first, then create or update `memories/<slug>` with `type: Memory`,
+`capture: explicit`, concise evidence, and opaque conversation-URN provenance.
+Global writes additionally reject non-Memory types, inferred capture, file/URL
+sources, and digest/Git/selector artifact metadata. Report corpus context and
+concept ID. Never initialize, copy, or fall back as a side effect.
 
 ## Opportunistic memory inference — project opt-in only
 
@@ -134,18 +141,23 @@ automatic inference remains disabled.
 ## Recall
 
 The canonical semantic intent is `memory recall --recall-question TEXT` with one
-or more corpus contexts. Search envelopes first, open only likely concepts, follow
-useful links, and cite context-qualified concept IDs. Unguarded mode may retrieve
-relevant sensitive values for the trusted request. Guarded mode avoids intentionally
-reproducing sensitive values from previously unguarded content, but this is not
-access revocation because reading a plaintext concept may expose it to the model.
-Current project files remain primary for implementation/configuration; surface
-disagreement with Engram.
+or more unique project/global contexts. Read every selected policy, then use one
+bounded multi-context `concepts search`, open only likely concepts through their
+single supplying contexts, follow useful project links, and cite context-qualified
+concept IDs. Equal IDs across corpora are distinct. A selected-context failure
+aborts rather than returning partial fallback. Unguarded mode applies only to
+knowledge from that supplying corpus. Guarded mode avoids intentionally reproducing
+sensitive values from previously unguarded content, but this is not access
+revocation because reading a plaintext concept may expose it to the model. Current
+project files remain primary for implementation/configuration; surface disagreement
+with Engram.
 
-When exact evidence matters, use `sources resolve --concept-id --source-id` to
+When exact project evidence matters, use `sources resolve --concept-id --source-id` to
 materialize and verify recorded bytes and selectors outside the bundle. Report
 live drift separately. Unavailable repositories/objects, identity mismatches, and
-LFS pointers are not resolved evidence. Remove outputs afterward.
+LFS pointers are not resolved evidence. Remove outputs afterward. Global memory
+supports no source-file operation; its URNs provide provenance without a transcript
+archive.
 
 ## Source status
 

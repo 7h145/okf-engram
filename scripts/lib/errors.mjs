@@ -10,12 +10,15 @@ export class EngramError extends Error {
 
 export const errors = {
   usage: (message) => new EngramError(message, { code: "USAGE", exitCode: 2 }),
-  notInitialized: (path) =>
-    new EngramError(`Engram is not initialized at ${path}; run /engram init`, {
-      code: "NOT_INITIALIZED",
-      exitCode: 3,
-      details: { path },
-    }),
+  notInitialized: (path, corpusContext = "project") =>
+    new EngramError(
+      `Engram is not initialized at ${path}; run ${corpusContext === "global" ? "/engram global init" : "/engram init"}`,
+      {
+        code: "NOT_INITIALIZED",
+        exitCode: 3,
+        details: { path, corpusContext },
+      },
+    ),
   validation: (message, details) =>
     new EngramError(message, {
       code: "VALIDATION_ERROR",

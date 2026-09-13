@@ -57,6 +57,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /\[D\] sources list/);
   assert.match(result.stdout, /\[D\] jobs enqueue artifact-ingest-batch/);
   assert.match(result.stdout, /\[D\] policy project sensitive-data status\|allow\|deny/);
+  assert.match(result.stdout, /\[D\] policy global sensitive-data status\|allow\|deny/);
   assert.match(result.stdout, /\[D\] adapter bridge handshake\|project-policy-status/);
   assert.match(result.stdout, /The bridge is JSON-only and intrinsically project-targeted/);
   assert.match(result.stdout, /--corpus-context project\|global/);
@@ -71,13 +72,16 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   const noArguments = await run([]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(noArguments.stdout, result.stdout);
-  assert.ok(Buffer.byteLength(result.stdout) < 1_280);
+  assert.ok(Buffer.byteLength(result.stdout) < 2_048);
   assert.match(result.stdout, /\/engram wire\|unwire/);
   assert.match(result.stdout, /\/engram auto status\|on\|off/);
-  assert.match(result.stdout, /\/engram mode status\|guarded\|unguarded — manage sensitive data/);
+  assert.match(result.stdout, /\/engram mode status\|guarded\|unguarded — manage project sensitive data/);
   assert.doesNotMatch(result.stdout, / \| /);
-  assert.match(result.stdout, /An agent-maintained, project-local knowledge base built from project data and memories\./);
-  assert.match(result.stdout, /Use it to retain, find, and apply durable knowledge across working sessions\./);
+  assert.match(result.stdout, /Agent-maintained knowledge bases for durable project knowledge and user-global memories\./);
+  assert.match(result.stdout, /Use them to retain, find, and apply durable knowledge across working sessions\./);
+  assert.match(result.stdout, /\/engram global remember STATEMENT/);
+  assert.match(result.stdout, /\/engram global recall QUESTION/);
+  assert.match(result.stdout, /\/engram both recall QUESTION/);
   assert.match(result.stdout, /\/engram — status of the project knowledge base/);
   assert.match(result.stdout, /\/engram sources — list referenced data files/);
   assert.match(result.stdout, /\/engram inventory — inspect all source references/);
@@ -124,6 +128,8 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
     "jobs",
     "cancel",
     "remove",
+    "global",
+    "both",
   ])
     assert.match(prompt, new RegExp(`\\b${shortcut}\\b`));
   assert.match(prompt, /strict `\/engram`/);
@@ -151,6 +157,8 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.match(skill, /\| `sources` \| `sources list --corpus-context project` \|/);
   assert.match(skill, /\| `inventory` \| `sources inventory --corpus-context project` \|/);
   assert.match(skill, /\| `remove CONCEPT_ID` \| guided `concepts delete/);
+  assert.match(skill, /\| `global remember STATEMENT` \| `memory remember --corpus-context global/);
+  assert.match(skill, /\| `both recall QUESTION` \| `memory recall --corpus-context project --corpus-context global/);
   assert.match(skill, /mandatory two-turn confirmation/);
   assert.match(skill, /Reject an unknown slash command with concise help/);
 });
@@ -196,7 +204,7 @@ test("canonical operations require an explicit supported corpus context and neve
 
   result = await run(["corpus", "locate", "--corpus-context", "global", "--project-root-path", root]);
   assert.equal(result.code, 2);
-  assert.match(parseError(result).message, /Global corpus context is not available/);
+  assert.match(parseError(result).message, /does not accept --project-root-path/);
 
   result = await run([
     "corpus",

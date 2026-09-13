@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
 import process from "node:process";
-import { resolveProject } from "./lib/project.mjs";
+import { resolveGlobal, resolveProject } from "./lib/project.mjs";
 import {
   initializeCorpus,
   readConcept,
   writeConcept,
   listConcepts,
   searchCorpus,
+  searchCorpora,
   validateCorpus,
   inspectCorpusStatus,
   inspectSourceClaims,
@@ -55,10 +56,10 @@ import {
   describeAdapterBridge,
 } from "./lib/adapter-bridge.mjs";
 
-const HUMAN_HELP = `okf-engram ${VERSION} — project knowledge and memory
+const HUMAN_HELP = `okf-engram ${VERSION} — project knowledge and explicit global memory
 
-An agent-maintained, project-local knowledge base built from project data and memories.
-Use it to retain, find, and apply durable knowledge across working sessions.
+Agent-maintained knowledge bases for durable project knowledge and user-global memories.
+Use them to retain, find, and apply durable knowledge across working sessions.
 
 Common work:
   /engram — status of the project knowledge base
@@ -77,11 +78,19 @@ Further actions:
   /engram cancel JOB_ID — cancel deferred work
   /engram remove CONCEPT_ID — delete after confirmation
 
+Global memory:
+  /engram global — status of global memory
+  /engram global init — initialize global memory
+  /engram global remember STATEMENT — retain a user-global memory
+  /engram global recall QUESTION — recall only global memory
+  /engram both recall QUESTION — recall project and global knowledge
+
 Setup and policy:
   /engram init — initialize project knowledge base
   /engram wire|unwire — manage project reminder
-  /engram mode status|guarded|unguarded — manage sensitive data
-  /engram auto status|on|off — manage automatic memory
+  /engram mode status|guarded|unguarded — manage project sensitive data
+  /engram global mode status|guarded|unguarded — manage global sensitive data
+  /engram auto status|on|off — manage project automatic memory
   /engram help — this help
 
 Commands are strict. Ask normally for anything else.
@@ -117,7 +126,7 @@ Memory — semantic remembering and selective retrieval from corpora.
 Concepts — deterministic operations on individual OKF concept documents.
   [D] concepts list           --corpus-context CONTEXT
                               [--concept-type TYPE]
-  [D] concepts search         --corpus-context CONTEXT
+  [D] concepts search         --corpus-context CONTEXT...
                               --query TEXT [--result-limit INTEGER]
                               [--include-deprecated]
   [D] concepts read           --corpus-context CONTEXT --concept-id ID
@@ -132,7 +141,7 @@ Concepts — deterministic operations on individual OKF concept documents.
                               --expected-current-sha256 SHA256
                               --confirm-current-tree-deletion
 
-Sources — evidence capture, provenance, exact reopening, and freshness checks.
+Sources — project/explicit-bundle evidence capture, reopening, and freshness checks.
   [D] sources digest          --corpus-context CONTEXT --source-resource RESOURCE
   [D] sources capture         --corpus-context CONTEXT --source-resource RESOURCE
                               --output-file-path PATH
@@ -194,6 +203,8 @@ Policy — explicit controls governing optional skill behavior.
                               --corpus-context project
   [D] policy project sensitive-data status|allow|deny
                               --corpus-context project
+  [D] policy global sensitive-data status|allow|deny
+                              --corpus-context global
 
 Wiring — optional project/client reminders that help activate Engram.
   [D] wiring project status|preview|install|remove
@@ -213,9 +224,9 @@ Adapter bridge — package-discovered machine interface for optional adapters.
 Context and output:
   --corpus-context project|global
       Required by the canonical DSL. Mutations select exactly one context;
-      retrieval may repeat it where documented. This release supports project.
+      concepts search and memory recall may repeat it. Selection never falls back.
   --project-root-path PATH
-      Resolve project context from an explicit project root.
+      Resolve project context from an explicit project root; invalid for global-only operations.
   --corpus-bundle-path PATH
       Deterministic expert override, mutually exclusive with --corpus-context.
       It never inherits project automatic-memory or sensitive-data policy.
@@ -292,7 +303,10 @@ function takeOutputFormat(args) {
   return outputFormat;
 }
 
-async function resolveCorpus(args, { projectOnly = false, allowBundleOverride = true } = {}) {
+async function resolveCorpora(
+  args,
+  { projectOnly = false, allowBundleOverride = true, allowMultiple = false } = {},
+) {
   const corpusContexts = takeOptions(args, "--corpus-context");
   const projectRootPath = takeOption(args, "--project-root-path");
   const corpusBundlePath = takeOption(args, "--corpus-bundle-path");
@@ -305,24 +319,41 @@ async function resolveCorpus(args, { projectOnly = false, allowBundleOverride = 
       throw errors.usage("--corpus-bundle-path is mutually exclusive with --corpus-context");
     }
     const context = await resolveProject({ projectRoot: projectRootPath, bundle: corpusBundlePath });
-    return { context, corpusContext: "explicit-bundle" };
+    return [{ context, corpusContext: "explicit-bundle" }];
   }
 
-  if (corpusContexts.length !== 1) {
-    throw errors.usage("Exactly one --corpus-context is required for this operation");
+  if (!corpusContexts.length || (!allowMultiple && corpusContexts.length !== 1)) {
+    throw errors.usage(
+      allowMultiple
+        ? "At least one --corpus-context is required for this operation"
+        : "Exactly one --corpus-context is required for this operation",
+    );
   }
-  const [corpusContext] = corpusContexts;
-  if (!new Set(["project", "global"]).has(corpusContext)) {
+  if (new Set(corpusContexts).size !== corpusContexts.length) {
+    throw errors.usage("Corpus contexts must be unique");
+  }
+  if (corpusContexts.some((value) => !new Set(["project", "global"]).has(value))) {
     throw errors.usage("--corpus-context must be project or global");
   }
-  if (corpusContext === "global") {
-    throw errors.usage("Global corpus context is not available in this release");
-  }
-  if (projectOnly && corpusContext !== "project") {
+  if (projectOnly && corpusContexts.some((value) => value !== "project")) {
     throw errors.usage("This operation is available only in project corpus context");
   }
-  const context = await resolveProject({ projectRoot: projectRootPath });
-  return { context, corpusContext };
+  if (!corpusContexts.includes("project") && projectRootPath) {
+    throw errors.usage("Global corpus context does not accept --project-root-path");
+  }
+  return Promise.all(
+    corpusContexts.map(async (corpusContext) => ({
+      corpusContext,
+      context: corpusContext === "project"
+        ? await resolveProject({ projectRoot: projectRootPath })
+        : await resolveGlobal(),
+    })),
+  );
+}
+
+async function resolveCorpus(args, options = {}) {
+  const corpora = await resolveCorpora(args, options);
+  return corpora[0];
 }
 
 function renameResultField(result, oldName, newName) {
@@ -338,6 +369,9 @@ function canonicalizeResultFields(value, operation) {
   renameResultField(result, "logicalBundle", "logicalBundlePath");
   renameResultField(result, "bundle", "bundlePath");
   renameResultField(result, "settings", "settingsFilePath");
+  renameResultField(result, "dataHome", "dataHomePath");
+  renameResultField(result, "logicalStateRoot", "logicalStateRootPath");
+  renameResultField(result, "stateRoot", "stateRootPath");
   if (result.automaticMemory && typeof result.automaticMemory === "object") {
     result.automaticMemory = canonicalizeResultFields(result.automaticMemory, "policy.project.automatic-memory.status");
   }
@@ -379,7 +413,8 @@ function printText(result, operation) {
   if (operation === "concepts.search") {
     if (!result.results.length) console.log("No matching concepts.");
     for (const item of result.results) {
-      console.log(`${item.id}\t${item.type}\t${item.title}\t${item.description} [${item.score}]`);
+      const context = item.corpusContext ? `${item.corpusContext}\t` : "";
+      console.log(`${context}${item.id}\t${item.type}\t${item.title}\t${item.description} [${item.score}]`);
     }
     return;
   }
@@ -389,7 +424,8 @@ function printText(result, operation) {
   }
   if (operation === "corpus.locate") {
     console.log(`Corpus context: ${result.corpusContext}`);
-    console.log(`Project root: ${result.projectRootPath}`);
+    if (result.projectRootPath) console.log(`Project root: ${result.projectRootPath}`);
+    if (result.dataHomePath) console.log(`XDG data home: ${result.dataHomePath}`);
     console.log(`Bundle: ${result.logicalBundlePath}`);
     if (result.bundlePath !== result.logicalBundlePath) console.log(`Canonical bundle: ${result.bundlePath}`);
     console.log(`Discovery: ${result.method}`);
@@ -399,7 +435,11 @@ function printText(result, operation) {
   if (operation === "corpus.initialize") {
     console.log(`${result.created ? "Initialized" : "Found existing"} Engram corpus: ${result.logicalBundlePath}`);
     if (result.bundlePath !== result.logicalBundlePath) console.log(`Canonical bundle: ${result.bundlePath}`);
-    console.log("Optional: run /engram wire to add the project reminder; this does not enable automatic memory.");
+    if (result.corpusContext === "project") {
+      console.log("Optional: run /engram wire to add the project reminder; this does not enable automatic memory.");
+    } else {
+      console.log("Global memory remains explicit; initialization enables no automatic inference or fallback.");
+    }
     return;
   }
   if (operation.startsWith("wiring.project.")) {
@@ -674,7 +714,7 @@ async function main(rawArgs = process.argv.slice(2)) {
       const corpusContexts = takeOptions(args, "--corpus-context");
       const sourceResources = takeOptions(args, "--source-resource");
       takeOption(args, "--ingest-instruction");
-      const projectRootPath = takeOption(args, "--project-root-path");
+      takeOption(args, "--project-root-path");
       if (
         corpusContexts.length !== 1 ||
         !["project", "global"].includes(corpusContexts[0]) ||
@@ -683,8 +723,8 @@ async function main(rawArgs = process.argv.slice(2)) {
       ) {
         throw errors.usage("knowledge ingest requires one valid --corpus-context and unique --source-resource values");
       }
-      if (corpusContexts[0] === "global" && projectRootPath) {
-        throw errors.usage("Global corpus context does not accept --project-root-path");
+      if (corpusContexts[0] === "global") {
+        throw errors.usage("Artifact ingest is unavailable in global memory context");
       }
       requireNoArguments(args);
       semanticOperationError("knowledge ingest");
@@ -742,11 +782,15 @@ async function main(rawArgs = process.argv.slice(2)) {
       break;
     }
     case "policy": {
-      if (args.shift() !== "project") {
-        throw errors.usage("policy requires the project scope and a supported policy");
+      const scope = args.shift();
+      if (!new Set(["project", "global"]).has(scope)) {
+        throw errors.usage("policy requires the project or global scope and a supported policy");
       }
       const policy = args.shift();
       if (policy === "automatic-memory") {
+        if (scope !== "project") {
+          throw errors.usage("Automatic-memory policy is available only for project corpus context");
+        }
         const action = requireOperation(args, "policy project automatic-memory", ["status", "enable", "disable"]);
         operation = `project.automatic-memory.${action}`;
         resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
@@ -756,16 +800,22 @@ async function main(rawArgs = process.argv.slice(2)) {
             ? await getAutomaticMemoryPolicyStatus(resolved.context, { tolerateInvalid: true })
             : await setProjectAutomaticMemoryPolicy(resolved.context, action === "enable" ? "on" : "off");
       } else if (policy === "sensitive-data") {
-        const action = requireOperation(args, "policy project sensitive-data", ["status", "allow", "deny"]);
-        operation = `project.sensitive-data.${action}`;
-        resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
+        const action = requireOperation(args, `policy ${scope} sensitive-data`, ["status", "allow", "deny"]);
+        operation = `${scope}.sensitive-data.${action}`;
+        resolved = await resolveCorpus(args, {
+          projectOnly: scope === "project",
+          allowBundleOverride: false,
+        });
+        if (resolved.corpusContext !== scope) {
+          throw errors.usage(`policy ${scope} sensitive-data requires --corpus-context ${scope}`);
+        }
         requireNoArguments(args);
         result =
           action === "status"
             ? await getSensitiveDataPolicyStatus(resolved.context, { tolerateInvalid: true })
             : await setSensitiveDataPolicy(resolved.context, action);
       } else {
-        throw errors.usage("policy requires project automatic-memory or project sensitive-data");
+        throw errors.usage("policy supports project automatic-memory and project or global sensitive-data");
       }
       break;
     }
@@ -782,7 +832,8 @@ async function main(rawArgs = process.argv.slice(2)) {
       const policyGenerationRaw = takeOption(args, "--automatic-memory-policy-generation");
       const reason = takeOption(args, "--reason");
       const confirmDeletion = takeOption(args, "--confirm-current-tree-deletion", { boolean: true });
-      resolved = await resolveCorpus(args);
+      const selectedCorpora = await resolveCorpora(args, { allowMultiple: operation === "search" });
+      if (selectedCorpora.length === 1) [resolved] = selectedCorpora;
       requireNoArguments(args);
 
       if (operation === "list") {
@@ -819,7 +870,9 @@ async function main(rawArgs = process.argv.slice(2)) {
           resultLimitRaw === undefined
             ? 10
             : parseInteger(resultLimitRaw, "--result-limit", { minimum: 1, maximum: 100 });
-        result = await searchCorpus(resolved.context, query, { limit: resultLimit, includeDeprecated });
+        result = selectedCorpora.length === 1
+          ? await searchCorpus(resolved.context, query, { limit: resultLimit, includeDeprecated })
+          : await searchCorpora(selectedCorpora, query, { limit: resultLimit, includeDeprecated });
       } else if (operation === "read") {
         if (
           !conceptId ||
@@ -942,6 +995,9 @@ async function main(rawArgs = process.argv.slice(2)) {
       const selectorValue = takeOption(args, "--source-selector-value");
       const gitRevision = takeOption(args, "--git-revision");
       resolved = await resolveCorpus(args);
+      if (resolved.corpusContext === "global") {
+        throw errors.usage("Source-file operations are unavailable in global memory context");
+      }
       requireNoArguments(args);
 
       if (operation === "digest") {

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add M5 explicit global memory: a deliberately initialized, restrictive-mode XDG
+  corpus that accepts only explicit Memory concepts with URN provenance; independent
+  guarded/unguarded policy; explicit project/global/both recall; and an N-capable,
+  context-qualified, bounded read-composition path with no fallback. Artifact
+  ingest, inferred memory, jobs, wiring, source-file operations, and adapters remain
+  unable to target global memory.
 - Add package-level adapter bridge protocol v1: client-provenance discovery through
   a machine-readable manifest, explicit capability/version negotiation, fixed
   project-only policy and inferred-memory operations, sanitized context-qualified

@@ -20,19 +20,88 @@ import {
 } from "./settings.mjs";
 import { validateSelector } from "./selectors.mjs";
 
+function isGlobalCorpus(context) {
+  return context.corpusContext === "global";
+}
+
+function globalProfileIssues(concepts) {
+  const issues = [];
+  const add = (item, code, message) => issues.push({
+    severity: "error",
+    category: "global-profile",
+    code,
+    id: item.id,
+    path: item.path,
+    message,
+  });
+  for (const item of concepts) {
+    const data = item.concept.data;
+    if (data.type !== "Memory") add(item, "global-memory-type", "Global corpora may contain only Memory concepts");
+    if (data.capture !== "explicit") {
+      add(item, "global-memory-capture", "Global Memory concepts require capture: explicit");
+    }
+    if (!Array.isArray(data.sources) || data.sources.length === 0) {
+      add(item, "global-memory-provenance", "Global Memory concepts require at least one provenance source");
+    } else {
+      data.sources.forEach((source, index) => {
+        if (typeof source?.resource !== "string" || !source.resource.startsWith("urn:")) {
+          add(
+            item,
+            "global-memory-source",
+            `Global Memory provenance sources must be URNs; sources[${index}].resource is not`,
+          );
+        }
+        if (source && typeof source === "object" && ["digest", "git", "selector"].some((key) => source[key] !== undefined)) {
+          add(item, "global-memory-source-metadata", `Global Memory sources[${index}] contains artifact metadata`);
+        }
+      });
+    }
+  }
+  return issues;
+}
+
+function assertGlobalConceptProfile(context, id, concept) {
+  if (!isGlobalCorpus(context)) return;
+  const issues = globalProfileIssues([{ id, concept }]);
+  if (issues.length) {
+    throw errors.validation(`Global memory-only profile rejected concept ${id}: ${issues.map((item) => item.message).join("; ")}`, {
+      issues,
+    });
+  }
+}
+
+function requireReadableGlobalCorpus(context, concepts, scanIssues = []) {
+  if (!isGlobalCorpus(context)) return;
+  const issues = [
+    ...scanIssues.filter((issue) => issue.severity === "error" || issue.code === "symlink"),
+    ...globalProfileIssues(concepts),
+  ];
+  if (issues.length) {
+    throw errors.validation("Global corpus is invalid or violates the memory-only profile", { issues });
+  }
+}
+
 async function assertBundle(context) {
   if (!context.initialized || !(await pathExists(context.bundle))) {
-    throw errors.notInitialized(context.logicalBundle);
+    throw errors.notInitialized(context.logicalBundle, context.corpusContext);
   }
   const stat = await fs.stat(context.bundle);
   if (!stat.isDirectory()) throw errors.validation(`Bundle is not a directory: ${context.bundle}`);
 }
 
 export async function initializeCorpus(context) {
+  if (isGlobalCorpus(context)) {
+    await fs.mkdir(context.stateRoot, { recursive: true, mode: 0o700 });
+    await fs.chmod(context.stateRoot, 0o700);
+  }
   await fs.mkdir(context.bundle, { recursive: true, mode: 0o700 });
   const canonicalBundle = await fs.realpath(context.bundle);
   context.bundle = canonicalBundle;
   context.initialized = true;
+  if (isGlobalCorpus(context)) {
+    context.stateRoot = await fs.realpath(path.dirname(context.bundle));
+    await fs.chmod(context.bundle, 0o700);
+  }
 
   return withBundleLock(context.bundle, async () => {
     const entries = await fs.readdir(context.bundle);
@@ -43,7 +112,8 @@ export async function initializeCorpus(context) {
       }
       await rejectInternalSymlinks(context.bundle, rootIndex);
       validateRootIndex(await fs.readFile(rootIndex, "utf8"), rootIndex);
-      const { issues: conceptIssues } = await scanBundle(context.bundle);
+      const { concepts, issues: conceptIssues } = await scanBundle(context.bundle);
+      if (isGlobalCorpus(context)) conceptIssues.push(...globalProfileIssues(concepts));
       const indexIssues = await inspectExistingIndexes(context.bundle);
       const logIssues = await inspectExistingLogs(context.bundle);
       const errorsFound = [...conceptIssues, ...indexIssues, ...logIssues].filter(
@@ -56,7 +126,9 @@ export async function initializeCorpus(context) {
       }
       return {
         created: false,
-        projectRoot: context.projectRoot,
+        ...(isGlobalCorpus(context)
+          ? { dataHome: context.dataHome, logicalStateRoot: context.logicalStateRoot, stateRoot: context.stateRoot }
+          : { projectRoot: context.projectRoot }),
         logicalBundle: context.logicalBundle,
         bundle: context.bundle,
       };
@@ -65,7 +137,9 @@ export async function initializeCorpus(context) {
     await writeIndexes(concepts, context.bundle);
     return {
       created: true,
-      projectRoot: context.projectRoot,
+      ...(isGlobalCorpus(context)
+        ? { dataHome: context.dataHome, logicalStateRoot: context.logicalStateRoot, stateRoot: context.stateRoot }
+        : { projectRoot: context.projectRoot }),
       logicalBundle: context.logicalBundle,
       bundle: context.bundle,
     };
@@ -84,6 +158,7 @@ export async function readConcept(context, id) {
     throw error;
   }
   const concept = parseConcept(text, id);
+  assertGlobalConceptProfile(context, id, concept);
   return { id, path: file, hash: sha256(text), text, data: concept.data, body: concept.body };
 }
 
@@ -125,6 +200,7 @@ async function writeConceptLocked(
     throw errors.conflict(`Concept ${id} no longer exists`, { expected: expectedCurrentSha256 });
   }
 
+  assertGlobalConceptProfile(context, id, concept);
   normalizeGenerated(concept);
   const validation = assertValid(concept);
   const rendered = renderConcept(concept);
@@ -172,6 +248,7 @@ export async function writeConcept(context, id, draftText, options = {}) {
 export async function listConcepts(context, { type } = {}) {
   await assertBundle(context);
   const { concepts, issues } = await scanBundle(context.bundle);
+  requireReadableGlobalCorpus(context, concepts, issues);
   return {
     concepts: concepts.filter((item) => !type || item.envelope.type === type).map((item) => item.envelope),
     issues,
@@ -181,7 +258,38 @@ export async function listConcepts(context, { type } = {}) {
 export async function searchCorpus(context, query, options = {}) {
   await assertBundle(context);
   const { concepts, issues } = await scanBundle(context.bundle);
+  requireReadableGlobalCorpus(context, concepts, issues);
   return { results: searchConcepts(query, concepts, options), issues };
+}
+
+export async function searchCorpora(descriptors, query, options = {}) {
+  if (!Array.isArray(descriptors) || descriptors.length === 0) {
+    throw errors.usage("Cross-corpus search requires at least one corpus descriptor");
+  }
+  const limit = options.limit ?? 10;
+  const searched = await Promise.all(
+    descriptors.map(async (descriptor, order) => ({
+      ...descriptor,
+      order,
+      search: await searchCorpus(descriptor.context, query, { ...options, limit }),
+    })),
+  );
+  const results = searched
+    .flatMap((item) => item.search.results.map((result) => ({ ...result, corpusContext: item.corpusContext, order: item.order })))
+    .sort((left, right) => right.score - left.score || left.order - right.order || left.id.localeCompare(right.id))
+    .slice(0, limit)
+    .map((item) => {
+      const result = { ...item };
+      delete result.order;
+      return result;
+    });
+  return {
+    corpusContexts: searched.map((item) => item.corpusContext),
+    results,
+    issues: searched.flatMap((item) =>
+      item.search.issues.map((issue) => ({ ...issue, corpusContext: item.corpusContext })),
+    ),
+  };
 }
 
 function markdownLinks(body) {
@@ -605,6 +713,7 @@ export async function validateCorpus(context, { fix = false } = {}) {
     const { concepts, issues: scanIssues } = await scanBundle(context.bundle);
     const issues = [
       ...scanIssues,
+      ...(isGlobalCorpus(context) ? globalProfileIssues(concepts) : []),
       ...(await linkIssues(context.bundle, concepts)),
       ...(await inspectExistingLogs(context.bundle)),
     ];
@@ -619,7 +728,7 @@ export async function validateCorpus(context, { fix = false } = {}) {
         message: `Generated index is ${reason}`,
       }),
     );
-    const sources = await inspectSourceClaims(context);
+    const sources = isGlobalCorpus(context) ? [] : await inspectSourceClaims(context);
     sources
       .filter((item) => item.state !== "unchanged")
       .forEach((item) =>
@@ -669,13 +778,16 @@ export async function validateCorpus(context, { fix = false } = {}) {
 export async function inspectCorpusStatus(context) {
   await assertBundle(context);
   const { concepts, issues } = await scanBundle(context.bundle);
+  const profileIssues = isGlobalCorpus(context) ? globalProfileIssues(concepts) : [];
   const { drift, issues: indexIssues } = await indexDrift(concepts, context.bundle);
-  const git = await gitTrackingState(context);
-  const sources = await inspectSourceClaims(context);
-  const automaticMemory = await getAutomaticMemoryPolicyStatus(context, {
-    tolerateInvalid: true,
-    allowExplicitBundle: true,
-  });
+  const git = isGlobalCorpus(context) ? undefined : await gitTrackingState(context);
+  const sources = isGlobalCorpus(context) ? [] : await inspectSourceClaims(context);
+  const automaticMemory = isGlobalCorpus(context)
+    ? { available: false, automaticMemory: "off", issue: "Global automatic memory is unavailable" }
+    : await getAutomaticMemoryPolicyStatus(context, {
+      tolerateInvalid: true,
+      allowExplicitBundle: true,
+    });
   const sensitiveData = await getSensitiveDataPolicyStatus(context, {
     tolerateInvalid: true,
     allowExplicitBundle: true,
@@ -689,12 +801,13 @@ export async function inspectCorpusStatus(context) {
   const byType = {};
   for (const item of concepts) byType[item.envelope.type] = (byType[item.envelope.type] ?? 0) + 1;
   return {
-    projectRoot: context.projectRoot,
+    ...(isGlobalCorpus(context) ? { dataHome: context.dataHome } : { projectRoot: context.projectRoot }),
     logicalBundle: context.logicalBundle,
     bundle: context.bundle,
     concepts: concepts.length,
     byType,
     parseErrors: issues.filter((issue) => issue.severity === "error").length,
+    profileErrors: profileIssues.length,
     indexDrift: drift.length,
     indexIssues,
     sourceStates,

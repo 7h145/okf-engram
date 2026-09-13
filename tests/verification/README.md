@@ -36,8 +36,8 @@ Profiles:
 - `quick`: current-Node lint, syntax, and deterministic tests via
   `npm run check`.
 - `full`: `quick`, full Node 20 runtime tests, production audit, Agent Skills
-  validation, engine-strict packed Node 20/npm 9 installation, wiring smoke, and
-  packed Pi skill/prompt discovery.
+  validation, engine-strict packed Node 20/npm 9 installation, project wiring,
+  XDG global-memory and mixed-search smoke, and packed Pi skill/prompt discovery.
 - `self-pass`, `self-fail`, `self-timeout`, `self-overflow`, and `self-metrics`:
   deterministic harness regressions only.
 

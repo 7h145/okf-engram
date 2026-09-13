@@ -12,7 +12,7 @@ const SENSITIVE_DATA_STATES = new Set(["allow", "deny"]);
 
 async function assertInitialized(context) {
   if (!context.initialized || !(await pathExists(context.bundle))) {
-    throw errors.notInitialized(context.logicalBundle);
+    throw errors.notInitialized(context.logicalBundle, context.corpusContext);
   }
   const stat = await fs.stat(context.bundle);
   if (!stat.isDirectory()) throw errors.validation(`Bundle is not a directory: ${context.bundle}`);
@@ -27,9 +27,20 @@ function settingsPaths(context) {
   };
 }
 
-function assertDefaultProjectCorpus(context, policyName = "Project policy") {
+function policyScope(context) {
+  return context.corpusContext === "global" ? "Global" : "Project";
+}
+
+function assertManagedCorpus(context, policyName = `${policyScope(context)} policy`) {
   if (context.method === "explicit-bundle") {
     throw errors.usage(`${policyName} is unavailable for an explicit corpus bundle path`);
+  }
+}
+
+function assertProjectCorpus(context, policyName = "Project policy") {
+  assertManagedCorpus(context, policyName);
+  if (context.corpusContext !== "project") {
+    throw errors.usage(`${policyName} is available only in project corpus context`);
   }
 }
 
@@ -61,7 +72,7 @@ function validateSettings(value, file) {
     typeof value.previouslyUnguarded === "boolean" &&
     (value.sensitiveData !== "allow" || value.previouslyUnguarded);
   if (!valid) {
-    throw errors.validation(`Project policies are unavailable because settings are invalid: ${file}`, {
+    throw errors.validation(`Stored policies are unavailable because settings are invalid: ${file}`, {
       path: file,
       automaticMemoryEffective: "off",
       sensitiveDataEffective: "deny",
@@ -85,7 +96,7 @@ async function readSettings(context) {
     text = await fs.readFile(paths.file, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") return defaultSettings(paths);
-    throw errors.validation(`Project policies are unavailable because settings cannot be read: ${paths.logicalFile}`, {
+    throw errors.validation(`${policyScope(context)} policies are unavailable because settings cannot be read: ${paths.logicalFile}`, {
       path: paths.logicalFile,
       automaticMemoryEffective: "off",
       sensitiveDataEffective: "deny",
@@ -96,19 +107,28 @@ async function readSettings(context) {
   try {
     value = JSON.parse(text);
   } catch (error) {
-    throw errors.validation(`Project policies are unavailable because settings are invalid: ${paths.logicalFile}`, {
+    throw errors.validation(`${policyScope(context)} policies are unavailable because settings are invalid: ${paths.logicalFile}`, {
       path: paths.logicalFile,
       automaticMemoryEffective: "off",
       sensitiveDataEffective: "deny",
       reason: error.message,
     });
   }
-  return { paths, configured: true, ...validateSettings(value, paths.logicalFile) };
+  const validated = validateSettings(value, paths.logicalFile);
+  if (context.corpusContext === "global" && (validated.automaticMemory !== "off" || validated.generation !== 0)) {
+    throw errors.validation(`Global policies are unavailable because settings enable project-only automatic memory: ${paths.logicalFile}`, {
+      path: paths.logicalFile,
+      automaticMemoryEffective: "off",
+      sensitiveDataEffective: "deny",
+      reason: "global settings require automaticMemory off and generation 0",
+    });
+  }
+  return { paths, configured: true, ...validated };
 }
 
 function commonPolicyStatus(context, state) {
   return {
-    projectRoot: context.projectRoot,
+    ...(context.corpusContext === "global" ? { dataHome: context.dataHome } : { projectRoot: context.projectRoot }),
     settings: state.paths.logicalFile,
     configured: state.configured,
     valid: true,
@@ -156,8 +176,11 @@ export async function getAutomaticMemoryPolicyStatus(
   { tolerateInvalid = false, allowExplicitBundle = false } = {},
 ) {
   await assertInitialized(context);
+  if (context.corpusContext === "global") {
+    throw errors.usage("Automatic-memory policy is unavailable in global corpus context");
+  }
   if (context.method === "explicit-bundle") {
-    if (!allowExplicitBundle) assertDefaultProjectCorpus(context, "Project automatic-memory policy");
+    if (!allowExplicitBundle) assertProjectCorpus(context, "Project automatic-memory policy");
     const state = defaultSettings(settingsPaths(context));
     return {
       ...publicAutomaticMemoryStatus(context, state),
@@ -188,7 +211,7 @@ export async function getSensitiveDataPolicyStatus(
 ) {
   await assertInitialized(context);
   if (context.method === "explicit-bundle") {
-    if (!allowExplicitBundle) assertDefaultProjectCorpus(context, "Project sensitive-data policy");
+    if (!allowExplicitBundle) assertManagedCorpus(context, "Project sensitive-data policy");
     const state = defaultSettings(settingsPaths(context));
     return {
       ...publicSensitiveDataStatus(context, state),
@@ -203,7 +226,7 @@ export async function getSensitiveDataPolicyStatus(
     if (!tolerateInvalid || !(error instanceof EngramError) || error.code !== "VALIDATION_ERROR") throw error;
     const paths = settingsPaths(context);
     return {
-      projectRoot: context.projectRoot,
+      ...(context.corpusContext === "global" ? { dataHome: context.dataHome } : { projectRoot: context.projectRoot }),
       settings: paths.logicalFile,
       sensitiveData: "deny",
       knowledgeMode: "guarded",
@@ -217,7 +240,7 @@ export async function getSensitiveDataPolicyStatus(
 
 export async function setAutomaticMemoryPolicy(context, value, { afterPersistLocked } = {}) {
   await assertInitialized(context);
-  assertDefaultProjectCorpus(context, "Project automatic-memory policy");
+  assertProjectCorpus(context, "Project automatic-memory policy");
   if (!AUTOMATIC_MEMORY_STATES.has(value)) {
     throw errors.usage("Automatic-memory policy value must be on or off");
   }
@@ -234,7 +257,7 @@ export async function setAutomaticMemoryPolicy(context, value, { afterPersistLoc
 
 export async function setSensitiveDataPolicy(context, value) {
   await assertInitialized(context);
-  assertDefaultProjectCorpus(context, "Project sensitive-data policy");
+  assertManagedCorpus(context, `${policyScope(context)} sensitive-data policy`);
   if (!SENSITIVE_DATA_STATES.has(value)) {
     throw errors.usage("Sensitive-data policy value must be allow or deny");
   }
@@ -252,7 +275,7 @@ export async function setSensitiveDataPolicy(context, value) {
 }
 
 export async function requireAutomaticMemoryEnabledLocked(context, expectedGeneration) {
-  assertDefaultProjectCorpus(context, "Project automatic-memory policy");
+  assertProjectCorpus(context, "Project automatic-memory policy");
   let state;
   try {
     state = await readSettings(context);

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { BUNDLE_NAME, STATE_PARTS } from "./constants.mjs";
@@ -40,6 +41,56 @@ function defaultBundle(projectRoot) {
   return path.join(projectRoot, ...STATE_PARTS, BUNDLE_NAME);
 }
 
+function withCorpusContext(context, corpusContext) {
+  Object.defineProperty(context, "corpusContext", {
+    value: corpusContext,
+    enumerable: false,
+    writable: false,
+  });
+  return context;
+}
+
+export async function resolveGlobal(options = {}) {
+  const environment = options.env ?? process.env;
+  const configuredDataHome = environment.XDG_DATA_HOME;
+  if (configuredDataHome && !path.isAbsolute(configuredDataHome)) {
+    throw errors.usage("XDG_DATA_HOME must be an absolute path when set");
+  }
+  const logicalDataHome = configuredDataHome || path.join(options.homeDirectory ?? os.homedir(), ".local", "share");
+  const logicalStateRoot = path.join(logicalDataHome, "okf-engram");
+  const logicalBundle = path.join(logicalStateRoot, BUNDLE_NAME);
+  try {
+    if ((await pathExists(logicalDataHome)) && !(await fs.stat(logicalDataHome)).isDirectory()) {
+      throw errors.validation(`XDG data home is not a directory: ${logicalDataHome}`);
+    }
+    if ((await pathExists(logicalStateRoot)) && !(await fs.stat(logicalStateRoot)).isDirectory()) {
+      throw errors.validation(`Global Engram state root is not a directory: ${logicalStateRoot}`);
+    }
+    const initialized = await pathExists(logicalBundle);
+    if (initialized && !(await fs.stat(logicalBundle)).isDirectory()) {
+      throw errors.validation(`Global Engram bundle is not a directory: ${logicalBundle}`);
+    }
+    return withCorpusContext(
+      {
+        dataHome: await realpathOrResolved(logicalDataHome),
+        logicalStateRoot,
+        stateRoot: await realpathOrResolved(logicalStateRoot),
+        logicalBundle,
+        bundle: await realpathOrResolved(logicalBundle),
+        method: configuredDataHome ? "xdg-data-home" : "xdg-default",
+        initialized,
+      },
+      "global",
+    );
+  } catch (error) {
+    if (error?.name === "EngramError") throw error;
+    throw errors.validation(`Global Engram location is unavailable: ${logicalStateRoot}`, {
+      path: logicalStateRoot,
+      reason: error.message,
+    });
+  }
+}
+
 async function nearestExistingBundle(cwd) {
   let cursor = await fs.realpath(cwd);
   for (;;) {
@@ -58,7 +109,7 @@ export async function resolveProject(options = {}) {
 
   if (options.bundle) {
     const logicalBundle = path.resolve(cwd, options.bundle);
-    return {
+    return withCorpusContext({
       projectRoot: options.projectRoot
         ? await fs.realpath(path.resolve(cwd, options.projectRoot))
         : await gitRoot(cwd) ?? await fs.realpath(cwd),
@@ -66,55 +117,55 @@ export async function resolveProject(options = {}) {
       bundle: await realpathOrResolved(logicalBundle),
       method: "explicit-bundle",
       initialized: await pathExists(logicalBundle),
-    };
+    }, "project");
   }
 
   if (options.projectRoot) {
     const projectRoot = await fs.realpath(path.resolve(cwd, options.projectRoot));
     const logicalBundle = defaultBundle(projectRoot);
-    return {
+    return withCorpusContext({
       projectRoot,
       logicalBundle,
       bundle: await realpathOrResolved(logicalBundle),
       method: "explicit-project-root",
       initialized: await pathExists(logicalBundle),
-    };
+    }, "project");
   }
 
   const root = await gitRoot(cwd);
   if (root) {
     const logicalBundle = defaultBundle(root);
-    return {
+    return withCorpusContext({
       projectRoot: root,
       logicalBundle,
       bundle: await realpathOrResolved(logicalBundle),
       method: "git",
       initialized: await pathExists(logicalBundle),
-    };
+    }, "project");
   }
 
   const nearest = await nearestExistingBundle(cwd);
   if (nearest) {
-    return {
+    return withCorpusContext({
       ...nearest,
       bundle: await fs.realpath(nearest.logicalBundle),
       initialized: true,
-    };
+    }, "project");
   }
 
   const projectRoot = await fs.realpath(cwd);
   const logicalBundle = defaultBundle(projectRoot);
-  return {
+  return withCorpusContext({
     projectRoot,
     logicalBundle,
     bundle: await realpathOrResolved(logicalBundle),
     method: "cwd",
     initialized: false,
-  };
+  }, "project");
 }
 
 export function requireInitialized(context) {
-  if (!context.initialized) throw errors.notInitialized(context.logicalBundle);
+  if (!context.initialized) throw errors.notInitialized(context.logicalBundle, context.corpusContext);
 }
 
 function repositoryRelative(root, target) {

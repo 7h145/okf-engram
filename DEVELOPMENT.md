@@ -77,13 +77,15 @@ Engram has three layers:
    validates the corpus, computes digests, captures sources, searches, locks,
    performs conditional atomic writes, updates indexes, stores policy, and manages
    deferred jobs. It does not summarize sources or decide what is true.
-3. **OKF bundle — durable knowledge.** Artifact-derived concepts and Memory
-   concepts are Markdown with YAML frontmatter in one project-local bundle.
+3. **OKF bundles — durable knowledge.** Artifact-derived concepts and Memory
+   concepts are Markdown with YAML frontmatter. The project corpus contains both;
+   the user-global corpus accepts only explicitly authored Memory concepts.
 
-The default project bundle is:
+The managed bundle locations are:
 
 ```text
 <project-root>/.agents/data/okf-engram/bundle/
+${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/
 ```
 
 Private operational state is adjacent to the bundle, not inside it. A project
@@ -113,17 +115,22 @@ helper.
 Every canonical operation identifies its corpus context:
 
 ```text
---corpus-context project
+--corpus-context project|global
 ```
 
-Global context is reserved for a future release and is unavailable in v0.1.
-Unsupported or inaccessible contexts fail; project operations never fall back to
-global or vice versa. `--project-root-path PATH` selects a project root explicitly.
-Without that explicit selection, the agent must preserve the client project cwd
-and let the helper discover its containing Git worktree; it must not change to an
-agent config directory, skill installation, or guessed parent. The deterministic
-expert override `--corpus-bundle-path PATH` is mutually exclusive with
-`--corpus-context` and does not inherit project policy.
+Unsupported, uninitialized, malformed, or inaccessible contexts fail without
+fallback. `--project-root-path PATH` selects a project root explicitly and is
+invalid for a global-only operation. Without explicit project selection, the agent
+preserves the client project cwd and discovers its containing Git worktree; it
+must not change to an agent configuration or skill-installation directory. Global
+resolution does no project discovery: it uses an absolute `XDG_DATA_HOME` when
+set, otherwise `~/.local/share`. The deterministic expert override
+`--corpus-bundle-path PATH` is mutually exclusive with `--corpus-context` and does
+not inherit managed policy.
+
+Mutations and concept reads select exactly one context. `memory recall` and
+`concepts search` may select project, global, or both by repeating the context
+option. No unqualified operation consults global memory.
 
 Helper output defaults to bounded JSON. Use `--output-format text` only for direct
 debugging. Run the complete generated reference with:
@@ -137,16 +144,20 @@ interface. Unknown forms are rejected rather than guessed. Ordinary natural
 language remains available outside the slash grammar. `/engram help` returns the
 bounded human summary; `/engram --help` returns the complete agent interface.
 
-`/engram remove CONCEPT_ID` is the sole destructive human shortcut. It reads and
-identifies one concept, warns about current-tree-only deletion, asks for yes/no
-confirmation in a separate turn, re-reads the concept, and invokes canonical
-deletion only if the displayed SHA-256 is still current.
+`/engram remove CONCEPT_ID` is the sole destructive human shortcut and remains
+project-scoped. It reads and identifies one concept, warns about current-tree-only
+deletion, asks for yes/no confirmation in a separate turn, re-reads the concept,
+and invokes canonical deletion only if the displayed SHA-256 is still current.
+The explicit global shortcuts are `global`, `global init`, `global mode ...`,
+`global remember ...`, `global recall ...`, and `both recall ...`.
 
 ## Initialization and project wiring
 
-Initialization creates the bundle only after explicit user intent. It does not
-alter Git, `.gitignore`, `AGENTS.md`, automatic-memory policy, or sensitive-data
-policy.
+Initialization creates exactly one selected bundle after explicit user intent. It
+does not alter Git, `.gitignore`, `AGENTS.md`, automatic-memory policy, or
+sensitive-data policy. Global initialization creates its state root and bundle at
+mode 0700 where supported; generated files and policy settings use mode 0600. It
+copies no project memory, enables no inference, and creates no global wiring.
 
 Optional `/engram wire` appends a canonical marker-delimited reminder to the end
 of `<project-root>/AGENTS.md`, after project-owned instructions:
@@ -178,17 +189,24 @@ node scripts/engram.mjs wiring project preview --corpus-context project
 
 ## Retrieval and conditional writes
 
-The default retrieval path uses progressive disclosure:
+The retrieval path uses progressive disclosure:
 
-1. `concepts search` returns bounded metadata for likely concepts;
-2. the agent chooses a small relevant set;
-3. `concepts read` opens complete concepts;
-4. the agent follows relevant concept links and source selectors; and
-5. the answer identifies corpus context and concept IDs or paths.
+1. resolve the explicitly selected read set to one or more corpus descriptors;
+2. read sensitive-data policy independently for every selected corpus;
+3. `concepts search` searches each corpus independently and returns one total-
+   bounded, context-qualified metadata result set;
+4. the agent chooses a small relevant set;
+5. `concepts read` opens each chosen concept through its single supplying context;
+6. the agent follows relevant project concept links and source selectors; and
+7. the answer identifies corpus context and concept IDs or paths.
 
-v0.1 uses a deterministic weighted lexical scan with stable tie ordering.
-Deprecated concepts are excluded by default. Generated indexes and private state
-are not searched as concepts.
+The composition layer accepts N descriptors even though v0.2 exposes only project,
+global, and project-plus-global. Each constituent search is bounded by the total
+result limit; merged results use score, requested-context order, and concept ID for
+stable ordering before the total limit is applied. Equal concept IDs in separate
+contexts remain distinct. Any selected-context failure aborts the operation rather
+than returning a partial fallback. Deprecated concepts are excluded by default.
+Generated indexes and private state are not searched as concepts.
 
 Before a semantic write, the agent searches for related knowledge and integrates
 into a matching concept where appropriate. Replacements require the current
@@ -199,6 +217,31 @@ instead of overwriting another writer.
 `PERSISTED_INDEX_STALE` means the concept mutation persisted but subsequent index
 maintenance failed. Inspect the current concept or deletion and run `corpus
 repair-indexes`; do not repeat semantic synthesis blindly.
+
+### Global memory-only profile
+
+The fixed global corpus is Engram-owned and writable only through an unmistakably
+explicit global operation. It reuses OKF parsing, indexes, search, per-bundle
+locking, atomic conditional writes, validation, deprecation, deletion, and repair.
+Every create or update boundary additionally requires:
+
+- `type: Memory`;
+- `capture: explicit`;
+- at least one URN provenance source; and
+- no file/URL source, digest, Git identity, or selector metadata.
+
+Global initialization and validation reject an existing bundle containing concepts
+outside that profile. Artifact ingest, all jobs and inferred candidates, source-
+file operations, project wiring, automatic-memory policy, and adapter targeting
+remain project-only. Global sensitive-data policy is independent, guarded by
+default, and stored adjacent to the global bundle. Returning it to guarded mode
+retains `previouslyUnguarded`; invalid history is unknown and effectively guarded.
+No project memory is automatically copied or migrated.
+
+Write resolution and read-set composition are deliberately separate. A read
+descriptor does not confer mutation authority: project writes retain the full
+project profile, global writes enforce the profile above, and future linked
+contexts will never enter the writable-target resolver.
 
 ## Artifact compilation and provenance
 
@@ -271,7 +314,7 @@ Three paths are distinct:
    adapter bridge. This adapter does not exist yet.
 
 The available inference path is project-only and omits transcripts, tool output,
-and thinking. It never targets a future global corpus. A monotonic policy
+and thinking. It never targets the global corpus. A monotonic policy
 generation prevents candidates accepted before an off/on boundary from writing
 afterward. Explicit memories use the same flat OKF frontmatter profile as other
 concepts: `type`, `title`, `description`, `capture`, and `sources` are top-level
@@ -290,25 +333,28 @@ useful candidate.
 
 ### Sensitive-data mode
 
-Project knowledge is guarded by default:
+Project and global knowledge are independently guarded by default:
 
 ```text
 /engram mode status
-/engram mode unguarded
-/engram mode guarded
+/engram global mode status
 ```
 
-The canonical operation is `policy project sensitive-data status|allow|deny`.
-Unguarded mode permits relevant customer information, personal data,
-confidential material, credentials, and secrets. It relaxes only the sensitivity
-filter; provenance, durability, project scope, uncertainty, prompt-injection
-resistance, conditional writes, and command, source, and Git safety remain
-mandatory. Automatic memory is independent and remains default-off.
+The canonical operations are `policy project sensitive-data status|allow|deny`
+and `policy global sensitive-data status|allow|deny`. Unguarded mode permits
+relevant customer information, personal data, confidential material, credentials,
+and secrets in the selected corpus. It relaxes only the sensitivity filter;
+provenance, durability, selected scope, uncertainty, prompt-injection resistance,
+conditional writes, and command, source, and Git safety remain mandatory.
+Automatic memory is independent, project-only, and default-off.
 
-Returning to guarded mode affects subsequent operations but never removes existing
-sensitive content. Policy status preserves `Previously unguarded: yes` once the
-mode has been enabled. Invalid or unavailable history is reported as unknown with
-the same conservative warning.
+For mixed recall, policy follows the supplying corpus. A guarded project does not
+silently guard an explicitly selected unguarded global corpus, and an unguarded
+project does not override guarded global memory. Unknown policy is effectively
+guarded. Returning either corpus to guarded mode affects subsequent operations but
+never removes existing sensitive content. Policy status preserves `Previously
+unguarded: yes` once enabled; invalid or unavailable history is unknown with the
+same conservative warning.
 
 This is a model-facing content policy, not encryption, access control, provider
 isolation, log redaction, or a secrets vault. Detection and filtering are
@@ -441,10 +487,11 @@ contracts are in [references/adapter-bridge.md](references/adapter-bridge.md).
   transcripts, thinking, or tool output.
 - Private job records persist until explicit cleanup. Their configured provider
   receives the bounded source content required for compilation.
-- Keep adjacent `settings.json`, private `jobs/`, and `.agents/run/` state
-  untracked unless a separate project policy says otherwise.
-- Engram never stages or commits the OKF bundle. Decide explicitly whether the
-  project should version it.
+- Keep project-adjacent `settings.json`, private `jobs/`, and `.agents/run/` state
+  untracked unless a separate project policy says otherwise. Global settings and
+  memory are plaintext under the user's XDG data home and are not a secrets vault.
+- Engram never stages or commits either OKF bundle. Decide explicitly whether a
+  project should version its own bundle; the global store is outside that project.
 - For a symlinked `.agents` root, use the canonical physical bundle path reported
   by `corpus locate` when inspecting Git state.
 - Current-tree deletion cannot erase Pi sessions, Git history, remotes, backups,
@@ -455,9 +502,9 @@ contracts are in [references/adapter-bridge.md](references/adapter-bridge.md).
 ## Recovery and data versions
 
 - `NOT_INITIALIZED`: initialize only when the user intends to create the reported
-  project corpus.
-- Invalid automatic-memory settings fail closed and are never overwritten
-  implicitly. Repair or explicitly discard the local settings file before setting
+  project or global corpus; never fall back to another initialized context.
+- Invalid managed settings fail closed and are never overwritten implicitly.
+  Repair or explicitly discard the selected corpus's settings file before setting
   policy again.
 - `PERSISTED_INDEX_STALE`: inspect the persisted mutation and run `corpus
   repair-indexes`. Repair removes an obsolete empty group only when its index and
@@ -469,15 +516,18 @@ contracts are in [references/adapter-bridge.md](references/adapter-bridge.md).
 - Bundle-internal symlinks and unsafe paths are rejected. A symlinked project
   `.agents` root is canonicalized and supported.
 
-v0.1 uses OKF v0.2 concepts, project-policy settings schema version 4, private
-job-record schema version 2, adapter-bridge manifest version 1, and adapter-bridge
-protocol version 1. Unknown concept frontmatter is preserved. There is no automatic
-content migration or raw-source archive.
+v0.2 uses OKF v0.2 concepts, managed-policy settings schema version 4, private
+project job-record schema version 2, adapter-bridge manifest version 1, and
+adapter-bridge protocol version 1. Existing project settings require no conversion;
+global state is new and no project memory is copied automatically. Unknown concept
+frontmatter is preserved subject to the global memory-only profile. There is no
+automatic content migration or raw-source archive.
 
 ## Tests and release verification
 
 The deterministic suite covers document parsing and validation, containment,
-indexes, lexical search, conditional writes, source and Git behavior, policy,
+indexes, single- and multi-corpus lexical search, conditional writes, XDG global
+resolution and profile enforcement, source and Git behavior, independent policy,
 job lifecycle and recovery, wiring, concurrency, and interruption boundaries.
 Behavior fixtures evaluate semantic coverage, provenance, uncertainty, recall,
 sensitive data, and prompt-injection handling separately from deterministic
@@ -501,7 +551,8 @@ tests/verification/start-boxed.sh full
 
 `quick` runs the current-Node check. `full` also covers the minimum Node runtime,
 production audit, Agent Skills validation, an engine-strict packed install,
-wiring smoke, and packed Pi skill and prompt discovery. It requires a clean frozen
+project wiring, XDG global-memory/mixed-search smoke, and packed Pi skill and
+prompt discovery. It requires a clean frozen
 commit by default. See the
 [verification harness documentation](https://github.com/7h145/okf-engram/blob/main/tests/verification/README.md)
 for private output, timeout, cleanup, and optional failed-log-triage procedures.

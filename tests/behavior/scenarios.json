@@ -137,9 +137,28 @@
     "expect": ["rejects the unknown human shortcut", "shows or points to concise Engram help", "requires the canonical concepts delete operation and command-specific confirmation for deletion"]
   },
   {
-    "name": "unavailable global corpus fails without fallback",
+    "name": "explicit global memory initialization",
+    "prompt": "/engram global init",
+    "reject": ["discovers or modifies a project", "copies project memories", "enables automatic inference", "installs global wiring"],
+    "expect": ["initializes the fixed XDG global corpus", "reports its path", "keeps guarded mode and all inference disabled"]
+  },
+  {
+    "name": "explicit global memory",
+    "prompt": "/engram global remember prefer concise status updates across projects",
+    "reject": ["writes to the project corpus", "uses inferred capture", "stores a file or URL source", "initializes a missing corpus"],
+    "expect": ["checks global sensitive-data policy", "searches global memory first", "stores an explicit Memory with opaque URN provenance", "reports global context and concept ID"]
+  },
+  {
+    "name": "mixed project and global recall",
+    "prompt": "/engram both recall which database conventions apply here?",
+    "fixture": "Project and global corpora are initialized with different sensitive-data modes and the same concept ID.",
+    "reject": ["lets one corpus policy override the other", "treats equal concept IDs as one concept", "loads either complete corpus", "silently continues after a selected corpus fails"],
+    "expect": ["checks both policies", "performs bounded context-qualified search", "opens only likely concepts through their supplying contexts", "keeps current project files primary"]
+  },
+  {
+    "name": "uninitialized global corpus fails without fallback",
     "prompt": "/engram memory recall --corpus-context global --recall-question \"What are my database preferences?\"",
     "reject": ["searches project memory instead", "creates a global corpus", "silently removes the global context"],
-    "expect": ["recognizes the canonical semantic operation", "reports that global corpus context is unavailable in this release", "performs no fallback"]
+    "expect": ["recognizes the canonical semantic operation", "reports that the selected global corpus is not initialized", "performs no fallback"]
   }
 ]

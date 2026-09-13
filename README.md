@@ -6,8 +6,9 @@ idea](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 The goal is to give agents working on a project effective access to possibly large
 amounts of documentation by compiling durable information into an interlinked
 index of concepts with references back to the original sources. Engram can also
-treat explicitly stated memories—and, when enabled, useful knowledge noticed in
-the current conversation—as source material.
+treat explicitly stated memories—and, when enabled for a project, useful knowledge
+noticed in the current conversation—as source material. Explicit user-global
+memories live in a separate, deliberately selected memory-only knowledge base.
 
 The resulting project knowledge base is a collection of Markdown files following
 [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/open-knowledge-format).
@@ -38,7 +39,8 @@ Engram can:
 - compile project documents into linked concepts and update those concepts as new
   information is accepted;
 - track evidence and attribute claims to their sources;
-- retain explicit project memories and recall them in later sessions;
+- retain explicit project or user-global memories and recall either scope—or both—
+  only when selected;
 - browse and search the resulting knowledge without loading the whole corpus;
 - queue larger document-ingest requests and continue the conversation while one
   ordered background runner processes them;
@@ -50,8 +52,10 @@ Engram can:
   separately installed optional adapter can submit policy-gated project-memory
   candidates without reading Engram's private state.
 
-Sources stay untouched. Engram records references and digests, while all generated
-knowledge goes into its own project-local bundle.
+Sources stay untouched. Engram records references and digests, while compiled
+project knowledge goes into its project-local bundle. Explicit global memories go
+to `${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/`; project and global
+operations never silently fall back to one another.
 
 ## How it works
 
@@ -65,14 +69,12 @@ files atomically, maintaining indexes, and managing background jobs and project
 policy.
 
 ```text
-project documents          explicit or opted-in memory
-        │                              │
-        └────── semantic compilation ──┘
-                         │
-                         ▼
-             linked OKF concept files
-                         │
-               search and selective recall
+project documents       project memory       explicit global memory
+        │                     │                         │
+        └── semantic compilation ──┐                   │
+                                   ▼                   ▼
+                          project OKF bundle    global Memory bundle
+                                   └──── selected bounded recall ────┘
 ```
 
 This division is important: the model gets the work which needs language and
@@ -185,6 +187,19 @@ Optional `/engram wire` adds a short reminder after the project's own `AGENTS.md
 instructions so later agents know when to use the skill. Initialization never does
 this implicitly.
 
+Global memory is separate and explicit:
+
+```text
+/engram global init
+/engram global remember prefer concise status updates across projects
+/engram global recall how should status updates be written?
+/engram both recall which status conventions apply here?
+```
+
+The global corpus accepts only explicitly authored `Memory` concepts. It cannot
+ingest project files, run jobs or inference, receive adapter writes, or initialize
+itself as a side effect. Existing unqualified shortcuts remain project-scoped.
+
 ## Privacy and current scope
 
 Engram stores project knowledge as plaintext. Concepts may be versioned, backed
@@ -201,10 +216,14 @@ remain separate optional integration work, and installing anything never enables
 automatic memory. Adapter authors can use the
 [bridge protocol](references/adapter-bridge.md).
 
-The current release maintains one project-local corpus. Removing a concept affects
-the current corpus tree; it cannot erase copies in Git history, sessions, backups,
-remotes, or clones. The detailed trust boundaries and policy controls are in
-[DEVELOPMENT.md](DEVELOPMENT.md).
+Project and global knowledge modes are independent and guarded by default. During
+explicit mixed recall, each supplying corpus retains its own policy; invalid or
+unavailable policy is treated as guarded. Global unguarded mode has a wider cross-
+project disclosure radius and never overrides project policy.
+
+Removing a concept affects only the selected corpus tree; it cannot erase copies
+in Git history, sessions, backups, remotes, or clones. The detailed trust
+boundaries and policy controls are in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Development
 

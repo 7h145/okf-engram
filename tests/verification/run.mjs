@@ -140,6 +140,7 @@ async function summarizeLog(name, logPath) {
         npm: value.npm,
         engineStrictInstall: value.engineStrictInstall,
         wiring: value.wiring,
+        globalMemory: value.globalMemory,
         piSkill: value.piSkill,
         piPrompt: value.piPrompt,
         adapterBridge: value.adapterBridge,

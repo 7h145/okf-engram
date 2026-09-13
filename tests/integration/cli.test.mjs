@@ -59,9 +59,10 @@ test("help is concise for users while --help retains the detailed reference", as
   const detailed = await run(["--help"]);
   assert.equal(concise.code, 0, concise.stderr);
   assert.equal(noArgs.stdout, concise.stdout);
-  assert.ok(Buffer.byteLength(concise.stdout) < 1_280);
+  assert.ok(Buffer.byteLength(concise.stdout) < 2_048);
   assert.match(concise.stdout, /\/engram — status of the project knowledge base/);
-  assert.match(concise.stdout, /project-local knowledge base built from project data and memories/);
+  assert.match(concise.stdout, /durable project knowledge and user-global memories/);
+  assert.match(concise.stdout, /\/engram both recall QUESTION/);
   assert.match(concise.stdout, /\/engram --help/);
   assert.doesNotMatch(concise.stdout, /--automatic-memory-policy-generation/);
   assert.ok(detailed.stdout.length > concise.stdout.length * 2);

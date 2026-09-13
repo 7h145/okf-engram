@@ -227,6 +227,33 @@ async function main() {
       project,
     ]);
 
+    const xdgDataHome = path.join(root, "xdg-data");
+    const globalEnvironment = { XDG_DATA_HOME: xdgDataHome };
+    await run("npx", [
+      "--yes", "node@20.0.0", cli, "corpus", "initialize", "--corpus-context", "global",
+    ], { env: globalEnvironment });
+    const globalDraft = path.join(root, "global-memory.md");
+    await fs.writeFile(
+      globalDraft,
+      "---\ntype: Memory\ntitle: Verification preference\ndescription: Packed M5 global-memory verification.\ncapture: explicit\nsources:\n  - resource: urn:okf-engram:conversation:packed-smoke\n---\n# Verification preference\n\nUse packed global memory verification.\n",
+    );
+    await run("npx", [
+      "--yes", "node@20.0.0", cli, "concepts", "write", "--corpus-context", "global",
+      "--concept-id", "memories/verification-preference", "--document-file-path", globalDraft,
+    ], { env: globalEnvironment });
+    const globalSearch = JSON.parse((await run("npx", [
+      "--yes", "node@20.0.0", cli, "concepts", "search",
+      "--corpus-context", "project", "--corpus-context", "global",
+      "--project-root-path", project, "--query", "packed global memory",
+    ], { env: globalEnvironment })).stdout);
+    if (
+      globalSearch.corpusContexts?.join(",") !== "project,global" ||
+      globalSearch.results?.[0]?.corpusContext !== "global" ||
+      globalSearch.results?.[0]?.id !== "memories/verification-preference"
+    ) {
+      throw new Error("packed M5 global-memory search failed");
+    }
+
     const packageRoot = path.join(consumer, "node_modules", "okf-engram");
     await run("pi", ["install", packageRoot], { env: { PI_CODING_AGENT_DIR: agentDir } });
     const npmRoot = (await run("npm", ["root", "-g"])).stdout.trim();
@@ -245,7 +272,11 @@ async function main() {
     if (matchingSkills.length !== 1 || matchingPrompts.length !== 1 || diagnostics.length) {
       throw new Error("packed Pi skill/prompt discovery failed");
     }
-    if (!matchingPrompts[0].argumentHint?.includes("wire") || matchingPrompts[0].argumentHint.includes("forget")) {
+    if (
+      !matchingPrompts[0].argumentHint?.includes("wire") ||
+      !matchingPrompts[0].argumentHint?.includes("global") ||
+      matchingPrompts[0].argumentHint.includes("forget")
+    ) {
       throw new Error("packed /engram prompt does not expose the strict safe human subset");
     }
     const expandedPrompt = expandPromptTemplate("/engram ls", matchingPrompts);
@@ -296,6 +327,7 @@ async function main() {
         npm: "9.9.4",
         engineStrictInstall: true,
         wiring: true,
+        globalMemory: true,
         piSkill: matchingSkills[0].name,
         piPrompt: matchingPrompts[0].name,
         promptArguments: true,

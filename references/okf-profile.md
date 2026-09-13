@@ -33,6 +33,13 @@ Use `sources[].resource` with an opaque
 `urn:okf-engram:conversation:<id>` and keep only the shortest useful evidence
 excerpt in the body. Never copy a whole transcript.
 
+The project corpus accepts explicit and policy-gated inferred Memory alongside
+other concept types. The global corpus is stricter: every concept must be
+`type: Memory`, use `capture: explicit`, include at least one URN source, and omit
+file/URL sources plus digest, Git, and selector artifact metadata. This profile is
+enforced during global initialization, validation, creation, and replacement.
+Unknown fields are otherwise preserved.
+
 ## Source resources
 
 Engram recognizes:
