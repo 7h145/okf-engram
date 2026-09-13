@@ -26,12 +26,12 @@ if tmux -S "$SOCKET" list-windows -t "$SESSION" -F '#{window_name}' | grep -Fxq 
   exit 2
 fi
 
-tmux -S "$SOCKET" new-window -d -t "$SESSION:" -n "$WINDOW" -c "$REPO" bash
+WINDOW_ID="$(tmux -S "$SOCKET" new-window -d -P -F '#{window_id}' -t "$SESSION:" -n "$WINDOW" -c "$REPO" bash)"
 COMMAND=(node tests/verification/run.mjs --profile "$PROFILE" --output-dir "$OUTPUT")
 if [[ "${ALLOW_DIRTY:-0}" == "1" ]]; then COMMAND+=(--allow-dirty); fi
 SHELL_COMMAND="$(printf '%q ' "${COMMAND[@]}")"
 SHELL_COMMAND+="; code=\$?; printf '\\nverification runner exit: %s\\n' \"\$code\""
-tmux -S "$SOCKET" send-keys -t "$SESSION:$WINDOW" "$SHELL_COMMAND" C-m
+tmux -S "$SOCKET" send-keys -t "$WINDOW_ID" "$SHELL_COMMAND" C-m
 
 cat <<EOF
 Verification started.

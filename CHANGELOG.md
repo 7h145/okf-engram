@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.3 — 2026-09-12
+
 - Rewrite the public README around the human problem, capabilities, broad design,
   and harness-neutral install/usage guidance with clearly labelled Pi examples;
   move detailed command, persistence, recovery, and contributor material into
@@ -10,6 +12,8 @@
   project directory; require flat memory frontmatter, and treat bare tmux as
   unavailable rather than improvising collision-prone sessions or public temporary
   logs for `/engram queue`.
+- Address boxed verification windows by tmux ID so release-style run IDs containing
+  dots work as documented.
 
 ## 0.1.2 — 2026-09-09
 
