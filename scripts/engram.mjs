@@ -39,6 +39,21 @@ import {
   inspectJobResults,
   acknowledgeJobResult,
 } from "./lib/jobs.mjs";
+import {
+  adapterAcknowledgeInferredResult,
+  adapterBridgeError,
+  adapterCancelInferredJob,
+  adapterCleanInferredJob,
+  adapterEnqueueInferredMemory,
+  adapterListInferredJobs,
+  adapterListInferredResults,
+  adapterProjectPolicyStatus,
+  adapterRetryInferredJob,
+  adapterRunInferredJob,
+  adapterShowInferredJob,
+  assertAdapterBridgeProtocolVersion,
+  describeAdapterBridge,
+} from "./lib/adapter-bridge.mjs";
 
 const HUMAN_HELP = `okf-engram ${VERSION} — project knowledge and memory
 
@@ -183,6 +198,17 @@ Policy — explicit controls governing optional skill behavior.
 Wiring — optional project/client reminders that help activate Engram.
   [D] wiring project status|preview|install|remove
                               --corpus-context project
+
+Adapter bridge — package-discovered machine interface for optional adapters.
+  [D] adapter bridge handshake|project-policy-status
+  [D] adapter bridge inferred-memory-enqueue
+  [D] adapter bridge inferred-jobs-list|inferred-job-show
+  [D] adapter bridge inferred-job-run|inferred-job-cancel|inferred-job-retry
+  [D] adapter bridge inferred-job-clean
+  [D] adapter bridge inferred-results-list|inferred-result-acknowledge
+      Every operation requires --adapter-bridge-protocol-version INTEGER.
+      Project operations also require --project-working-directory PATH.
+      The bridge is JSON-only and intrinsically project-targeted.
 
 Context and output:
   --corpus-context project|global
@@ -489,6 +515,160 @@ async function main(rawArgs = process.argv.slice(2)) {
   let arrayProperty;
 
   switch (domain) {
+    case "adapter": {
+      if (args.shift() !== "bridge") throw errors.usage("adapter requires the bridge scope");
+      const bridgeOperation = requireOperation(args, "adapter bridge", [
+        "handshake",
+        "project-policy-status",
+        "inferred-memory-enqueue",
+        "inferred-jobs-list",
+        "inferred-job-show",
+        "inferred-job-run",
+        "inferred-job-cancel",
+        "inferred-job-retry",
+        "inferred-job-clean",
+        "inferred-results-list",
+        "inferred-result-acknowledge",
+      ]);
+      operation = `bridge.${bridgeOperation}`;
+      if (outputFormat !== "json") throw errors.usage("The adapter bridge supports only JSON output");
+      const protocolVersionRaw = takeOption(args, "--adapter-bridge-protocol-version");
+      if (protocolVersionRaw === undefined) {
+        throw errors.usage("Adapter bridge operations require --adapter-bridge-protocol-version");
+      }
+      const protocolVersion = parseInteger(protocolVersionRaw, "--adapter-bridge-protocol-version", { minimum: 1 });
+      assertAdapterBridgeProtocolVersion(protocolVersion);
+
+      if (bridgeOperation === "handshake") {
+        requireNoArguments(args);
+        result = describeAdapterBridge();
+        break;
+      }
+
+      const projectWorkingDirectory = takeOption(args, "--project-working-directory");
+      if (!projectWorkingDirectory) {
+        throw errors.usage("Adapter bridge project operations require --project-working-directory");
+      }
+      const jobId = takeOption(args, "--job-id");
+      const jobState = takeOption(args, "--job-state");
+      const acknowledgementState = takeOption(args, "--acknowledgement-state");
+      const confirmJobStateDeletion = takeOption(args, "--confirm-job-state-deletion", { boolean: true });
+      const memoryClaim = takeOption(args, "--memory-claim");
+      const memoryEvidence = takeOption(args, "--memory-evidence");
+      const contextReferences = takeOptions(args, "--conversation-context-reference");
+      const generationRaw = takeOption(args, "--automatic-memory-policy-generation");
+      const workerModelId = takeOption(args, "--worker-model-id");
+      const workerThinkingLevel = takeOption(args, "--worker-thinking-level");
+      const timeoutRaw = takeOption(args, "--worker-timeout-seconds");
+      requireNoArguments(args);
+
+      const adapterContext = await resolveProject({ cwd: projectWorkingDirectory });
+      if (bridgeOperation === "project-policy-status") {
+        if (
+          jobId ||
+          jobState ||
+          acknowledgementState ||
+          confirmJobStateDeletion ||
+          memoryClaim ||
+          memoryEvidence ||
+          contextReferences.length ||
+          generationRaw !== undefined ||
+          workerModelId ||
+          workerThinkingLevel ||
+          timeoutRaw !== undefined
+        ) {
+          throw errors.usage("adapter bridge project-policy-status accepts only bridge and project options");
+        }
+        result = await adapterProjectPolicyStatus(adapterContext);
+      } else if (bridgeOperation === "inferred-memory-enqueue") {
+        if (
+          !memoryClaim ||
+          !memoryEvidence ||
+          generationRaw === undefined ||
+          jobId ||
+          jobState ||
+          acknowledgementState ||
+          confirmJobStateDeletion
+        ) {
+          throw errors.usage(
+            "adapter bridge inferred-memory-enqueue requires --memory-claim, --memory-evidence, and --automatic-memory-policy-generation",
+          );
+        }
+        const policyGeneration = parseInteger(generationRaw, "--automatic-memory-policy-generation", { minimum: 0 });
+        const workerTimeoutSeconds =
+          timeoutRaw === undefined
+            ? undefined
+            : parseInteger(timeoutRaw, "--worker-timeout-seconds", { minimum: 30, maximum: 1_200 });
+        result = await adapterEnqueueInferredMemory(
+          adapterContext,
+          { claim: memoryClaim, evidence: memoryEvidence },
+          {
+            contextRefs: contextReferences,
+            policyGeneration,
+            model: workerModelId,
+            thinking: workerThinkingLevel,
+            runtimeSeconds: workerTimeoutSeconds,
+          },
+        );
+      } else if (bridgeOperation === "inferred-jobs-list") {
+        if (
+          jobId ||
+          acknowledgementState ||
+          confirmJobStateDeletion ||
+          memoryClaim ||
+          memoryEvidence ||
+          contextReferences.length ||
+          generationRaw !== undefined ||
+          workerModelId ||
+          workerThinkingLevel ||
+          timeoutRaw !== undefined
+        ) {
+          throw errors.usage("adapter bridge inferred-jobs-list accepts only optional --job-state");
+        }
+        result = await adapterListInferredJobs(adapterContext, { state: jobState });
+      } else if (bridgeOperation === "inferred-results-list") {
+        if (
+          jobState ||
+          confirmJobStateDeletion ||
+          memoryClaim ||
+          memoryEvidence ||
+          contextReferences.length ||
+          generationRaw !== undefined ||
+          workerModelId ||
+          workerThinkingLevel ||
+          timeoutRaw !== undefined
+        ) {
+          throw errors.usage(
+            "adapter bridge inferred-results-list accepts only optional --job-id and --acknowledgement-state",
+          );
+        }
+        result = await adapterListInferredResults(adapterContext, { jobId, acknowledgementState });
+      } else {
+        if (
+          !jobId ||
+          jobState ||
+          acknowledgementState ||
+          memoryClaim ||
+          memoryEvidence ||
+          contextReferences.length ||
+          generationRaw !== undefined ||
+          workerModelId ||
+          workerThinkingLevel ||
+          timeoutRaw !== undefined ||
+          (confirmJobStateDeletion && bridgeOperation !== "inferred-job-clean")
+        ) {
+          throw errors.usage(`adapter bridge ${bridgeOperation} requires only --job-id and bridge/project options`);
+        }
+        if (bridgeOperation === "inferred-job-show") result = await adapterShowInferredJob(adapterContext, jobId);
+        else if (bridgeOperation === "inferred-job-run") result = await adapterRunInferredJob(adapterContext, jobId);
+        else if (bridgeOperation === "inferred-job-cancel") result = await adapterCancelInferredJob(adapterContext, jobId);
+        else if (bridgeOperation === "inferred-job-retry") result = await adapterRetryInferredJob(adapterContext, jobId);
+        else if (bridgeOperation === "inferred-job-clean") {
+          result = await adapterCleanInferredJob(adapterContext, jobId, { confirmJobStateDeletion });
+        } else result = await adapterAcknowledgeInferredResult(adapterContext, jobId);
+      }
+      break;
+    }
     case "knowledge": {
       operation = requireOperation(args, domain, ["ingest"]);
       const corpusContexts = takeOptions(args, "--corpus-context");
@@ -1024,6 +1204,13 @@ main().then(
     process.exitCode = code;
   },
   (error) => {
+    const rawArgs = process.argv.slice(2);
+    const bridgeInvocation = rawArgs[0] === "adapter" && rawArgs[1] === "bridge";
+    if (bridgeInvocation) {
+      console.error(JSON.stringify(adapterBridgeError(error, rawArgs)));
+      process.exitCode = error instanceof EngramError ? error.exitCode : 1;
+      return;
+    }
     const outputFormatIndex = process.argv.indexOf("--output-format");
     const outputFormat = outputFormatIndex >= 0 ? process.argv[outputFormatIndex + 1] : "json";
     if (error instanceof EngramError) {

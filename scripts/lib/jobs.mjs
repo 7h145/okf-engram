@@ -344,6 +344,14 @@ function validateResult(value, jobId, kind) {
   return value;
 }
 
+function assertJobKind(job, requiredKind) {
+  if (requiredKind !== undefined && job.capsule.kind !== requiredKind) {
+    const article = /^[aeiou]/i.test(requiredKind) ? "an" : "a";
+    throw errors.validation(`Job ${job.capsule.jobId} is not ${article} ${requiredKind} job`);
+  }
+  return job;
+}
+
 async function readJob(context, jobId) {
   const directory = jobDirectory(context, jobId);
   const dirStat = await rejectSymlink(directory, "Engram job directory");
@@ -1192,7 +1200,7 @@ async function rejectTreeSymlinks(directory) {
 export async function cleanJob(
   context,
   jobId,
-  { confirmJobStateDeletion = false, confirmReconciled = false, discardInvalid = false } = {},
+  { confirmJobStateDeletion = false, confirmReconciled = false, discardInvalid = false, requiredKind } = {},
 ) {
   if (!confirmJobStateDeletion) {
     throw errors.confirmation(
@@ -1216,6 +1224,7 @@ export async function cleanJob(
           await fs.rm(directory, { recursive: true });
           return { jobId, cleaned: true, discardedInvalidJob: true };
         }
+        assertJobKind(job, requiredKind);
         if (discardInvalid) {
           throw errors.validation(`Job ${jobId} is valid; use jobs clean and follow normal cleanup policy`);
         }
@@ -1241,9 +1250,9 @@ export async function cleanJob(
   );
 }
 
-export async function cancelJob(context, jobId) {
+export async function cancelJob(context, jobId, { requiredKind } = {}) {
   return withJobsLock(context, async () => {
-    const job = await readJob(context, jobId);
+    const job = assertJobKind(await readJob(context, jobId), requiredKind);
     if (job.state.state === "queued") {
       const timestamp = now();
       const result = {
@@ -1303,12 +1312,12 @@ async function removeIfPresent(file) {
   }
 }
 
-export async function retryJob(context, jobId) {
+export async function retryJob(context, jobId, { requiredKind } = {}) {
   return withWorkerLock(
     context,
     () =>
       withJobsLock(context, async () => {
-        const job = await readJob(context, jobId);
+        const job = assertJobKind(await readJob(context, jobId), requiredKind);
         if (!TERMINAL_STATES.has(job.state.state) || ["completed", "needs-review"].includes(job.state.state)) {
           throw errors.validation(
             `Job ${jobId} in state ${job.state.state} cannot be retried without manual reconciliation`,
@@ -2033,7 +2042,7 @@ export async function runJobs(context, options = {}) {
 
         for (const id of current) {
           processedIds.add(id);
-          let job = await readJob(context, id);
+          let job = assertJobKind(await readJob(context, id), options.requiredKind);
           const recovered = await recoverPersistedTerminalResult(context, job);
           if (recovered) {
             processed.push(recovered);
@@ -2053,7 +2062,7 @@ export async function runJobs(context, options = {}) {
               });
             continue;
           }
-          job = await readJob(context, id);
+          job = assertJobKind(await readJob(context, id), options.requiredKind);
           processed.push(await runQueuedJob(context, job));
         }
         if (options.jobId) break;

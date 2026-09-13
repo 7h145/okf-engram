@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add package-level adapter bridge protocol v1: client-provenance discovery through
+  a machine-readable manifest, explicit capability/version negotiation, fixed
+  project-only policy and inferred-memory operations, sanitized context-qualified
+  JSON results, and local/Git installed-package contract tests. No automatic-
+  review adapter is bundled or implicitly enabled.
+
 ## 0.1.3 — 2026-09-12
 
 - Rewrite the public README around the human problem, capabilities, broad design,

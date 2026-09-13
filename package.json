@@ -36,6 +36,22 @@
     "references",
     "scripts"
   ],
+  "okfEngram": {
+    "adapterBridge": {
+      "manifestVersion": 1,
+      "protocol": "okf-engram.adapter-bridge",
+      "supportedProtocolVersions": [
+        1
+      ],
+      "transport": "node-cli-json",
+      "entrypoint": "./scripts/engram.mjs",
+      "commandPrefix": [
+        "adapter",
+        "bridge"
+      ],
+      "protocolVersionOption": "--adapter-bridge-protocol-version"
+    }
+  },
   "pi": {
     "skills": [
       "./SKILL.md"

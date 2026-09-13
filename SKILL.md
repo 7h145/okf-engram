@@ -17,7 +17,9 @@ deterministic helper. Canonical semantic operations are interpreted by this skil
 canonical deterministic operations map directly to the helper. Semantic intents
 such as `memory remember`, `memory recall`, and `knowledge ingest` are deliberately
 rejected by the helper: never invoke them as helper commands. Implement them with
-the deterministic leaves required by their workflow sections below.
+the deterministic leaves required by their workflow sections below. The
+`adapter bridge` helper domain is a package-discovered machine interface for a
+separate adapter, not a human shortcut or a replacement for these skill workflows.
 
 Resolve this skill's directory (the directory containing this `SKILL.md`) and
 invoke deterministic operations with an absolute helper path:
@@ -142,10 +144,11 @@ No human shortcut may bypass a canonical safety or concurrency guard.
 output exactly rather than improvising another command inventory.
 
 Explicit artifact-ingest jobs and skill-only opportunistic memory inference are
-implemented. Automatic conversation review and extension-driven notification
-belong to a separately packaged optional Pi adapter and are unavailable here.
-Never advertise systematic exchange review or automatic background memory as
-working.
+implemented. The package-level adapter bridge is available, but automatic
+conversation review, cursor management, scheduling, and extension-driven
+notification belong to a separately packaged optional Pi adapter and are
+unavailable here. Never advertise systematic exchange review or automatic
+background memory as working.
 
 ## Corpus initialization and status
 
@@ -518,6 +521,25 @@ revives an earlier generation.
 
 This skill-only inference is best effort, not systematic review of every exchange.
 Global automatic inference is disabled.
+
+## Package-level adapter bridge
+
+The machine-only `adapter bridge` domain is documented in
+[references/adapter-bridge.md](references/adapter-bridge.md). Ordinary `/engram`
+and natural-language work must use the skill workflows above rather than this
+integration surface.
+
+The bridge is intrinsically project-targeted and lets a separately installed
+adapter inspect effective policy, submit an `automatic-review` candidate, and
+manage only inferred-memory jobs and their bounded results. It cannot enable
+policy, initialize or wire a corpus, ingest artifacts, write arbitrary concepts,
+select explicit/global/linked bundles, or read private settings, capsules, traces,
+or result files. The core revalidates automatic-memory generation, sensitive-data
+mode, candidate limits, deduplication, concurrency, and every eventual write.
+
+Loading or discovering the bridge is not consent. Do not use it to simulate a
+missing automatic-review adapter, and never route adapter-originated inference
+away from the resolved primary project corpus.
 
 ## Draft and deterministic concept writes
 

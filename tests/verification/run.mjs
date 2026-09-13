@@ -142,6 +142,7 @@ async function summarizeLog(name, logPath) {
         wiring: value.wiring,
         piSkill: value.piSkill,
         piPrompt: value.piPrompt,
+        adapterBridge: value.adapterBridge,
         diagnostics: value.diagnostics,
       };
     } catch {

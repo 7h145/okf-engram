@@ -48,6 +48,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
     "Job results —",
     "Policy —",
     "Wiring —",
+    "Adapter bridge —",
   ])
     assert.match(result.stdout, new RegExp(definition));
   assert.match(result.stdout, /\[S\] knowledge ingest/);
@@ -56,6 +57,8 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /\[D\] sources list/);
   assert.match(result.stdout, /\[D\] jobs enqueue artifact-ingest-batch/);
   assert.match(result.stdout, /\[D\] policy project sensitive-data status\|allow\|deny/);
+  assert.match(result.stdout, /\[D\] adapter bridge handshake\|project-policy-status/);
+  assert.match(result.stdout, /The bridge is JSON-only and intrinsically project-targeted/);
   assert.match(result.stdout, /--corpus-context project\|global/);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
@@ -133,6 +136,8 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest-batch/);
   assert.match(skill, /\| `mode status\\\|guarded\\\|unguarded` \| `policy project sensitive-data status\\\|deny\\\|allow`/);
   assert.match(skill, /`sources` is the data-file analogue of `ls`/);
+  assert.match(skill, /The bridge is intrinsically project-targeted/);
+  assert.match(skill, /Loading or discovering the bridge is not consent/);
   assert.match(skill, /background-else-foreground/);
   assert.match(skill, /Unguarded mode relaxes only the sensitivity filter/);
   assert.match(skill, /Previously unguarded: yes — stored knowledge may still contain sensitive data/);

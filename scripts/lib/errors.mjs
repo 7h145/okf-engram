@@ -83,6 +83,15 @@ export const errors = {
       exitCode: 9,
       details,
     }),
+  adapterBridgeIncompatible: (requestedVersion, supportedVersions) =>
+    new EngramError(
+      `Adapter bridge protocol version ${requestedVersion} is incompatible; supported versions: ${supportedVersions.join(", ")}`,
+      {
+        code: "ADAPTER_BRIDGE_INCOMPATIBLE",
+        exitCode: 11,
+        details: { requestedVersion, supportedVersions },
+      },
+    ),
   persistedIndexStale: (details, cause) =>
     new EngramError(
       `Concept mutation DID persist for ${details.id}, but generated-index maintenance failed; inspect current state and run corpus repair-indexes before retrying`,

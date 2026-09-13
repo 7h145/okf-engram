@@ -55,6 +55,7 @@ references/okf-profile.md        Engram's OKF v0.2 profile
 references/compilation-protocol.md
                                  mandatory artifact compilation protocol
 references/workflows.md          detailed semantic workflows
+references/adapter-bridge.md      package discovery and adapter protocol contract
 tests/unit/                      format and algorithm tests
 tests/integration/               command and lifecycle tests
 tests/concurrency/               writer and interruption tests
@@ -102,7 +103,8 @@ The canonical interface is:
 ```
 
 The domains are `corpus`, `knowledge`, `memory`, `concepts`, `sources`, `jobs`,
-`policy`, and `wiring`. Semantic operations such as `knowledge ingest`, `memory
+`policy`, `wiring`, and the machine-only `adapter bridge`. Semantic operations such
+as `knowledge ingest`, `memory
 remember`, and `memory recall` are interpreted by the active skill and are
 intentionally rejected by `scripts/engram.mjs`; the agent implements them through
 the documented deterministic leaves. Deterministic operations map directly to the
@@ -265,8 +267,8 @@ Three paths are distinct:
 2. **Opportunistic inference** — while Engram is active in an opted-in foreground
    turn, the model may notice and queue one durable project-memory candidate.
 3. **Automatic conversation review** — a separately packaged optional Pi adapter
-   may eventually review eligible completed exchanges through the same bounded
-   API. This adapter does not exist yet.
+   may eventually review eligible completed exchanges through the package-level
+   adapter bridge. This adapter does not exist yet.
 
 The available inference path is project-only and omits transcripts, tool output,
 and thinking. It never targets a future global corpus. A monotonic policy
@@ -399,6 +401,36 @@ node scripts/engram.mjs jobs results acknowledge \
 Acknowledgement records that a result was presented. It does not delete the job,
 result, or stored knowledge.
 
+## Package-level adapter bridge
+
+Engram advertises a versioned `node-cli-json` adapter bridge in the package-level
+`okfEngram.adapterBridge` manifest. A separately installed adapter discovers the
+package through its client's canonical loaded-resource provenance, validates the
+manifest, and negotiates protocol v1 with `adapter bridge handshake`. It does not
+import Engram's private modules, inspect Pi settings, scan guessed install caches,
+or depend on local/Git/npm directory layouts.
+
+All bridge project operations require an explicit client working directory and are
+intrinsically resolved to the primary project corpus. There is no generic target
+parameter and no global, linked, explicit-bundle, or fallback route. Bridge
+capabilities cover only effective project-policy status, bounded automatic-review
+candidate enqueue, inferred-job list/show/run/cancel/retry/constrained cleanup,
+and compact result list/acknowledgement. Policy mutation, initialization, wiring,
+artifact work, arbitrary concept writes, and unrelated jobs are unavailable.
+
+The bridge fixes candidate origin to `automatic-review`; project automatic-memory
+opt-in and its generation still gate enqueue and eventual writes under the normal
+locks. Public bridge responses omit settings, bundle, job-directory, capsule,
+claim/evidence, trace, and private-result paths. Concept references are context-
+qualified, collection responses are capped, and every operation returns a
+versioned JSON success or error envelope. A returned runner command re-enters the
+same versioned bridge and can run only the selected inferred-memory job.
+
+The bridge is plumbing, not automatic conversation review. It observes nothing,
+starts no daemon, stores no adapter cursor, presents no notification, and never
+enables policy. Exact discovery, compatibility, command, response, and trust
+contracts are in [references/adapter-bridge.md](references/adapter-bridge.md).
+
 ## Privacy and persistence details
 
 - Concepts are plaintext and may be indexed, committed, backed up, read by tools,
@@ -437,9 +469,10 @@ result, or stored knowledge.
 - Bundle-internal symlinks and unsafe paths are rejected. A symlinked project
   `.agents` root is canonicalized and supported.
 
-v0.1 uses OKF v0.2 concepts, project-policy settings schema version 4, and private
-job-record schema version 2. Unknown concept frontmatter is preserved. There is no
-automatic content migration or raw-source archive.
+v0.1 uses OKF v0.2 concepts, project-policy settings schema version 4, private
+job-record schema version 2, adapter-bridge manifest version 1, and adapter-bridge
+protocol version 1. Unknown concept frontmatter is preserved. There is no automatic
+content migration or raw-source archive.
 
 ## Tests and release verification
 

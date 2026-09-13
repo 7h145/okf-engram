@@ -43,9 +43,12 @@ Engram can:
 - queue larger document-ingest requests and continue the conversation while one
   ordered background runner processes them;
 - detect changed local source material and, where available, reopen the exact
-  committed Git version used as evidence; and
+  committed Git version used as evidence;
 - coordinate concurrent agents with deterministic locking and conditional
-  writes.
+  writes; and
+- provide a versioned, package-discoverable machine bridge through which a
+  separately installed optional adapter can submit policy-gated project-memory
+  candidates without reading Engram's private state.
 
 Sources stay untouched. Engram records references and digests, while all generated
 knowledge goes into its own project-local bundle.
@@ -191,8 +194,12 @@ content policy rather than encryption, access control, or a secrets vault.
 
 Automatic memory is a separate project opt-in and defaults off. When enabled, the
 active skill may notice and queue a useful memory candidate; it may also miss one.
-Systematic automatic review of every conversation would require a separate
-adapter and is not part of the current package.
+A package-level adapter bridge now exposes that same guarded project-candidate
+path to independently installed integrations. No automatic-review adapter ships
+with Engram: systematic conversation observation, scheduling, and notifications
+remain separate optional integration work, and installing anything never enables
+automatic memory. Adapter authors can use the
+[bridge protocol](references/adapter-bridge.md).
 
 The current release maintains one project-local corpus. Removing a concept affects
 the current corpus tree; it cannot erase copies in Git history, sessions, backups,
