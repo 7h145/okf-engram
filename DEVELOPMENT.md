@@ -146,6 +146,14 @@ Ordinary natural language remains available outside the slash grammar.
 `/engram help` returns the bounded human summary; `/engram --help` returns the
 complete agent interface.
 
+Harness-specific configuration must remain a thin adapter. Duplicating portable
+product grammar, safety policy, or workflows in a client prompt is unnecessary
+feature creep and an anti-pattern; normative behavior belongs in `SKILL.md`, while
+hard enforcement belongs in deterministic helper and storage boundaries. A client
+adapter may repeat only a narrow pre-activation guard when dogfood demonstrates
+that the client otherwise crosses that boundary; keep the skill authoritative and
+cover the duplicate with parity and model controls.
+
 `/engram remove CONCEPT_ID` is the sole destructive human shortcut and remains
 project-scoped. It reads and identifies one concept, warns about current-tree-only
 deletion, asks for yes/no confirmation in a separate turn, re-reads the concept,

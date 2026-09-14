@@ -106,42 +106,22 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.doesNotMatch(result.stdout, /\bforget\b/i);
 });
 
-test("Pi prompt and skill define one strict human router with guarded removal", async () => {
+test("Pi prompt keeps only a proven pre-activation guard over portable routing", async () => {
   const prompt = await fs.readFile(path.join(repository, "prompts", "engram.md"), "utf8");
   const skill = await fs.readFile(path.join(repository, "SKILL.md"), "utf8");
-  for (const shortcut of [
-    "help",
-    "init",
-    "wire",
-    "unwire",
-    "auto",
-    "mode",
-    "ls",
-    "find",
-    "show",
-    "sources",
-    "inventory",
-    "remember",
-    "recall",
-    "ingest",
-    "queue",
-    "jobs",
-    "cancel",
-    "remove",
-    "global",
-    "both",
-  ])
-    assert.match(prompt, new RegExp(`\\b${shortcut}\\b`));
-  assert.match(prompt, /strict\s+`\/engram`/);
-  assert.match(prompt, /classify the complete argument string against its routing\s+table before making any tool call/);
-  assert.match(prompt, /matching prefix is not a valid route/);
-  assert.match(prompt, /make no reads, writes, or job changes/);
-  assert.match(prompt, /Respond only: `Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
-  assert.match(prompt, /must not degrade to\s+project-only or global-only\s+recall/);
-  assert.match(prompt, /preserve the shortcut's documented user\s+purpose/);
-  assert.match(prompt, /validating the route\):\s+\$ARGUMENTS/);
+  assert.ok(Buffer.byteLength(prompt) < 896, "Pi prompt must remain a thin adapter");
+  assert.match(prompt, /argument-hint: "\[request\]"/);
+  assert.match(prompt, /Before skill activation or tools/);
+  assert.match(prompt, /`both`: only `both recall QUESTION`/);
+  assert.match(prompt, /`global`: only `global`, `global init`/);
+  assert.match(prompt, /respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
+  assert.match(prompt, /Otherwise activate and follow `okf-engram`/i);
+  assert.match(prompt, /apply its \*\*Strict request preflight\*\* and\s+routing table/i);
+  assert.match(prompt, /`SKILL\.md` is normative; this repeats only the Pi guard proven necessary by\s+dogfood/);
+  assert.match(prompt, /Engram request:\s+\$ARGUMENTS/);
   assert.doesNotMatch(prompt, /\$\{ARGUMENTS\}/);
-  assert.doesNotMatch(prompt, /\b(?:forget|delete)\b/);
+  assert.doesNotMatch(prompt, /concepts search|corpus status|project-only|current project working directory|user purpose/);
+  assert.ok(skill.indexOf("## Strict request preflight") < skill.indexOf("## Command layers"));
   assert.match(skill, /\| Human request \| Canonical intent \| User purpose \|/);
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest-batch/);
   assert.match(skill, /\| `mode status\\\|guarded\\\|unguarded` \| `policy project sensitive-data status\\\|deny\\\|allow`/);
@@ -163,10 +143,11 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.match(skill, /\| `remove CONCEPT_ID` \| guided `concepts delete/);
   assert.match(skill, /\| `global remember STATEMENT` \| `memory remember --corpus-context global/);
   assert.match(skill, /\| `both recall QUESTION` \| `memory recall --corpus-context project --corpus-context global/);
-  assert.match(skill, /Classify the complete human request against this table before making any tool\s+call/);
-  assert.match(skill, /enqueue no job, and do not reinterpret/);
-  assert.match(skill, /Respond only\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
-  assert.match(skill, /must never\s+silently become a project-only or global-only recall/);
+  assert.match(skill, /classify its complete\s+argument string against the routing table below before making any tool call/);
+  assert.match(skill, /matching prefix is not a route/);
+  assert.match(skill, /do not read or write a corpus, enqueue a job/);
+  assert.match(skill, /Respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
+  assert.match(skill, /must never silently become project-only or\s+global-only recall/);
   assert.match(skill, /mandatory two-turn\s+confirmation/);
   assert.match(skill, /Reject an unknown slash command with concise help/);
 });

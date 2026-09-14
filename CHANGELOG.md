@@ -8,10 +8,11 @@
   context-qualified, bounded read-composition path with no fallback. Artifact
   ingest, inferred memory, jobs, wiring, source-file operations, and adapters remain
   unable to target global memory.
-- Harden the Pi shortcut prompt after smaller-model dogfood: classify the complete
-  request before tools, reject unsupported `global`/`both` forms without reads,
-  writes, jobs, fallback, or a full help dump, and prevent mixed recall from
-  silently degrading to one corpus.
+- Harden cross-harness shortcut routing after smaller-model dogfood: put complete-
+  request preflight in the portable skill, keep only a proven pre-activation guard
+  in the thin Pi adapter, reject unsupported `global`/`both` forms without reads,
+  writes, jobs, or fallback, and prevent mixed recall from silently degrading to
+  one corpus.
 - Add package-level adapter bridge protocol v1: client-provenance discovery through
   a machine-readable manifest, explicit capability/version negotiation, fixed
   project-only policy and inferred-memory operations, sanitized context-qualified

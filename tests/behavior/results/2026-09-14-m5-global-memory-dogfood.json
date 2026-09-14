@@ -36,9 +36,18 @@
     },
     {
       "model": "openrouter/qwen/qwen3-coder",
-      "source": "locally installed remediated working tree",
+      "source": "locally installed skill-only-preflight candidate",
+      "outcome": "fail",
+      "finding": "With all cross-scope grammar removed from the Pi prompt, the portable skill preflight remained normative but the model again rerouted unsupported `global ingest` into project ingestion. This established that a narrow pre-activation Pi guard was still necessary for this client/model combination."
+    },
+    {
+      "model": "openrouter/qwen/qwen3-coder",
+      "source": "final local working tree with narrow Pi pre-activation guard",
       "outcome": "pass",
       "checks": {
+        "portableSkillOwnsNormativePreflight": true,
+        "piAdapterContainsOnlyProvenPreActivationGuard": true,
+        "coldGlobalStatusNonMutating": true,
         "mixedRecallSurfacedBothContexts": true,
         "unsupportedBothWriteRejectedBeforeSkillActivation": true,
         "unsupportedGlobalIngestRejectedBeforeSkillActivation": true,
@@ -54,7 +63,7 @@
     }
   ],
   "remediation": {
-    "summary": "Move exact global/both grammar validation ahead of skill activation and all tools; require one fixed rejection for unsupported cross-scope routes; reinforce full-request classification and non-degrading mixed recall in the skill.",
+    "summary": "Put exact global/both grammar validation at the start of the portable skill and ahead of all tools; retain only the same proven pre-activation guard in the thin Pi adapter; require one fixed rejection for unsupported cross-scope routes; and prevent mixed recall from degrading to one corpus.",
     "files": [
       "prompts/engram.md",
       "SKILL.md",
@@ -71,7 +80,7 @@
     "productionVulnerabilities": 0,
     "agentSkillValid": true,
     "packedInstallSmoke": true,
-    "artifactSha256": "8485b4ae909a0ec91ae74eb8db090945ea680c9d576d8ddf8bc25a5fbfba8632"
+    "artifactSha256": "0b8605cffd55e58d4249eed0b1e39cc71d762ce29b1ee6c06914d8faff447801"
   },
   "conclusion": "Pass after remediation. The smaller-model failure was reproduced, hardened, and rechecked with no corpus or job mutation. The Gemini provider attempt remains explicitly inconclusive."
 }
