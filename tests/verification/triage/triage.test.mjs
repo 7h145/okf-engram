@@ -197,7 +197,9 @@ test("triage fails closed on invalid reviewer evidence and still signals complet
   assert.equal(summary.overall, "failed");
   assert.equal(summary.error.code, "invalid-review");
   await fs.access(path.join(item.outputDir, "done"));
-  assert.doesNotMatch(await fs.readFile(path.join(item.outputDir, "result.md"), "utf8"), /999/);
+  const result = await fs.readFile(path.join(item.outputDir, "result.md"), "utf8");
+  assert.doesNotMatch(result, /First causal evidence: L999\b/);
+  assert.match(result, /Triage failed: firstCausalLine does not cite a visible line/);
 });
 
 test("triage fails closed when the reviewer process is not bounded and successful", async (t) => {
