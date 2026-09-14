@@ -140,9 +140,11 @@ node scripts/engram.mjs --help
 ```
 
 The human `/engram` grammar is a strict shortcut subset over the canonical
-interface. Unknown forms are rejected rather than guessed. Ordinary natural
-language remains available outside the slash grammar. `/engram help` returns the
-bounded human summary; `/engram --help` returns the complete agent interface.
+interface. The complete request is classified before tool use; unknown forms are
+rejected rather than guessed, split, or rerouted, and make no corpus or job change.
+Ordinary natural language remains available outside the slash grammar.
+`/engram help` returns the bounded human summary; `/engram --help` returns the
+complete agent interface.
 
 `/engram remove CONCEPT_ID` is the sole destructive human shortcut and remains
 project-scoped. It reads and identifies one concept, warns about current-tree-only

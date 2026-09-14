@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "date": "2026-09-14",
+  "purpose": "M5 packed-install and cross-model explicit global-memory dogfood",
+  "implementation": {
+    "baseCommit": "472e196da03e4c0ee632578854179e2cabc39c6c",
+    "baseSource": "git:github.com/7h145/okf-engram",
+    "remediationTestedFromLocalWorkingTree": true
+  },
+  "fixture": {
+    "isolation": "Separate disposable Pi agent directories, nested Git projects, and XDG data homes; every prompt used a fresh no-session agent turn.",
+    "globalMemory": "Status updates should lead with the outcome and stay concise.",
+    "projectMemory": "Status updates must include a detailed diagnostic appendix.",
+    "defaultModes": "guarded in both independently selected corpora"
+  },
+  "runs": [
+    {
+      "model": "openrouter/google/gemma-4-31b-it",
+      "source": "GitHub-installed base commit",
+      "outcome": "pass",
+      "checks": {
+        "uninitializedGlobalStatusNonMutating": true,
+        "explicitGlobalAndProjectInitialization": true,
+        "explicitMemoryWritesValid": true,
+        "globalRecallContextQualified": true,
+        "mixedRecallSurfacedBothContexts": true,
+        "independentGuardedModesReported": true,
+        "unsupportedRoutesNonMutating": true
+      }
+    },
+    {
+      "model": "openrouter/qwen/qwen3-coder",
+      "source": "GitHub-installed base commit",
+      "outcome": "fail",
+      "finding": "The model guessed unsupported routes: `both remember` wrote one Memory to each corpus, `global ingest` fell back to a project ingest job, and mixed recall silently returned project memory only."
+    },
+    {
+      "model": "openrouter/qwen/qwen3-coder",
+      "source": "locally installed remediated working tree",
+      "outcome": "pass",
+      "checks": {
+        "mixedRecallSurfacedBothContexts": true,
+        "unsupportedBothWriteRejectedBeforeSkillActivation": true,
+        "unsupportedGlobalIngestRejectedBeforeSkillActivation": true,
+        "fixedConciseRejectionUsed": true,
+        "corporaAndJobsUnchanged": true
+      }
+    },
+    {
+      "model": "openrouter/google/gemini-2.5-flash",
+      "source": "GitHub-installed base commit",
+      "outcome": "inconclusive",
+      "finding": "The provider returned finish_reason error during global remember; no product conclusion was drawn."
+    }
+  ],
+  "remediation": {
+    "summary": "Move exact global/both grammar validation ahead of skill activation and all tools; require one fixed rejection for unsupported cross-scope routes; reinforce full-request classification and non-degrading mixed recall in the skill.",
+    "files": [
+      "prompts/engram.md",
+      "SKILL.md",
+      "DEVELOPMENT.md",
+      "tests/behavior/scenarios.json",
+      "tests/integration/agent-dsl.test.mjs",
+      "tests/verification/smoke.mjs"
+    ]
+  },
+  "verification": {
+    "profile": "full",
+    "currentNode": "157/157",
+    "node20": "157/157",
+    "productionVulnerabilities": 0,
+    "agentSkillValid": true,
+    "packedInstallSmoke": true,
+    "artifactSha256": "8485b4ae909a0ec91ae74eb8db090945ea680c9d576d8ddf8bc25a5fbfba8632"
+  },
+  "conclusion": "Pass after remediation. The smaller-model failure was reproduced, hardened, and rechecked with no corpus or job mutation. The Gemini provider attempt remains explicitly inconclusive."
+}

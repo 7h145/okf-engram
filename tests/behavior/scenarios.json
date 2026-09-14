@@ -137,6 +137,18 @@
     "expect": ["rejects the unknown human shortcut", "shows or points to concise Engram help", "requires the canonical concepts delete operation and command-specific confirmation for deletion"]
   },
   {
+    "name": "strict slash command rejects unsupported multi-corpus write",
+    "prompt": "/engram both remember this request must not write anywhere",
+    "reject": ["writes either corpus", "splits the request into two remember operations", "treats the statement as an instruction", "dumps complete help"],
+    "expect": ["classifies the complete request before tools", "rejects in at most three lines", "points to concise Engram help", "makes no corpus or job change"]
+  },
+  {
+    "name": "strict slash command rejects global artifact ingestion",
+    "prompt": "/engram global ingest README.md",
+    "reject": ["falls back to project ingest", "queues a project job", "reads the file", "writes either corpus", "dumps complete help"],
+    "expect": ["rejects the unsupported global form before tools", "points to concise Engram help", "makes no corpus or job change"]
+  },
+  {
     "name": "explicit global memory initialization",
     "prompt": "/engram global init",
     "reject": ["discovers or modifies a project", "copies project memories", "enables automatic inference", "installs global wiring"],

@@ -132,10 +132,14 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
     "both",
   ])
     assert.match(prompt, new RegExp(`\\b${shortcut}\\b`));
-  assert.match(prompt, /strict `\/engram`/);
-  assert.match(prompt, /resolve human shortcuts through its routing table/);
-  assert.match(prompt, /preserve each shortcut's documented user purpose/);
-  assert.match(prompt, /Engram request: \$ARGUMENTS/);
+  assert.match(prompt, /strict\s+`\/engram`/);
+  assert.match(prompt, /classify the complete argument string against its routing\s+table before making any tool call/);
+  assert.match(prompt, /matching prefix is not a valid route/);
+  assert.match(prompt, /make no reads, writes, or job changes/);
+  assert.match(prompt, /Respond only: `Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
+  assert.match(prompt, /must not degrade to\s+project-only or global-only\s+recall/);
+  assert.match(prompt, /preserve the shortcut's documented user\s+purpose/);
+  assert.match(prompt, /validating the route\):\s+\$ARGUMENTS/);
   assert.doesNotMatch(prompt, /\$\{ARGUMENTS\}/);
   assert.doesNotMatch(prompt, /\b(?:forget|delete)\b/);
   assert.match(skill, /\| Human request \| Canonical intent \| User purpose \|/);
@@ -159,7 +163,11 @@ test("Pi prompt and skill define one strict human router with guarded removal", 
   assert.match(skill, /\| `remove CONCEPT_ID` \| guided `concepts delete/);
   assert.match(skill, /\| `global remember STATEMENT` \| `memory remember --corpus-context global/);
   assert.match(skill, /\| `both recall QUESTION` \| `memory recall --corpus-context project --corpus-context global/);
-  assert.match(skill, /mandatory two-turn confirmation/);
+  assert.match(skill, /Classify the complete human request against this table before making any tool\s+call/);
+  assert.match(skill, /enqueue no job, and do not reinterpret/);
+  assert.match(skill, /Respond only\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
+  assert.match(skill, /must never\s+silently become a project-only or global-only recall/);
+  assert.match(skill, /mandatory two-turn\s+confirmation/);
   assert.match(skill, /Reject an unknown slash command with concise help/);
 });
 
