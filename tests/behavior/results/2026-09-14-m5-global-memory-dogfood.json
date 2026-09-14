@@ -93,7 +93,7 @@
     "productionVulnerabilities": 0,
     "agentSkillValid": true,
     "packedInstallSmoke": true,
-    "artifactSha256": "a53c8d47b657a85009119a5367227f3b4779d95b29b6052fd2125fde0b57ae2b"
+    "artifactSha256": "ac035d311d758f60827a42bbfb2f6771c6528654162487e86bb1c379e9d39d42"
   },
   "conclusion": "Pass after remediation. The smaller-model failure was reproduced, hardened, and rechecked with no corpus or job mutation. The Gemini provider attempt remains explicitly inconclusive."
 }
