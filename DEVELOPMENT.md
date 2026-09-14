@@ -245,8 +245,15 @@ Every create or update boundary additionally requires:
 Global initialization and validation reject an existing bundle containing concepts
 outside that profile. Artifact ingest, all jobs and inferred candidates, source-
 file operations, project wiring, automatic-memory policy, and adapter targeting
-remain project-only. Global sensitive-data policy is independent, guarded by
-default, and stored adjacent to the global bundle. Returning it to guarded mode
+remain project-only. Global corpus status therefore exposes automatic memory as
+unavailable and human presentation says only `Automatic memory: unavailable`.
+The terse label distinguishes an absent capability from a configurable policy and
+keeps implementation rationale out of routine status output: global writes require
+explicit user intent, while inference, jobs, and adapter candidates stay
+project-scoped to avoid ambient cross-project persistence.
+
+Global sensitive-data policy is independent, guarded by default, and stored
+adjacent to the global bundle. Returning it to guarded mode
 retains `previouslyUnguarded`; invalid history is unknown and effectively guarded.
 No project memory is automatically copied or migrated.
 

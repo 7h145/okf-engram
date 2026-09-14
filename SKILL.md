@@ -217,7 +217,8 @@ command afterward.
 
 Global initialization creates no project wiring, copies no project memories, and
 enables no inference or fallback. Inspect health with `corpus status` and the same
-single selected context.
+single selected context. When presenting global corpus status, render the policy
+line exactly as `Automatic memory: unavailable`, with no appended explanation.
 
 ## Sensitive-data policy
 

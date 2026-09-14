@@ -783,7 +783,7 @@ export async function inspectCorpusStatus(context) {
   const git = isGlobalCorpus(context) ? undefined : await gitTrackingState(context);
   const sources = isGlobalCorpus(context) ? [] : await inspectSourceClaims(context);
   const automaticMemory = isGlobalCorpus(context)
-    ? { available: false, automaticMemory: "off", issue: "Global automatic memory is unavailable" }
+    ? { available: false, automaticMemory: "off" }
     : await getAutomaticMemoryPolicyStatus(context, {
       tolerateInvalid: true,
       allowExplicitBundle: true,

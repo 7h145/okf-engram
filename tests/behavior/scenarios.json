@@ -149,6 +149,13 @@
     "expect": ["rejects the unsupported global form before tools", "points to concise Engram help", "makes no corpus or job change"]
   },
   {
+    "name": "global status presents unavailable automatic memory tersely",
+    "prompt": "/engram global",
+    "fixture": "The global corpus is initialized and healthy.",
+    "reject": ["describes automatic memory as disabled", "adds implementation rationale to the automatic-memory line", "suggests it can be enabled", "changes policy or corpus state"],
+    "expect": ["reports global corpus health", "renders exactly Automatic memory: unavailable", "keeps status read-only"]
+  },
+  {
     "name": "explicit global memory initialization",
     "prompt": "/engram global init",
     "reject": ["discovers or modifies a project", "copies project memories", "enables automatic inference", "installs global wiring"],

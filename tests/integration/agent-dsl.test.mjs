@@ -133,6 +133,7 @@ test("Pi prompt keeps only a proven pre-activation guard over portable routing",
   assert.match(skill, /background-else-foreground/);
   assert.match(skill, /Unguarded mode relaxes only the sensitivity filter/);
   assert.match(skill, /Previously unguarded: yes — stored knowledge may still contain sensitive data/);
+  assert.match(skill, /render the policy\s+line exactly as `Automatic memory: unavailable`, with no appended explanation/);
   assert.match(skill, /Launch the single returned `runnerCommand`/);
   assert.match(skill, /Never launch one runner per partition/);
   assert.match(skill, /A raw `tmux` executable alone is not a managed\s+runner/);

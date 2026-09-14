@@ -9,6 +9,8 @@
   no fallback. Artifact
   ingest, inferred memory, jobs, wiring, source-file operations, and adapters remain
   unable to target global memory.
+- Present global automatic memory tersely as unavailable; keep the rationale for
+  its absent capability in contributor documentation rather than routine status.
 - Harden cross-harness shortcut routing after smaller-model dogfood: put complete-
   request preflight in the portable skill, keep only a proven pre-activation guard
   in the thin Pi adapter, reject unsupported `global`/`both` forms without reads,

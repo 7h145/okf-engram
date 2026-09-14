@@ -119,6 +119,7 @@ test("M5 global resolution is XDG-scoped, explicit, restrictive, and project-ind
   assert.equal(output.corpusContext, "global");
   assert.equal(output.automaticMemory.available, false);
   assert.equal(output.automaticMemory.automaticMemory, "off");
+  assert.equal(output.automaticMemory.issue, undefined);
   assert.equal(output.sensitiveData.knowledgeMode, "guarded");
   assert.equal(output.sensitiveData.previouslyUnguarded, false);
   assert.equal(output.git, undefined);
