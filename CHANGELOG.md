@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-09-14
+
 - Add M5 explicit global memory: a deliberately initialized, restrictive-mode XDG
   corpus that accepts only explicit Memory concepts with URN provenance; independent
   guarded/unguarded policy; explicit global-memory browsing and project/global/both
