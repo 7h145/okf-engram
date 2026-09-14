@@ -192,6 +192,7 @@ Global memory is separate and explicit:
 ```text
 /engram global init
 /engram global remember prefer concise status updates across projects
+/engram global ls
 /engram global recall how should status updates be written?
 /engram both recall which status conventions apply here?
 ```

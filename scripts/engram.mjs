@@ -81,6 +81,7 @@ Further actions:
 Global memory:
   /engram global — status of global memory
   /engram global init — initialize global memory
+  /engram global ls — list global memories
   /engram global remember STATEMENT — retain a user-global memory
   /engram global recall QUESTION — recall only global memory
   /engram both recall QUESTION — recall project and global knowledge

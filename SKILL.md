@@ -17,9 +17,9 @@ only explicit Memory concepts.
 When a client identifies input as a strict `/engram` request, classify its complete
 argument string against the routing table below before making any tool call. A
 matching prefix is not a route. `both` accepts only `both recall QUESTION` with a
-nonempty question. `global` accepts only `global`, `global init`, `global mode
-status|guarded|unguarded`, `global remember STATEMENT`, and `global recall
-QUESTION`, with nonempty statements and questions.
+nonempty question. `global` accepts only `global`, `global init`, `global ls`,
+`global mode status|guarded|unguarded`, `global remember STATEMENT`, and `global
+recall QUESTION`, with nonempty statements and questions.
 
 For any other `both` or `global` form, do not read or write a corpus, enqueue a job,
 activate another workflow, suggest a replacement operation, or fall back to
@@ -141,6 +141,7 @@ normally.
 | `recall QUESTION` | `memory recall --corpus-context project --recall-question QUESTION` | Answer from relevant project knowledge. |
 | `global` | `corpus status --corpus-context global` | Show whether global memory is ready and healthy. |
 | `global init` | `corpus initialize --corpus-context global` | Initialize global memory deliberately. |
+| `global ls` | `concepts list --corpus-context global` | Browse the global memories themselves without opening their bodies. |
 | `global mode status\|guarded\|unguarded` | `policy global sensitive-data status\|deny\|allow` | Inspect or change global sensitive-data handling. |
 | `global remember STATEMENT` | `memory remember --corpus-context global --memory-statement STATEMENT` | Deliberately retain a user-global memory. |
 | `global recall QUESTION` | `memory recall --corpus-context global --recall-question QUESTION` | Answer from global memory only. |
@@ -154,7 +155,10 @@ normally.
 Preserve the listed user purpose when presenting results. For collection commands,
 surface the requested entities; a helpful aggregate may accompany but must not
 replace them. In particular, `sources` is the data-file analogue of `ls`: show
-the files, even when pagination or a compact table is useful.
+the files, even when pagination or a compact table is useful. For `global ls`,
+surface the global Memory envelopes without opening every body. Do not invent or
+suggest `global show`, `global find`, `global remove`, or any other unlisted
+shortcut; the user may ask normally for follow-up work outside the slash grammar.
 
 The strict request preflight above governs this entire table. Unqualified human
 shortcuts select project corpus context. The listed `global` and `both` forms are

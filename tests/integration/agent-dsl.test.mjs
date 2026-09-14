@@ -79,6 +79,7 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /Agent-maintained knowledge bases for durable project knowledge and user-global memories\./);
   assert.match(result.stdout, /Use them to retain, find, and apply durable knowledge across working sessions\./);
+  assert.match(result.stdout, /\/engram global ls — list global memories/);
   assert.match(result.stdout, /\/engram global remember STATEMENT/);
   assert.match(result.stdout, /\/engram global recall QUESTION/);
   assert.match(result.stdout, /\/engram both recall QUESTION/);
@@ -113,7 +114,7 @@ test("Pi prompt keeps only a proven pre-activation guard over portable routing",
   assert.match(prompt, /argument-hint: "\[request\]"/);
   assert.match(prompt, /Before skill activation or tools/);
   assert.match(prompt, /`both`: only `both recall QUESTION`/);
-  assert.match(prompt, /`global`: only `global`, `global init`/);
+  assert.match(prompt, /`global`: only `global`, `global init`, `global ls`/);
   assert.match(prompt, /respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
   assert.match(prompt, /Otherwise activate and follow `okf-engram`/i);
   assert.match(prompt, /apply its \*\*Strict request preflight\*\* and\s+routing table/i);
@@ -126,6 +127,7 @@ test("Pi prompt keeps only a proven pre-activation guard over portable routing",
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest-batch/);
   assert.match(skill, /\| `mode status\\\|guarded\\\|unguarded` \| `policy project sensitive-data status\\\|deny\\\|allow`/);
   assert.match(skill, /`sources` is the data-file analogue of `ls`/);
+  assert.match(skill, /Do not invent or\s+suggest `global show`, `global find`, `global remove`/);
   assert.match(skill, /The bridge is intrinsically project-targeted/);
   assert.match(skill, /Loading or discovering the bridge is not consent/);
   assert.match(skill, /background-else-foreground/);
@@ -141,6 +143,7 @@ test("Pi prompt keeps only a proven pre-activation guard over portable routing",
   assert.match(skill, /\| `sources` \| `sources list --corpus-context project` \|/);
   assert.match(skill, /\| `inventory` \| `sources inventory --corpus-context project` \|/);
   assert.match(skill, /\| `remove CONCEPT_ID` \| guided `concepts delete/);
+  assert.match(skill, /\| `global ls` \| `concepts list --corpus-context global` \|/);
   assert.match(skill, /\| `global remember STATEMENT` \| `memory remember --corpus-context global/);
   assert.match(skill, /\| `both recall QUESTION` \| `memory recall --corpus-context project --corpus-context global/);
   assert.match(skill, /classify its complete\s+argument string against the routing table below before making any tool call/);

@@ -155,6 +155,13 @@
     "expect": ["initializes the fixed XDG global corpus", "reports its path", "keeps guarded mode and all inference disabled"]
   },
   {
+    "name": "explicit global memory browsing",
+    "prompt": "/engram global ls",
+    "fixture": "The global corpus contains several explicit memories and the project corpus contains unrelated concepts.",
+    "reject": ["lists project concepts", "opens every memory body", "falls back to project", "initializes a missing global corpus", "suggests an unsupported global show/find/remove shortcut"],
+    "expect": ["checks global sensitive-data policy", "lists global Memory envelopes", "identifies global context", "keeps unqualified ls project-scoped"]
+  },
+  {
     "name": "explicit global memory",
     "prompt": "/engram global remember prefer concise status updates across projects",
     "reject": ["writes to the project corpus", "uses inferred capture", "stores a file or URL source", "initializes a missing corpus"],

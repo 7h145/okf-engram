@@ -5,7 +5,7 @@ argument-hint: "[request]"
 Before skill activation or tools, classify the complete arguments:
 
 - `both`: only `both recall QUESTION` with a nonempty question.
-- `global`: only `global`, `global init`, `global mode
+- `global`: only `global`, `global init`, `global ls`, `global mode
   status|guarded|unguarded`, `global remember STATEMENT`, or `global recall
   QUESTION`, with nonempty statements and questions.
 

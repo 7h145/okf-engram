@@ -56,6 +56,19 @@
       }
     },
     {
+      "model": "wtdcode/GLM-5.3-Flash-AWQ-W4A16",
+      "source": "local global-ls candidate",
+      "outcome": "pass-after-presentation-clarification",
+      "checks": {
+        "globalListReturnedMemoryEnvelopes": true,
+        "conceptBodiesNotOpened": true,
+        "projectCorpusNotCreated": true,
+        "globalCorpusUnchanged": true,
+        "followUpUsesNaturalLanguageNotInventedShortcut": true
+      },
+      "finding": "The first successful list suggested nonexistent `global show`; portable skill guidance now forbids inventing unlisted shortcuts, and the fresh-turn retest offered ordinary-language follow-up instead."
+    },
+    {
       "model": "openrouter/google/gemini-2.5-flash",
       "source": "GitHub-installed base commit",
       "outcome": "inconclusive",
@@ -80,7 +93,7 @@
     "productionVulnerabilities": 0,
     "agentSkillValid": true,
     "packedInstallSmoke": true,
-    "artifactSha256": "0b8605cffd55e58d4249eed0b1e39cc71d762ce29b1ee6c06914d8faff447801"
+    "artifactSha256": "fad42848e9a51890e181fb132b61d252841aadf38c43ad3ea0d7e1b46748cda8"
   },
   "conclusion": "Pass after remediation. The smaller-model failure was reproduced, hardened, and rechecked with no corpus or job mutation. The Gemini provider attempt remains explicitly inconclusive."
 }

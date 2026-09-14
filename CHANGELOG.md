@@ -4,8 +4,9 @@
 
 - Add M5 explicit global memory: a deliberately initialized, restrictive-mode XDG
   corpus that accepts only explicit Memory concepts with URN provenance; independent
-  guarded/unguarded policy; explicit project/global/both recall; and an N-capable,
-  context-qualified, bounded read-composition path with no fallback. Artifact
+  guarded/unguarded policy; explicit global-memory browsing and project/global/both
+  recall; and an N-capable, context-qualified, bounded read-composition path with
+  no fallback. Artifact
   ingest, inferred memory, jobs, wiring, source-file operations, and adapters remain
   unable to target global memory.
 - Harden cross-harness shortcut routing after smaller-model dogfood: put complete-

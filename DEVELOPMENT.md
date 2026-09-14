@@ -158,8 +158,10 @@ cover the duplicate with parity and model controls.
 project-scoped. It reads and identifies one concept, warns about current-tree-only
 deletion, asks for yes/no confirmation in a separate turn, re-reads the concept,
 and invokes canonical deletion only if the displayed SHA-256 is still current.
-The explicit global shortcuts are `global`, `global init`, `global mode ...`,
-`global remember ...`, `global recall ...`, and `both recall ...`.
+The explicit global shortcuts are `global`, `global init`, `global ls`, `global
+mode ...`, `global remember ...`, `global recall ...`, and `both recall ...`.
+`global ls` explicitly enumerates Memory envelopes without opening concept bodies;
+ordinary unqualified `ls` remains project-scoped.
 
 ## Initialization and project wiring
 
