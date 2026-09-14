@@ -1,14 +1,17 @@
 # OKF Engram
 <!-- vim: set textwidth=80 expandtab: -->
 
-This is an Agent Skill implementing a version of [Andrej Karpathy's LLM Wiki
+OKF Engram gives agents a durable, source-backed knowledge base for project
+documentation and remembered context. It is an Agent Skill implementing a version
+of [Andrej Karpathy's LLM Wiki
 idea](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
-The goal is to give agents working on a project effective access to possibly large
-amounts of documentation by compiling durable information into an interlinked
-index of concepts with references back to the original sources. Engram can also
-treat explicitly stated memories—and, when enabled for a project, useful knowledge
-noticed in the current conversation—as source material. Explicit user-global
-memories live in a separate, deliberately selected memory-only knowledge base.
+
+Engram compiles durable information from possibly large amounts of project
+documentation into an interlinked index of concepts with references back to the
+original sources. It can also retain memories you state explicitly and, when you
+enable the feature for a project, useful knowledge noticed in the current
+conversation. Memories meant to follow you across projects live in a separate,
+deliberately selected global knowledge base.
 
 The resulting project knowledge base is a collection of Markdown files following
 [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/open-knowledge-format).
@@ -48,39 +51,18 @@ Engram can:
   committed Git version used as evidence;
 - coordinate concurrent agents with deterministic locking and conditional
   writes; and
-- provide a versioned, package-discoverable machine bridge through which a
-  separately installed optional adapter can submit policy-gated project-memory
-  candidates without reading Engram's private state.
+- let optional agent-client add-ons suggest project memories through Engram's
+  existing consent and safety rules.
+
+That integration point is deliberately narrow: it lets an add-on hand a suggested
+project memory to Engram for normal processing. It is not a general-purpose
+harness API and does not let an integration bypass the user's settings or write to
+global memory.
 
 Sources stay untouched. Engram records references and digests, while compiled
 project knowledge goes into its project-local bundle. Explicit global memories go
 to `${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/`; project and global
 operations never silently fall back to one another.
-
-## How it works
-
-The agent does the semantic work: understanding a document, deciding what is
-useful beyond the current task, relating it to existing knowledge, and answering a
-question from the relevant concepts.
-
-A Node.js helper takes care of the mechanical work: locating and validating the
-bundle, searching, hashing sources and concepts, coordinating writers, replacing
-files atomically, maintaining indexes, and managing background jobs and project
-policy.
-
-```text
-project documents       project memory       explicit global memory
-        │                     │                         │
-        └── semantic compilation ──┐                   │
-                                   ▼                   ▼
-                          project OKF bundle    global Memory bundle
-                                   └──── selected bounded recall ────┘
-```
-
-This division is important: the model gets the work which needs language and
-judgment; deterministic code handles storage integrity and concurrent updates.
-See [DEVELOPMENT.md](DEVELOPMENT.md) for the command contract, data handling,
-source provenance, job lifecycle, recovery behavior, and test setup.
 
 ## Install
 
@@ -197,12 +179,39 @@ Global memory is separate and explicit:
 /engram both recall which status conventions apply here?
 ```
 
-The global corpus accepts only explicitly authored `Memory` concepts. It cannot
-ingest project files, run jobs or inference, receive adapter writes, or initialize
-itself as a side effect. Existing unqualified shortcuts remain project-scoped.
-Containerized or otherwise ephemeral clients must persist the resolved
+Global memory is for memories you deliberately state, not for project documents.
+Engram never copies project memories into it or adds global memories on its own.
+Project and global knowledge stay separate: if the selected knowledge base is
+unavailable, Engram reports that instead of silently using a different one.
+Existing unqualified shortcuts remain project-scoped. Containerized or otherwise
+ephemeral clients must persist the resolved
 `okf-engram/` XDG application directory—or a broader XDG data root according to
 the harness's mount policy; Engram does not create or manage container mounts.
+
+## How it works
+
+The agent does the semantic work: understanding a document, deciding what is
+useful beyond the current task, relating it to existing knowledge, and answering a
+question from the relevant concepts.
+
+A Node.js helper takes care of the mechanical work: locating and validating the
+bundle, searching, hashing sources and concepts, coordinating writers, replacing
+files atomically, maintaining indexes, and managing background jobs and project
+policy.
+
+```text
+project documents       project memory       explicit global memory
+        │                     │                         │
+        └── semantic compilation ──┐                   │
+                                   ▼                   ▼
+                          project OKF bundle    global Memory bundle
+                                   └──── selected bounded recall ────┘
+```
+
+This division is important: the model gets the work which needs language and
+judgment; deterministic code handles storage integrity and concurrent updates.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the command contract, data handling,
+source provenance, job lifecycle, recovery behavior, and test setup.
 
 ## Privacy and current scope
 
@@ -213,12 +222,12 @@ content policy rather than encryption, access control, or a secrets vault.
 
 Automatic memory is a separate project opt-in and defaults off. When enabled, the
 active skill may notice and queue a useful memory candidate; it may also miss one.
-A package-level adapter bridge now exposes that same guarded project-candidate
-path to independently installed integrations. No automatic-review adapter ships
-with Engram: systematic conversation observation, scheduling, and notifications
-remain separate optional integration work, and installing anything never enables
-automatic memory. Adapter authors can use the
-[bridge protocol](references/adapter-bridge.md).
+An optional agent-client add-on can use the same narrow integration point to
+suggest a project memory, but Engram still applies the user's opt-in and safety
+settings. No such add-on ships with Engram: systematic conversation observation,
+scheduling, and notifications remain separate, and installing anything never
+enables automatic memory. The technical contract for integration authors is the
+[adapter bridge protocol](references/adapter-bridge.md).
 
 Project and global knowledge modes are independent and guarded by default. During
 explicit mixed recall, each supplying corpus retains its own policy; invalid or
