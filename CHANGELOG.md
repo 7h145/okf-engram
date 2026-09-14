@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.1 — 2026-09-14
+
 - Introduce the optional adapter integration in human terms before linking to its
   technical contract, and align the README's global-memory language with the
   v0.2 release notes.
