@@ -200,6 +200,9 @@ Global memory is separate and explicit:
 The global corpus accepts only explicitly authored `Memory` concepts. It cannot
 ingest project files, run jobs or inference, receive adapter writes, or initialize
 itself as a side effect. Existing unqualified shortcuts remain project-scoped.
+Containerized or otherwise ephemeral clients must persist the resolved
+`okf-engram/` XDG application directory—or a broader XDG data root according to
+the harness's mount policy; Engram does not create or manage container mounts.
 
 ## Privacy and current scope
 

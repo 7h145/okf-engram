@@ -242,6 +242,11 @@ Every create or update boundary additionally requires:
 - at least one URN provenance source; and
 - no file/URL source, digest, Git identity, or selector metadata.
 
+A global Memory still has required provenance in its `sources` field, but only as
+an opaque URN; it has no resolvable source document. Consequently there is no
+`global sources` shortcut: `sources` inventories referenced local files and remains
+project-only, while `global ls` browses global Memory envelopes.
+
 Global initialization and validation reject an existing bundle containing concepts
 outside that profile. Artifact ingest, all jobs and inferred candidates, source-
 file operations, project wiring, automatic-memory policy, and adapter targeting
@@ -255,7 +260,9 @@ project-scoped to avoid ambient cross-project persistence.
 Global sensitive-data policy is independent, guarded by default, and stored
 adjacent to the global bundle. Returning it to guarded mode
 retains `previouslyUnguarded`; invalid history is unknown and effectively guarded.
-No project memory is automatically copied or migrated.
+No project memory is automatically copied or migrated. An ephemeral or
+containerized harness owns persistence of the resolved XDG application directory
+or XDG data root; Engram neither changes its standard path nor manages host mounts.
 
 Write resolution and read-set composition are deliberately separate. A read
 descriptor does not confer mutation authority: project writes retain the full
