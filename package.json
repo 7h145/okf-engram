@@ -1,7 +1,7 @@
 {
   "name": "okf-engram",
   "version": "0.2.1",
-  "description": "Project knowledge and explicit global memory as agent-maintained OKF bundles",
+  "description": "Project, global, and linked knowledge as agent-maintained OKF bundles",
   "author": "thias <github.attic@typedef.net>",
   "contributors": [
     "OpenAI Codex (5.6)"

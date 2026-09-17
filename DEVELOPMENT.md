@@ -79,7 +79,8 @@ Engram has three layers:
    deferred jobs. It does not summarize sources or decide what is true.
 3. **OKF bundles — durable knowledge.** Artifact-derived concepts and Memory
    concepts are Markdown with YAML frontmatter. The project corpus contains both;
-   the user-global corpus accepts only explicitly authored Memory concepts.
+   the user-global corpus accepts only explicitly authored Memory concepts; named
+   local bundles may be linked as read-only retrieval inputs.
 
 The managed bundle locations are:
 
@@ -88,9 +89,10 @@ The managed bundle locations are:
 ${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/
 ```
 
-Private operational state is adjacent to the bundle, not inside it. A project
-`.agents` directory may be a symlink; Engram canonicalizes the physical location
-and rejects paths or bundle-internal symlinks that escape the intended scope.
+Private operational state is adjacent to the bundle, not inside it. Project link
+configuration is stored in adjacent `links.json`. A project `.agents` directory
+may be a symlink; Engram canonicalizes the physical location and rejects paths or
+bundle-internal symlinks that escape the intended scope.
 
 Semantic compilation is model work. Parsing, containment, validation, locking,
 optimistic concurrency, and atomic replacement do not depend on model discipline.
@@ -112,15 +114,18 @@ intentionally rejected by `scripts/engram.mjs`; the agent implements them throug
 the documented deterministic leaves. Deterministic operations map directly to the
 helper.
 
-Every canonical operation identifies its corpus context:
+Every canonical operation identifies its built-in or linked selection:
 
 ```text
 --corpus-context project|global
+--linked-corpus-name NAME
 ```
 
-Unsupported, uninitialized, malformed, or inaccessible contexts fail without
-fallback. `--project-root-path PATH` selects a project root explicitly and is
-invalid for a global-only operation. Without explicit project selection, the agent
+Read operations may repeat either option; mutations select one writable project or
+global context and reject links. Unsupported, uninitialized, malformed, or
+inaccessible selections fail without fallback. `--project-root-path PATH` selects
+a project root and its link registry explicitly and is invalid for a global-only
+operation. Without explicit project selection, the agent
 preserves the client project cwd and discovers its containing Git worktree; it
 must not change to an agent configuration or skill-installation directory. Global
 resolution does no project discovery: it uses an absolute `XDG_DATA_HOME` when
@@ -128,9 +133,10 @@ set, otherwise `~/.local/share`. The deterministic expert override
 `--corpus-bundle-path PATH` is mutually exclusive with `--corpus-context` and does
 not inherit managed policy.
 
-Mutations and concept reads select exactly one context. `memory recall` and
-`concepts search` may select project, global, or both by repeating the context
-option. No unqualified operation consults global memory.
+Knowledge reads accept one or more project, global, and named linked descriptors.
+Search, listing, and exact reads remain context-qualified; an exact read across a
+set fails when the same concept ID exists more than once. No unqualified operation
+consults global or linked knowledge.
 
 Helper output defaults to bounded JSON. Use `--output-format text` only for direct
 debugging. Run the complete generated reference with:
@@ -154,14 +160,13 @@ adapter may repeat only a narrow pre-activation guard when dogfood demonstrates
 that the client otherwise crosses that boundary; keep the skill authoritative and
 cover the duplicate with parity and model controls.
 
-`/engram remove CONCEPT_ID` is the sole destructive human shortcut and remains
-project-scoped. It reads and identifies one concept, warns about current-tree-only
-deletion, asks for yes/no confirmation in a separate turn, re-reads the concept,
-and invokes canonical deletion only if the displayed SHA-256 is still current.
-The explicit global shortcuts are `global`, `global init`, `global ls`, `global
-mode ...`, `global remember ...`, `global recall ...`, and `both recall ...`.
-`global ls` explicitly enumerates Memory envelopes without opening concept bodies;
-ordinary unqualified `ls` remains project-scoped.
+The human grammar uses optional leading knowledge-base addresses. No address means
+project; `@project`/`@P`, `@global`/`@G`, `@NAME`, `@linked`/`@L`, and `@all`/`@A`
+select built-ins, one link, every link, or every available knowledge base. Repeated
+addresses select a read subset. The old `global` and `both` prefixes are removed.
+`remove CONCEPT_ID` is the sole destructive human shortcut; it accepts exactly one
+project/global address, warns about current-tree-only deletion, asks for yes/no in
+a separate turn, re-reads the concept, and deletes only at the displayed SHA-256.
 
 ## Initialization and project wiring
 
@@ -208,16 +213,19 @@ The retrieval path uses progressive disclosure:
 3. `concepts search` searches each corpus independently and returns one total-
    bounded, context-qualified metadata result set;
 4. the agent chooses a small relevant set;
-5. `concepts read` opens each chosen concept through its single supplying context;
-6. the agent follows relevant project concept links and source selectors; and
-7. the answer identifies corpus context and concept IDs or paths.
+5. `concepts read` opens each chosen concept through its supplying context/link;
+6. the agent follows relevant primary-project concept links and source selectors;
+   linked raw sources are never reopened; and
+7. the answer identifies corpus context, link name where applicable, and concept
+   IDs or paths.
 
-The composition layer accepts N descriptors even though v0.2 exposes only project,
-global, and project-plus-global. Each constituent search is bounded by the total
-result limit; merged results use score, requested-context order, and concept ID for
-stable ordering before the total limit is applied. Equal concept IDs in separate
-contexts remain distinct. Any selected-context failure aborts the operation rather
-than returning a partial fallback. Deprecated concepts are excluded by default.
+The composition layer accepts N project, global, and named linked descriptors.
+Each constituent search is bounded by the total result limit; merged results use
+score, requested-context order, and concept ID for stable ordering before the total
+limit is applied. Every result includes `corpusContext`; linked results also include
+`corpusLinkName`. Equal concept IDs in separate contexts or links remain distinct.
+Any selected-context failure aborts the operation rather than returning a partial
+fallback. Deprecated concepts are excluded by default.
 Generated indexes and private state are not searched as concepts.
 
 Before a semantic write, the agent searches for related knowledge and integrates
@@ -266,8 +274,51 @@ or XDG data root; Engram neither changes its standard path nor manages host moun
 
 Write resolution and read-set composition are deliberately separate. A read
 descriptor does not confer mutation authority: project writes retain the full
-project profile, global writes enforce the profile above, and future linked
-contexts will never enter the writable-target resolver.
+project profile, global writes enforce the profile above, and linked contexts
+never enter the writable-target resolver.
+
+### Linked knowledge bases
+
+A managed project stores at most 32 named links in adjacent mode-0600
+`links.json` schema version 1:
+
+```json
+{
+  "version": 1,
+  "links": [
+    { "name": "runbooks", "path": "/knowledge/runbooks", "targetKind": "project" }
+  ]
+}
+```
+
+Names are lowercase 1–32 character slugs; `project`, `global`, `linked`, and `all`
+are reserved. Paths are absolute logical addresses supplied by the user. A target
+may be a managed project root or an OKF bundle. Link add validates the compiled
+bundle and rejects the active project, fixed global corpus, duplicate canonical
+targets, internal symlinks, and malformed or incompatible bundles. Registry
+updates share the project bundle lock and use atomic mode-0600 replacement.
+
+A boundary symlink is part of the configured address. Every operation resolves it
+once to one canonical bundle, repeats self/global/duplicate checks, and validates
+the compiled target. This permits atomic deployment retargeting without allowing
+symlinks inside a bundle. Link status reports configured and resolved paths.
+Broken links remain configured and visible until explicit removal.
+
+Linked operations are storage-enforced read-only. Status, validation without
+repair, concept list/search/read, and semantic recall are available. Initialization,
+repair, concept mutation, artifact ingest, source-file access, jobs, inferred
+memory, policies, wiring, and adapter operations are unavailable. Retrieval never
+opens the owning project's source files, follows its own link registry, copies
+concepts, or holds locks across bundles. Each corpus is read independently, so a
+concurrent owning-project update may appear before or after its atomic replacement;
+there is no multi-bundle snapshot promise.
+
+Linking is consent to retrieve relevant compiled concepts. `corpus links list`
+re-reads managed target policy and reports guarded, unguarded, or unknown state plus
+sticky prior-unguarded history. Direct bundle links without managed policy are
+unknown and effectively guarded. Unguarded, previously unguarded, and unknown
+states produce warnings but no second confirmation. Selected link failures abort
+the composed operation rather than silently dropping knowledge or falling back.
 
 ## Artifact compilation and provenance
 
@@ -513,8 +564,9 @@ contracts are in [references/adapter-bridge.md](references/adapter-bridge.md).
   transcripts, thinking, or tool output.
 - Private job records persist until explicit cleanup. Their configured provider
   receives the bounded source content required for compilation.
-- Keep project-adjacent `settings.json`, private `jobs/`, and `.agents/run/` state
-  untracked unless a separate project policy says otherwise. Global settings and
+- Keep project-adjacent `settings.json`, `links.json`, private `jobs/`, and
+  `.agents/run/` state untracked unless a separate project policy says otherwise.
+  Global settings and
   memory are plaintext under the user's XDG data home and are not a secrets vault.
 - Engram never stages or commits either OKF bundle. Decide explicitly whether a
   project should version its own bundle; the global store is outside that project.
@@ -539,20 +591,23 @@ contracts are in [references/adapter-bridge.md](references/adapter-bridge.md).
 - Reconcile changed or missing source evidence before conditional updates.
 - Use `jobs retry` only for unchanged failed or cancelled work. Reconcile
   `needs-review`, acknowledge inferred-memory results, then clean explicitly.
-- Bundle-internal symlinks and unsafe paths are rejected. A symlinked project
-  `.agents` root is canonicalized and supported.
+- Bundle-internal symlinks and unsafe paths are rejected. Symlinked project
+  `.agents` roots and configured link boundaries are canonicalized and supported.
+- Broken links stay visible in `corpus links list`; repair their configured logical
+  target or unlink them explicitly. Engram never initializes or copies a target.
 
-v0.2 uses OKF v0.2 concepts, managed-policy settings schema version 4, private
-project job-record schema version 2, adapter-bridge manifest version 1, and
-adapter-bridge protocol version 1. Existing project settings require no conversion;
-global state is new and no project memory is copied automatically. Unknown concept
-frontmatter is preserved subject to the global memory-only profile. There is no
-automatic content migration or raw-source archive.
+The current implementation uses OKF v0.2 concepts, managed-policy settings schema
+version 4, corpus-link registry schema version 1, private project job-record schema
+version 2, adapter-bridge manifest version 1, and adapter-bridge protocol version 1.
+Existing project/global data requires no conversion; `links.json` is absent until a
+link is added. Unknown concept frontmatter is preserved subject to the global
+memory-only profile. There is no automatic content migration or raw-source archive.
 
 ## Tests and release verification
 
 The deterministic suite covers document parsing and validation, containment,
-indexes, single- and multi-corpus lexical search, conditional writes, XDG global
+indexes, single- and multi-corpus lexical search, link lifecycle and symlink
+retargeting, read-only linked enforcement, conditional writes, XDG global
 resolution and profile enforcement, source and Git behavior, independent policy,
 job lifecycle and recovery, wiring, concurrency, and interruption boundaries.
 Behavior fixtures evaluate semantic coverage, provenance, uncertainty, recall,

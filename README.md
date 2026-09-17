@@ -11,7 +11,8 @@ documentation into an interlinked index of concepts with references back to the
 original sources. It can also retain memories you state explicitly and, when you
 enable the feature for a project, useful knowledge noticed in the current
 conversation. Memories meant to follow you across projects live in a separate,
-deliberately selected global knowledge base.
+deliberately selected global knowledge base. A project can also query named,
+read-only links to existing local Engram knowledge bases without copying them.
 
 The resulting project knowledge base is a collection of Markdown files following
 [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/open-knowledge-format).
@@ -42,8 +43,8 @@ Engram can:
 - compile project documents into linked concepts and update those concepts as new
   information is accepted;
 - track evidence and attribute claims to their sources;
-- retain explicit project or user-global memories and recall either scope—or both—
-  only when selected;
+- retain explicit project or user-global memories and recall project, global, or
+  linked knowledge only when selected;
 - browse and search the resulting knowledge without loading the whole corpus;
 - queue larger document-ingest requests and continue the conversation while one
   ordered background runner processes them;
@@ -61,8 +62,9 @@ global memory.
 
 Sources stay untouched. Engram records references and digests, while compiled
 project knowledge goes into its project-local bundle. Explicit global memories go
-to `${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/`; project and global
-operations never silently fall back to one another.
+to `${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/`. Links read compiled
+concepts only: they do not import knowledge, reopen the owning project's sources,
+or silently fall back to another knowledge base.
 
 ## Install
 
@@ -161,7 +163,9 @@ back to foreground ingest otherwise, rather than leaving a job without a runner.
 /engram jobs [JOB_ID]           inspect background work
 ```
 
-`/engram help` shows the complete human command summary, including setup and policy
+Prefix knowledge reads with an address such as `@G`, `@runbooks`, repeated
+addresses, `@L`, or `@A`; unprefixed commands keep using this project. `/engram
+help` shows the complete human command summary, including links, setup, and policy
 controls. `/engram --help` shows the canonical agent interface. The slash grammar
 is intentionally strict; ask the agent normally for free-form work outside it.
 
@@ -169,21 +173,39 @@ Optional `/engram wire` adds a short reminder after the project's own `AGENTS.md
 instructions so later agents know when to use the skill. Initialization never does
 this implicitly.
 
-Global memory is separate and explicit:
+Knowledge-base addresses select where an operation reads or writes. No address
+means the current project:
 
 ```text
-/engram global init
-/engram global remember prefer concise status updates across projects
-/engram global ls
-/engram global recall how should status updates be written?
-/engram both recall which status conventions apply here?
+/engram @G init
+/engram @G remember prefer concise status updates across projects
+/engram @G ls
+/engram @P @G recall which status conventions apply here?
 ```
+
+The long forms are `@project`, `@global`, `@linked`, and `@all`; the typing
+shortcuts are `@P`, `@G`, `@L`, and `@A`. A named link uses its own address, and
+repeated addresses form an explicit read subset.
+
+Link an already-compiled local Engram project or bundle without copying it:
+
+```text
+/engram link skill-development /path/to/skill-development
+/engram links
+/engram @skill-development find command design
+/engram @P @skill-development recall how should this interface be structured?
+/engram @A recall where is the relevant guidance?
+```
+
+Links are always read-only. Their configured path may be a stable symlink that is
+retargeted during deployment; Engram resolves and validates the current target on
+every operation. `/engram unlink NAME` removes only the relationship. A project
+may configure at most 32 links.
 
 Global memory is for memories you deliberately state, not for project documents.
 Engram never copies project memories into it or adds global memories on its own.
-Project and global knowledge stay separate: if the selected knowledge base is
-unavailable, Engram reports that instead of silently using a different one.
-Existing unqualified shortcuts remain project-scoped. Containerized or otherwise
+If any explicitly selected knowledge base is unavailable, Engram reports it rather
+than silently substituting another one. Containerized or otherwise
 ephemeral clients must persist the resolved
 `okf-engram/` XDG application directory—or a broader XDG data root according to
 the harness's mount policy; Engram does not create or manage container mounts.
@@ -205,6 +227,8 @@ project documents       project memory       explicit global memory
         └── semantic compilation ──┐                   │
                                    ▼                   ▼
                           project OKF bundle    global Memory bundle
+                                   ▲
+                     named read-only bundle links
                                    └──── selected bounded recall ────┘
 ```
 
@@ -229,10 +253,12 @@ scheduling, and notifications remain separate, and installing anything never
 enables automatic memory. The technical contract for integration authors is the
 [adapter bridge protocol](references/adapter-bridge.md).
 
-Project and global knowledge modes are independent and guarded by default. During
-explicit mixed recall, each supplying corpus retains its own policy; invalid or
-unavailable policy is treated as guarded. Global unguarded mode has a wider cross-
-project disclosure radius and never overrides project policy.
+Project, global, and linked knowledge modes are independent. During composed
+recall, each supplying corpus retains its own policy; invalid, unavailable, or
+unknown linked policy is treated as guarded and shown visibly. Link creation warns
+about unguarded or previously unguarded targets because selected content may reach
+the active model provider. Global unguarded mode has a wider cross-project
+disclosure radius and never overrides project policy.
 
 Removing a concept affects only the selected corpus tree; it cannot erase copies
 in Git history, sessions, backups, remotes, or clones. The detailed trust

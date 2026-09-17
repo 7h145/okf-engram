@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Add M6 named read-only links to existing local Engram/OKF knowledge bases, with
+  explicit lifecycle, a 32-link project-private registry, boundary-symlink
+  retargeting, canonical deduplication, target validation, privacy visibility, and
+  hard rejection of linked mutation or raw-source access.
+- Extend bounded N-way list, search, exact read, status, validation, and semantic
+  recall across project, global, and named linked corpora with context/link labels.
+- Replace the pre-1.0 `global`/`both` human grammar with composable knowledge-base
+  addresses: `@project`/`@P`, `@global`/`@G`, `@NAME`, `@linked`/`@L`, and
+  `@all`/`@A`.
+
 ## 0.2.1 — 2026-09-14
 
 - Introduce the optional adapter integration in human terms before linking to its

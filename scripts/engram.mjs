@@ -6,8 +6,8 @@ import {
   initializeCorpus,
   readConcept,
   writeConcept,
-  listConcepts,
-  searchCorpus,
+  listCorpora,
+  readCorpora,
   searchCorpora,
   validateCorpus,
   inspectCorpusStatus,
@@ -21,6 +21,12 @@ import { digestResource } from "./lib/sources.mjs";
 import { captureSource, resolvePinnedSource } from "./lib/git-sources.mjs";
 import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
+import {
+  addCorpusLink,
+  listCorpusLinks,
+  removeCorpusLink,
+  resolveCorpusLinks,
+} from "./lib/links.mjs";
 import {
   getAutomaticMemoryPolicyStatus,
   getSensitiveDataPolicyStatus,
@@ -56,46 +62,49 @@ import {
   describeAdapterBridge,
 } from "./lib/adapter-bridge.mjs";
 
-const HUMAN_HELP = `okf-engram ${VERSION} — project knowledge and explicit global memory
+const HUMAN_HELP = `okf-engram ${VERSION} — linked project and personal knowledge
 
-Agent-maintained knowledge bases for durable project knowledge and user-global memories.
-Use them to retain, find, and apply durable knowledge across working sessions.
+Agent-maintained knowledge bases for durable project knowledge and explicit memories.
+No address means this project. Prefix knowledge work with:
+  @P or @project       this project
+  @G or @global        global memory
+  @NAME                one linked knowledge base
+  @L or @linked        every link
+  @A or @all           project, initialized global memory, and every link
+Repeat addresses for a read subset, for example: /engram @P @docs recall QUESTION
 
 Common work:
   /engram — status of the project knowledge base
-  /engram recall QUESTION — answer from knowledge
-  /engram remember STATEMENT — retain knowledge
-  /engram queue FILE... — ingest data asynchronously
-  /engram ls — list concepts
-  /engram find WORDS — search concepts
-  /engram show CONCEPT_ID — show concept
-  /engram sources — list referenced data files
+  /engram [@ADDRESS ...] recall QUESTION — answer from selected knowledge
+  /engram [@ADDRESS ...] ls — list concepts
+  /engram [@ADDRESS ...] find WORDS — search concepts
+  /engram [@ADDRESS ...] show CONCEPT_ID — show one unambiguous concept
+  /engram remember STATEMENT — retain project knowledge
+  /engram @G remember STATEMENT — retain global memory
+  /engram queue FILE... — ingest project data asynchronously
+  /engram sources — list referenced project files
+
+Links:
+  /engram links — list link status and privacy mode
+  /engram link NAME PATH — link an existing local knowledge base
+  /engram unlink NAME — remove a link without changing its target
 
 Further actions:
-  /engram ingest FILE... — ingest data in the foreground
-  /engram inventory — inspect all source references
+  /engram ingest FILE... — ingest project data in the foreground
+  /engram inventory — inspect project source references
   /engram jobs [JOB_ID] — inspect jobs
   /engram cancel JOB_ID — cancel deferred work
-  /engram remove CONCEPT_ID — delete after confirmation
-
-Global memory:
-  /engram global — status of global memory
-  /engram global init — initialize global memory
-  /engram global ls — list global memories
-  /engram global remember STATEMENT — retain a user-global memory
-  /engram global recall QUESTION — recall only global memory
-  /engram both recall QUESTION — recall project and global knowledge
+  /engram [@P|@G] remove CONCEPT_ID — delete after confirmation
 
 Setup and policy:
-  /engram init — initialize project knowledge base
-  /engram wire|unwire — manage project reminder
-  /engram mode status|guarded|unguarded — manage project sensitive data
-  /engram global mode status|guarded|unguarded — manage global sensitive data
+  /engram [@P|@G] init — initialize the selected writable knowledge base
+  /engram [@P|@G] mode status|guarded|unguarded — manage sensitive data
+  /engram wire|unwire — manage the project reminder
   /engram auto status|on|off — manage project automatic memory
   /engram help — this help
 
-Commands are strict. Ask normally for anything else.
-See /engram --help for all options.`;
+Commands are strict. Linked knowledge is always read-only.
+See /engram --help for the complete agent interface.`;
 
 const AGENT_HELP = `okf-engram ${VERSION} — canonical agent DSL
 
@@ -106,12 +115,16 @@ Operation kinds:
   [S] semantic workflow interpreted by the active Engram skill
   [D] deterministic helper operation
 
-Corpus — the OKF knowledge aggregate: location, health, validation, and indexes.
+Corpus — the OKF knowledge aggregate: location, health, validation, indexes, and links.
   [D] corpus initialize       --corpus-context CONTEXT
-  [D] corpus locate           --corpus-context CONTEXT
-  [D] corpus status           --corpus-context CONTEXT
-  [D] corpus validate         --corpus-context CONTEXT
+  [D] corpus locate           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
+  [D] corpus status           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
+  [D] corpus validate         --corpus-context CONTEXT... [--linked-corpus-name NAME]...
   [D] corpus repair-indexes   --corpus-context CONTEXT
+  [D] corpus links list       --corpus-context project
+  [D] corpus links add        --corpus-context project --link-name NAME
+                              --linked-corpus-path PATH
+  [D] corpus links remove     --corpus-context project --link-name NAME
 
 Knowledge — semantic incorporation of external artifacts into a corpus.
   [S] knowledge ingest        --corpus-context CONTEXT
@@ -122,15 +135,18 @@ Memory — semantic remembering and selective retrieval from corpora.
   [S] memory remember         --corpus-context CONTEXT
                               --memory-statement TEXT
   [S] memory recall           --corpus-context CONTEXT...
+                              [--linked-corpus-name NAME]...
                               --recall-question TEXT
 
 Concepts — deterministic operations on individual OKF concept documents.
-  [D] concepts list           --corpus-context CONTEXT
-                              [--concept-type TYPE]
+  [D] concepts list           --corpus-context CONTEXT...
+                              [--linked-corpus-name NAME]... [--concept-type TYPE]
   [D] concepts search         --corpus-context CONTEXT...
+                              [--linked-corpus-name NAME]...
                               --query TEXT [--result-limit INTEGER]
                               [--include-deprecated]
-  [D] concepts read           --corpus-context CONTEXT --concept-id ID
+  [D] concepts read           --corpus-context CONTEXT...
+                              [--linked-corpus-name NAME]... --concept-id ID
   [D] concepts write          --corpus-context CONTEXT --concept-id ID
                               --document-file-path PATH
                               [--expected-current-sha256 SHA256]
@@ -224,8 +240,11 @@ Adapter bridge — package-discovered machine interface for optional adapters.
 
 Context and output:
   --corpus-context project|global
-      Required by the canonical DSL. Mutations select exactly one context;
-      concepts search and memory recall may repeat it. Selection never falls back.
+      Select a built-in corpus. Mutations select exactly one writable context;
+      knowledge reads may repeat it. Selection never falls back.
+  --linked-corpus-name NAME
+      Select a project-configured read-only corpus link; knowledge reads may repeat it.
+      Link selection uses the active project registry and accepts --project-root-path.
   --project-root-path PATH
       Resolve project context from an explicit project root; invalid for global-only operations.
   --corpus-bundle-path PATH
@@ -309,47 +328,71 @@ async function resolveCorpora(
   { projectOnly = false, allowBundleOverride = true, allowMultiple = false } = {},
 ) {
   const corpusContexts = takeOptions(args, "--corpus-context");
+  const corpusLinkNames = takeOptions(args, "--linked-corpus-name");
   const projectRootPath = takeOption(args, "--project-root-path");
   const corpusBundlePath = takeOption(args, "--corpus-bundle-path");
+  const selectedCount = corpusContexts.length + corpusLinkNames.length;
 
   if (corpusBundlePath !== undefined) {
     if (!allowBundleOverride) {
       throw errors.usage("This operation does not accept --corpus-bundle-path");
     }
-    if (corpusContexts.length) {
-      throw errors.usage("--corpus-bundle-path is mutually exclusive with --corpus-context");
+    if (selectedCount) {
+      throw errors.usage(
+        "--corpus-bundle-path is mutually exclusive with --corpus-context and --linked-corpus-name",
+      );
     }
     const context = await resolveProject({ projectRoot: projectRootPath, bundle: corpusBundlePath });
     return [{ context, corpusContext: "explicit-bundle" }];
   }
 
-  if (!corpusContexts.length || (!allowMultiple && corpusContexts.length !== 1)) {
+  if (!selectedCount || (!allowMultiple && selectedCount !== 1)) {
     throw errors.usage(
       allowMultiple
-        ? "At least one --corpus-context is required for this operation"
-        : "Exactly one --corpus-context is required for this operation",
+        ? "At least one corpus context or linked corpus name is required for this operation"
+        : "Exactly one corpus context or linked corpus name is required for this operation",
     );
   }
   if (new Set(corpusContexts).size !== corpusContexts.length) {
     throw errors.usage("Corpus contexts must be unique");
   }
+  if (new Set(corpusLinkNames).size !== corpusLinkNames.length) {
+    throw errors.usage("Linked corpus names must be unique");
+  }
   if (corpusContexts.some((value) => !new Set(["project", "global"]).has(value))) {
     throw errors.usage("--corpus-context must be project or global");
   }
-  if (projectOnly && corpusContexts.some((value) => value !== "project")) {
+  if (projectOnly && (corpusContexts.some((value) => value !== "project") || corpusLinkNames.length)) {
     throw errors.usage("This operation is available only in project corpus context");
   }
-  if (!corpusContexts.includes("project") && projectRootPath) {
+  if (!corpusContexts.includes("project") && !corpusLinkNames.length && projectRootPath) {
     throw errors.usage("Global corpus context does not accept --project-root-path");
   }
-  return Promise.all(
-    corpusContexts.map(async (corpusContext) => ({
+
+  const projectContext = corpusContexts.includes("project") || corpusLinkNames.length
+    ? await resolveProject({ projectRoot: projectRootPath })
+    : undefined;
+  const descriptors = [];
+  for (const corpusContext of corpusContexts) {
+    descriptors.push({
       corpusContext,
-      context: corpusContext === "project"
-        ? await resolveProject({ projectRoot: projectRootPath })
-        : await resolveGlobal(),
-    })),
-  );
+      context: corpusContext === "project" ? projectContext : await resolveGlobal(),
+    });
+  }
+  if (corpusLinkNames.length) {
+    descriptors.push(...await resolveCorpusLinks(projectContext, corpusLinkNames));
+  }
+  const bundlePaths = descriptors.map((descriptor) => descriptor.context.bundle);
+  if (new Set(bundlePaths).size !== bundlePaths.length) {
+    throw errors.validation("Selected knowledge bases resolve to a duplicate canonical bundle", {
+      corpora: descriptors.map((descriptor) => ({
+        corpusContext: descriptor.corpusContext,
+        ...(descriptor.corpusLinkName ? { corpusLinkName: descriptor.corpusLinkName } : {}),
+        bundlePath: descriptor.context.bundle,
+      })),
+    });
+  }
+  return descriptors;
 }
 
 async function resolveCorpus(args, options = {}) {
@@ -370,6 +413,7 @@ function canonicalizeResultFields(value, operation) {
   renameResultField(result, "logicalBundle", "logicalBundlePath");
   renameResultField(result, "bundle", "bundlePath");
   renameResultField(result, "settings", "settingsFilePath");
+  renameResultField(result, "linksFile", "linksFilePath");
   renameResultField(result, "dataHome", "dataHomePath");
   renameResultField(result, "logicalStateRoot", "logicalStateRootPath");
   renameResultField(result, "stateRoot", "stateRootPath");
@@ -398,11 +442,17 @@ function canonicalizeResultFields(value, operation) {
   return result;
 }
 
-function attachCorpusContext(result, corpusContext, operation, { arrayProperty = "items" } = {}) {
-  if (Array.isArray(result)) return { corpusContext, [arrayProperty]: result };
+function attachCorpusContext(
+  result,
+  corpusContext,
+  operation,
+  { arrayProperty = "items", corpusLinkName } = {},
+) {
+  const reference = { corpusContext, ...(corpusLinkName ? { corpusLinkName } : {}) };
+  if (Array.isArray(result)) return { ...reference, [arrayProperty]: result };
   const canonical = canonicalizeResultFields(result, operation);
-  if (canonical && typeof canonical === "object") return { corpusContext, ...canonical };
-  return { corpusContext, value: canonical };
+  if (canonical && typeof canonical === "object") return { ...reference, ...canonical };
+  return { ...reference, value: canonical };
 }
 
 function printText(result, operation) {
@@ -513,9 +563,12 @@ function printText(result, operation) {
   else console.log(JSON.stringify(result, null, 2));
 }
 
-function printResult(result, { outputFormat, operation, corpusContext, arrayProperty } = {}) {
+function printResult(
+  result,
+  { outputFormat, operation, corpusContext, corpusLinkName, arrayProperty } = {},
+) {
   const contextualResult = corpusContext
-    ? attachCorpusContext(result, corpusContext, operation, { arrayProperty })
+    ? attachCorpusContext(result, corpusContext, operation, { arrayProperty, corpusLinkName })
     : result;
   if (outputFormat === "json") {
     console.log(JSON.stringify(contextualResult, null, 2));
@@ -734,25 +787,34 @@ async function main(rawArgs = process.argv.slice(2)) {
     case "memory": {
       operation = requireOperation(args, domain, ["remember", "recall"]);
       const corpusContexts = takeOptions(args, "--corpus-context");
+      const corpusLinkNames = takeOptions(args, "--linked-corpus-name");
       const projectRootPath = takeOption(args, "--project-root-path");
+      const selectedCount = corpusContexts.length + corpusLinkNames.length;
       if (operation === "remember") {
         const statement = takeOption(args, "--memory-statement");
-        if (corpusContexts.length !== 1 || !statement) {
-          throw errors.usage("memory remember requires one --corpus-context and --memory-statement");
+        if (selectedCount !== 1 || corpusLinkNames.length || !statement) {
+          throw errors.usage(
+            "memory remember requires one writable --corpus-context and --memory-statement",
+          );
         }
       } else {
         const question = takeOption(args, "--recall-question");
-        if (!corpusContexts.length || !question) {
-          throw errors.usage("memory recall requires one or more --corpus-context values and --recall-question");
+        if (!selectedCount || !question) {
+          throw errors.usage(
+            "memory recall requires one or more corpus contexts or linked corpus names and --recall-question",
+          );
         }
-        if (new Set(corpusContexts).size !== corpusContexts.length) {
-          throw errors.usage("memory recall corpus contexts must be unique");
+        if (
+          new Set(corpusContexts).size !== corpusContexts.length ||
+          new Set(corpusLinkNames).size !== corpusLinkNames.length
+        ) {
+          throw errors.usage("memory recall corpus selections must be unique");
         }
       }
       if (corpusContexts.some((value) => !["project", "global"].includes(value))) {
         throw errors.usage("--corpus-context must be project or global");
       }
-      if (!corpusContexts.includes("project") && projectRootPath) {
+      if (!corpusContexts.includes("project") && !corpusLinkNames.length && projectRootPath) {
         throw errors.usage("Global-only memory operations do not accept --project-root-path");
       }
       requireNoArguments(args);
@@ -760,14 +822,64 @@ async function main(rawArgs = process.argv.slice(2)) {
       break;
     }
     case "corpus": {
-      operation = requireOperation(args, domain, ["initialize", "locate", "status", "validate", "repair-indexes"]);
-      resolved = await resolveCorpus(args);
+      const corpusOperation = requireOperation(
+        args,
+        domain,
+        ["initialize", "locate", "status", "validate", "repair-indexes", "links"],
+      );
+      if (corpusOperation === "links") {
+        const action = requireOperation(args, "corpus links", ["list", "add", "remove"]);
+        operation = `links.${action}`;
+        const linkName = takeOption(args, "--link-name");
+        const linkedCorpusPath = takeOption(args, "--linked-corpus-path");
+        resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
+        requireNoArguments(args);
+        if (action === "list") {
+          if (linkName || linkedCorpusPath) {
+            throw errors.usage("corpus links list accepts only project corpus options");
+          }
+          result = await listCorpusLinks(resolved.context);
+        } else if (action === "add") {
+          if (!linkName || !linkedCorpusPath) {
+            throw errors.usage("corpus links add requires --link-name and --linked-corpus-path");
+          }
+          result = await addCorpusLink(resolved.context, linkName, linkedCorpusPath);
+        } else {
+          if (!linkName || linkedCorpusPath) {
+            throw errors.usage("corpus links remove requires only --link-name and project corpus options");
+          }
+          result = await removeCorpusLink(resolved.context, linkName);
+        }
+        break;
+      }
+
+      operation = corpusOperation;
+      const allowMultiple = ["locate", "status", "validate"].includes(operation);
+      const selectedCorpora = await resolveCorpora(args, { allowMultiple });
+      if (selectedCorpora.length === 1) [resolved] = selectedCorpora;
       requireNoArguments(args);
       if (operation === "initialize") result = await initializeCorpus(resolved.context);
-      else if (operation === "locate") result = resolved.context;
-      else if (operation === "status") result = await inspectCorpusStatus(resolved.context);
-      else if (operation === "validate") result = await validateCorpus(resolved.context);
-      else result = await validateCorpus(resolved.context, { fix: true });
+      else if (operation === "repair-indexes") result = await validateCorpus(resolved.context, { fix: true });
+      else {
+        const values = await Promise.all(selectedCorpora.map(async (descriptor) => {
+          let value;
+          if (operation === "locate") value = descriptor.context;
+          else if (operation === "status") value = await inspectCorpusStatus(descriptor.context);
+          else value = await validateCorpus(descriptor.context);
+          return {
+            corpusContext: descriptor.corpusContext,
+            ...(descriptor.corpusLinkName ? { corpusLinkName: descriptor.corpusLinkName } : {}),
+            ...canonicalizeResultFields(value, `corpus.${operation}`),
+          };
+        }));
+        result = selectedCorpora.length === 1
+          ? values[0]
+          : {
+              ...(operation === "validate" ? { valid: values.every((value) => value.valid) } : {}),
+              corpora: values,
+            };
+        resolved = undefined;
+      }
       break;
     }
     case "wiring": {
@@ -833,7 +945,9 @@ async function main(rawArgs = process.argv.slice(2)) {
       const policyGenerationRaw = takeOption(args, "--automatic-memory-policy-generation");
       const reason = takeOption(args, "--reason");
       const confirmDeletion = takeOption(args, "--confirm-current-tree-deletion", { boolean: true });
-      const selectedCorpora = await resolveCorpora(args, { allowMultiple: operation === "search" });
+      const selectedCorpora = await resolveCorpora(args, {
+        allowMultiple: ["list", "search", "read"].includes(operation),
+      });
       if (selectedCorpora.length === 1) [resolved] = selectedCorpora;
       requireNoArguments(args);
 
@@ -852,7 +966,8 @@ async function main(rawArgs = process.argv.slice(2)) {
         ) {
           throw errors.usage("concepts list accepts only --concept-type and corpus options");
         }
-        result = await listConcepts(resolved.context, { type: conceptType });
+        result = await listCorpora(selectedCorpora, { type: conceptType });
+        resolved = undefined;
       } else if (operation === "search") {
         if (
           !query ||
@@ -871,9 +986,8 @@ async function main(rawArgs = process.argv.slice(2)) {
           resultLimitRaw === undefined
             ? 10
             : parseInteger(resultLimitRaw, "--result-limit", { minimum: 1, maximum: 100 });
-        result = selectedCorpora.length === 1
-          ? await searchCorpus(resolved.context, query, { limit: resultLimit, includeDeprecated })
-          : await searchCorpora(selectedCorpora, query, { limit: resultLimit, includeDeprecated });
+        result = await searchCorpora(selectedCorpora, query, { limit: resultLimit, includeDeprecated });
+        resolved = undefined;
       } else if (operation === "read") {
         if (
           !conceptId ||
@@ -890,7 +1004,8 @@ async function main(rawArgs = process.argv.slice(2)) {
         ) {
           throw errors.usage("concepts read requires only --concept-id and corpus options");
         }
-        result = await readConcept(resolved.context, conceptId);
+        result = await readCorpora(selectedCorpora, conceptId);
+        resolved = undefined;
       } else if (operation === "write") {
         if (
           !conceptId ||
@@ -996,8 +1111,8 @@ async function main(rawArgs = process.argv.slice(2)) {
       const selectorValue = takeOption(args, "--source-selector-value");
       const gitRevision = takeOption(args, "--git-revision");
       resolved = await resolveCorpus(args);
-      if (resolved.corpusContext === "global") {
-        throw errors.usage("Source-file operations are unavailable in global memory context");
+      if (resolved.corpusContext === "global" || resolved.corpusContext === "linked") {
+        throw errors.usage("Source-file operations are unavailable in global or linked corpus context");
       }
       requireNoArguments(args);
 
@@ -1251,6 +1366,7 @@ async function main(rawArgs = process.argv.slice(2)) {
     outputFormat,
     operation: operationPath,
     corpusContext: resolved?.corpusContext,
+    corpusLinkName: resolved?.corpusLinkName,
     arrayProperty,
   });
   return ["corpus.validate", "corpus.repair-indexes"].includes(operationPath) && !result.valid ? 4 : 0;

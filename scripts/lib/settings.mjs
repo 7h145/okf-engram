@@ -28,10 +28,15 @@ function settingsPaths(context) {
 }
 
 function policyScope(context) {
-  return context.corpusContext === "global" ? "Global" : "Project";
+  if (context.corpusContext === "global") return "Global";
+  if (context.corpusContext === "linked") return "Linked";
+  return "Project";
 }
 
 function assertManagedCorpus(context, policyName = `${policyScope(context)} policy`) {
+  if (context.corpusContext === "linked") {
+    throw errors.usage(`${policyName} cannot mutate a linked corpus`);
+  }
   if (context.method === "explicit-bundle") {
     throw errors.usage(`${policyName} is unavailable for an explicit corpus bundle path`);
   }
@@ -210,14 +215,15 @@ export async function getSensitiveDataPolicyStatus(
   { tolerateInvalid = false, allowExplicitBundle = false } = {},
 ) {
   await assertInitialized(context);
-  if (context.method === "explicit-bundle") {
+  if (context.method === "explicit-bundle" || context.method === "linked-bundle") {
     if (!allowExplicitBundle) assertManagedCorpus(context, "Project sensitive-data policy");
     const state = defaultSettings(settingsPaths(context));
     return {
       ...publicSensitiveDataStatus(context, state),
+      ...(context.method === "linked-bundle" ? { knowledgeMode: "unknown" } : {}),
       previouslyUnguarded: "unknown",
       available: false,
-      issue: "Explicit corpus bundles do not inherit project sensitive-data policy",
+      issue: "Explicit corpus bundles do not inherit managed sensitive-data policy",
     };
   }
   try {
@@ -226,10 +232,14 @@ export async function getSensitiveDataPolicyStatus(
     if (!tolerateInvalid || !(error instanceof EngramError) || error.code !== "VALIDATION_ERROR") throw error;
     const paths = settingsPaths(context);
     return {
-      ...(context.corpusContext === "global" ? { dataHome: context.dataHome } : { projectRoot: context.projectRoot }),
+      ...(context.corpusContext === "global"
+        ? { dataHome: context.dataHome }
+        : context.projectRoot
+          ? { projectRoot: context.projectRoot }
+          : {}),
       settings: paths.logicalFile,
       sensitiveData: "deny",
-      knowledgeMode: "guarded",
+      knowledgeMode: context.corpusContext === "linked" ? "unknown" : "guarded",
       previouslyUnguarded: "unknown",
       configured: await pathExists(paths.file),
       valid: false,

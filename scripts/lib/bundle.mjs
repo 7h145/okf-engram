@@ -24,6 +24,27 @@ function isGlobalCorpus(context) {
   return context.corpusContext === "global";
 }
 
+function isLinkedCorpus(context) {
+  return context.corpusContext === "linked";
+}
+
+function assertWritableCorpus(context) {
+  if (isLinkedCorpus(context)) {
+    throw errors.usage(`Linked corpus @${context.corpusLinkName} is read-only`);
+  }
+}
+
+function corpusReference(descriptor) {
+  return {
+    corpusContext: descriptor.corpusContext,
+    ...(descriptor.corpusLinkName ? { corpusLinkName: descriptor.corpusLinkName } : {}),
+  };
+}
+
+function qualifyForCorpus(value, descriptor) {
+  return { ...value, ...corpusReference(descriptor) };
+}
+
 function globalProfileIssues(concepts) {
   const issues = [];
   const add = (item, code, message) => issues.push({
@@ -90,6 +111,7 @@ async function assertBundle(context) {
 }
 
 export async function initializeCorpus(context) {
+  assertWritableCorpus(context);
   if (isGlobalCorpus(context)) {
     await fs.mkdir(context.stateRoot, { recursive: true, mode: 0o700 });
     await fs.chmod(context.stateRoot, 0o700);
@@ -226,6 +248,7 @@ async function writeConceptLocked(
 }
 
 export async function writeConcept(context, id, draftText, options = {}) {
+  assertWritableCorpus(context);
   await assertBundle(context);
   const concept = parseConcept(draftText, options.source ?? "draft");
   assertValid(concept);
@@ -262,6 +285,49 @@ export async function searchCorpus(context, query, options = {}) {
   return { results: searchConcepts(query, concepts, options), issues };
 }
 
+export async function listCorpora(descriptors, options = {}) {
+  if (!Array.isArray(descriptors) || descriptors.length === 0) {
+    throw errors.usage("Cross-corpus listing requires at least one corpus descriptor");
+  }
+  const listed = await Promise.all(
+    descriptors.map(async (descriptor) => ({
+      ...descriptor,
+      list: await listConcepts(descriptor.context, options),
+    })),
+  );
+  return {
+    corpora: listed.map(corpusReference),
+    concepts: listed.flatMap((item) =>
+      item.list.concepts.map((concept) => qualifyForCorpus(concept, item)),
+    ),
+    issues: listed.flatMap((item) =>
+      item.list.issues.map((issue) => qualifyForCorpus(issue, item)),
+    ),
+  };
+}
+
+export async function readCorpora(descriptors, id) {
+  if (!Array.isArray(descriptors) || descriptors.length === 0) {
+    throw errors.usage("Cross-corpus read requires at least one corpus descriptor");
+  }
+  const matches = [];
+  for (const descriptor of descriptors) {
+    try {
+      matches.push({ descriptor, concept: await readConcept(descriptor.context, id) });
+    } catch (error) {
+      if (error?.code !== "NOT_FOUND") throw error;
+    }
+  }
+  if (!matches.length) throw errors.notFound(`Concept ${id} in the selected knowledge bases`);
+  if (matches.length > 1) {
+    throw errors.validation(`Concept ${id} is ambiguous across the selected knowledge bases`, {
+      conceptId: id,
+      matches: matches.map((item) => corpusReference(item.descriptor)),
+    });
+  }
+  return qualifyForCorpus(matches[0].concept, matches[0].descriptor);
+}
+
 export async function searchCorpora(descriptors, query, options = {}) {
   if (!Array.isArray(descriptors) || descriptors.length === 0) {
     throw errors.usage("Cross-corpus search requires at least one corpus descriptor");
@@ -275,7 +341,10 @@ export async function searchCorpora(descriptors, query, options = {}) {
     })),
   );
   const results = searched
-    .flatMap((item) => item.search.results.map((result) => ({ ...result, corpusContext: item.corpusContext, order: item.order })))
+    .flatMap((item) => item.search.results.map((result) => ({
+      ...qualifyForCorpus(result, item),
+      order: item.order,
+    })))
     .sort((left, right) => right.score - left.score || left.order - right.order || left.id.localeCompare(right.id))
     .slice(0, limit)
     .map((item) => {
@@ -284,10 +353,11 @@ export async function searchCorpora(descriptors, query, options = {}) {
       return result;
     });
   return {
+    corpora: searched.map(corpusReference),
     corpusContexts: searched.map((item) => item.corpusContext),
     results,
     issues: searched.flatMap((item) =>
-      item.search.issues.map((issue) => ({ ...issue, corpusContext: item.corpusContext })),
+      item.search.issues.map((issue) => qualifyForCorpus(issue, item)),
     ),
   };
 }
@@ -708,6 +778,7 @@ export async function inventorySources(context, id) {
 }
 
 export async function validateCorpus(context, { fix = false } = {}) {
+  if (fix) assertWritableCorpus(context);
   await assertBundle(context);
   const inspect = async () => {
     const { concepts, issues: scanIssues } = await scanBundle(context.bundle);
@@ -728,7 +799,7 @@ export async function validateCorpus(context, { fix = false } = {}) {
         message: `Generated index is ${reason}`,
       }),
     );
-    const sources = isGlobalCorpus(context) ? [] : await inspectSourceClaims(context);
+    const sources = isGlobalCorpus(context) || isLinkedCorpus(context) ? [] : await inspectSourceClaims(context);
     sources
       .filter((item) => item.state !== "unchanged")
       .forEach((item) =>
@@ -780,9 +851,9 @@ export async function inspectCorpusStatus(context) {
   const { concepts, issues } = await scanBundle(context.bundle);
   const profileIssues = isGlobalCorpus(context) ? globalProfileIssues(concepts) : [];
   const { drift, issues: indexIssues } = await indexDrift(concepts, context.bundle);
-  const git = isGlobalCorpus(context) ? undefined : await gitTrackingState(context);
-  const sources = isGlobalCorpus(context) ? [] : await inspectSourceClaims(context);
-  const automaticMemory = isGlobalCorpus(context)
+  const git = isGlobalCorpus(context) || isLinkedCorpus(context) ? undefined : await gitTrackingState(context);
+  const sources = isGlobalCorpus(context) || isLinkedCorpus(context) ? [] : await inspectSourceClaims(context);
+  const automaticMemory = isGlobalCorpus(context) || isLinkedCorpus(context)
     ? { available: false, automaticMemory: "off" }
     : await getAutomaticMemoryPolicyStatus(context, {
       tolerateInvalid: true,
@@ -801,7 +872,11 @@ export async function inspectCorpusStatus(context) {
   const byType = {};
   for (const item of concepts) byType[item.envelope.type] = (byType[item.envelope.type] ?? 0) + 1;
   return {
-    ...(isGlobalCorpus(context) ? { dataHome: context.dataHome } : { projectRoot: context.projectRoot }),
+    ...(isGlobalCorpus(context)
+      ? { dataHome: context.dataHome }
+      : context.projectRoot
+        ? { projectRoot: context.projectRoot }
+        : {}),
     logicalBundle: context.logicalBundle,
     bundle: context.bundle,
     concepts: concepts.length,
@@ -819,6 +894,7 @@ export async function inspectCorpusStatus(context) {
 }
 
 export async function deprecateConcept(context, id, { reason, expectedCurrentSha256 }) {
+  assertWritableCorpus(context);
   await assertBundle(context);
   if (!reason) throw errors.usage("deprecate requires --reason");
   return withBundleLock(context.bundle, async () => {
@@ -837,6 +913,7 @@ export async function deprecateConcept(context, id, { reason, expectedCurrentSha
 }
 
 export async function deleteConcept(context, id, { expectedCurrentSha256, confirmCurrentTreeDeletion = false }) {
+  assertWritableCorpus(context);
   await assertBundle(context);
   if (!confirmCurrentTreeDeletion)
     throw errors.confirmation(
