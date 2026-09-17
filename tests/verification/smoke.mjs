@@ -254,6 +254,41 @@ async function main() {
       throw new Error("packed M5 global-memory search failed");
     }
 
+    const linkedProject = path.join(root, "linked-project");
+    await fs.mkdir(linkedProject);
+    await run("npx", [
+      "--yes", "node@20.0.0", cli, "corpus", "initialize", "--corpus-context", "project",
+      "--project-root-path", linkedProject,
+    ]);
+    const linkedDraft = path.join(root, "linked-note.md");
+    await fs.writeFile(
+      linkedDraft,
+      "---\ntype: Note\ntitle: Linked verification\ndescription: Packed M6 linked-knowledge verification.\n---\n# Linked verification\n\nUse packed linked knowledge verification.\n",
+    );
+    await run("npx", [
+      "--yes", "node@20.0.0", cli, "concepts", "write", "--corpus-context", "project",
+      "--project-root-path", linkedProject, "--concept-id", "verification/linked",
+      "--document-file-path", linkedDraft,
+    ]);
+    await run("npx", [
+      "--yes", "node@20.0.0", cli, "corpus", "links", "add", "--corpus-context", "project",
+      "--project-root-path", project, "--link-name", "verification",
+      "--linked-corpus-path", linkedProject,
+    ], { env: globalEnvironment });
+    const linkedSearch = JSON.parse((await run("npx", [
+      "--yes", "node@20.0.0", cli, "concepts", "search",
+      "--linked-corpus-name", "verification", "--project-root-path", project,
+      "--query", "packed linked knowledge",
+    ], { env: globalEnvironment })).stdout);
+    if (
+      linkedSearch.corpora?.[0]?.corpusContext !== "linked" ||
+      linkedSearch.corpora?.[0]?.corpusLinkName !== "verification" ||
+      linkedSearch.results?.[0]?.corpusLinkName !== "verification" ||
+      linkedSearch.results?.[0]?.id !== "verification/linked"
+    ) {
+      throw new Error("packed M6 linked-knowledge search failed");
+    }
+
     const packageRoot = path.join(consumer, "node_modules", "okf-engram");
     await run("pi", ["install", packageRoot], { env: { PI_CODING_AGENT_DIR: agentDir } });
     const npmRoot = (await run("npm", ["root", "-g"])).stdout.trim();
@@ -328,6 +363,7 @@ async function main() {
         engineStrictInstall: true,
         wiring: true,
         globalMemory: true,
+        linkedKnowledge: true,
         piSkill: matchingSkills[0].name,
         piPrompt: matchingPrompts[0].name,
         promptArguments: true,
