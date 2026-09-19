@@ -213,8 +213,13 @@ async function resolveEntry(projectContext, link, { validate = true } = {}) {
     if (bundle === projectContext.bundle) {
       throw errors.validation("A project cannot link to its own corpus");
     }
-    const globalContext = await resolveGlobal();
-    if (bundle === globalContext.bundle) {
+    let globalContext;
+    try {
+      globalContext = await resolveGlobal();
+    } catch {
+      // An unavailable global location must not make an independently selected link unusable.
+    }
+    if (bundle === globalContext?.bundle) {
       throw errors.validation("A project cannot link to the fixed global corpus");
     }
     const context = withCorpusContext({

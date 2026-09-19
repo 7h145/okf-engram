@@ -161,6 +161,12 @@ test("M6 links lifecycle and context-qualified N-way reads stay read-only", asyn
   assert.equal(await fs.readFile(path.join(f.bundle(f.first), "index.md"), "utf8"), targetIndexBefore);
 
   result = await run([
+    "concepts", "search", ...linkedOptions(f.active, "shared"), "--query", "release",
+  ], { env: { XDG_DATA_HOME: "invalid-relative-xdg" } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).results[0].corpusLinkName, "shared");
+
+  result = await run([
     "corpus", "links", "remove", ...projectOptions(f.active), "--link-name", "shared",
   ], { env: f.env });
   assert.equal(result.code, 0, result.stderr);
