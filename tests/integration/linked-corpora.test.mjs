@@ -158,6 +158,21 @@ test("M6 links lifecycle and context-qualified N-way reads stay read-only", asyn
   ], { env: f.env });
   assert.equal(result.code, 2);
   assert.match(JSON.parse(result.stderr).message, /read-only/);
+
+  for (const args of [
+    ["corpus", "repair-indexes", ...linkedOptions(f.active, "shared")],
+    ["sources", "list", ...linkedOptions(f.active, "shared")],
+    ["wiring", "project", "status", ...linkedOptions(f.active, "shared")],
+    ["jobs", "list", ...linkedOptions(f.active, "shared")],
+    ["policy", "project", "sensitive-data", "status", ...linkedOptions(f.active, "shared")],
+    [
+      "knowledge", "ingest", ...linkedOptions(f.active, "shared"),
+      "--source-resource", "project:README.md",
+    ],
+  ]) {
+    result = await run(args, { env: f.env });
+    assert.equal(result.code, 2, `${args.join(" ")}\n${result.stderr}`);
+  }
   assert.equal(await fs.readFile(path.join(f.bundle(f.first), "index.md"), "utf8"), targetIndexBefore);
 
   result = await run([
