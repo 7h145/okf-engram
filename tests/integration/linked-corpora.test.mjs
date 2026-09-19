@@ -219,6 +219,31 @@ test("M6 follows a configured boundary symlink and reports broken or unsafe link
   assert.match(JSON.parse(result.stderr).message, /malformed or unsafe|Symlink/);
 });
 
+test("M6 rejects duplicate targets created by later symlink retargeting", async (t) => {
+  const f = await fixture(t);
+  const current = path.join(f.root, "current-knowledge");
+  await fs.symlink(f.second, current, "dir");
+  assert.equal((await addLink(f, "fixed", f.first)).code, 0);
+  assert.equal((await addLink(f, "current", current)).code, 0);
+
+  const replacement = path.join(f.root, "replacement-link");
+  await fs.symlink(f.first, replacement, "dir");
+  await fs.rename(replacement, current);
+
+  let result = await run(["corpus", "links", "list", ...projectOptions(f.active)], { env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  const links = JSON.parse(result.stdout).links;
+  assert.equal(links.find((link) => link.name === "fixed").available, false);
+  assert.equal(links.find((link) => link.name === "current").available, false);
+  assert.match(links.find((link) => link.name === "current").issue, /Duplicate canonical/);
+
+  result = await run([
+    "concepts", "search", ...linkedOptions(f.active, "current"), "--query", "anything",
+  ], { env: f.env });
+  assert.equal(result.code, 4);
+  assert.match(JSON.parse(result.stderr).message, /duplicate canonical target/);
+});
+
 test("M6 rejects self/global/duplicate targets, warns on privacy, and enforces 32 links", async (t) => {
   const f = await fixture(t);
   let result = await addLink(f, "self", f.active);

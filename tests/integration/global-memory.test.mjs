@@ -315,7 +315,7 @@ test("M5 N-capable search keeps contexts distinct, bounded, explicit, and fail-c
   ], { env: missing.env });
   assert.equal(result.code, 3);
   assert.match(JSON.parse(result.stderr).message, /not initialized/i);
-  assert.match(JSON.parse(result.stderr).message, /\/engram global init/);
+  assert.match(JSON.parse(result.stderr).message, /\/engram @G init/);
 });
 
 test("M5 global conditional writes share one lock and preserve index closure", async (t) => {

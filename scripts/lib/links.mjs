@@ -314,10 +314,11 @@ export async function addCorpusLink(projectContext, name, inputPath, { cwd = pro
   const configuredPath = path.resolve(cwd, inputPath);
   const identified = await identifyTarget(configuredPath);
   const candidate = { name, path: configuredPath, targetKind: identified.targetKind };
-  const { context } = await resolveEntry(projectContext, candidate);
+  await resolveEntry(projectContext, candidate);
 
   return withBundleLock(projectContext.bundle, async () => {
     const { paths, registry } = await readRegistry(projectContext);
+    const { context } = await resolveEntry(projectContext, candidate);
     if (registry.links.some((link) => link.name === name)) {
       throw errors.conflict(`Corpus link @${name} already exists`, { linkName: name });
     }
@@ -368,13 +369,39 @@ export async function removeCorpusLink(projectContext, name) {
 export async function resolveCorpusLinks(projectContext, names) {
   const { registry } = await readRegistry(projectContext);
   const byName = new Map(registry.links.map((link) => [link.name, link]));
-  const descriptors = [];
+  const requested = [];
   for (const name of names) {
     validateCorpusLinkName(name);
     const link = byName.get(name);
     if (!link) throw errors.notFound(`Corpus link @${name}`);
-    const { context } = await resolveEntry(projectContext, link);
-    descriptors.push({ context, corpusContext: "linked", corpusLinkName: name });
+    requested.push(link);
   }
-  return descriptors;
+
+  const resolvedByName = new Map();
+  const namesByBundle = new Map();
+  for (const link of registry.links) {
+    try {
+      const resolved = await resolveEntry(projectContext, link);
+      resolvedByName.set(link.name, resolved);
+      const aliases = namesByBundle.get(resolved.context.bundle) ?? [];
+      aliases.push(link.name);
+      namesByBundle.set(resolved.context.bundle, aliases);
+    } catch (error) {
+      if (names.includes(link.name)) throw error;
+      // An unrelated broken link remains visible but does not block selected links.
+    }
+  }
+
+  return requested.map((link) => {
+    const { context } = resolvedByName.get(link.name);
+    const aliases = namesByBundle.get(context.bundle);
+    if (aliases.length > 1) {
+      throw errors.validation(`Linked knowledge base @${link.name} has a duplicate canonical target`, {
+        linkName: link.name,
+        duplicateLinkNames: aliases.filter((name) => name !== link.name),
+        bundlePath: context.bundle,
+      });
+    }
+    return { context, corpusContext: "linked", corpusLinkName: link.name };
+  });
 }

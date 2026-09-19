@@ -12,7 +12,7 @@ export const errors = {
   usage: (message) => new EngramError(message, { code: "USAGE", exitCode: 2 }),
   notInitialized: (path, corpusContext = "project") =>
     new EngramError(
-      `Engram is not initialized at ${path}; run ${corpusContext === "global" ? "/engram global init" : "/engram init"}`,
+      `Engram is not initialized at ${path}; run ${corpusContext === "global" ? "/engram @G init" : "/engram init"}`,
       {
         code: "NOT_INITIALIZED",
         exitCode: 3,

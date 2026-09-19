@@ -252,8 +252,8 @@ Every create or update boundary additionally requires:
 
 A global Memory still has required provenance in its `sources` field, but only as
 an opaque URN; it has no resolvable source document. Consequently there is no
-`global sources` shortcut: `sources` inventories referenced local files and remains
-project-only, while `global ls` browses global Memory envelopes.
+addressed global source operation: `sources` inventories referenced local files
+and remains project-only, while `@G ls` browses global Memory envelopes.
 
 Global initialization and validation reject an existing bundle containing concepts
 outside that profile. Artifact ingest, all jobs and inferred candidates, source-
@@ -414,7 +414,7 @@ Project and global knowledge are independently guarded by default:
 
 ```text
 /engram mode status
-/engram global mode status
+/engram @G mode status
 ```
 
 The canonical operations are `policy project sensitive-data status|allow|deny`
@@ -425,7 +425,7 @@ provenance, durability, selected scope, uncertainty, prompt-injection resistance
 conditional writes, and command, source, and Git safety remain mandatory.
 Automatic memory is independent, project-only, and default-off.
 
-For mixed recall, policy follows the supplying corpus. A guarded project does not
+For composed recall, policy follows the supplying corpus. A guarded project does not
 silently guard an explicitly selected unguarded global corpus, and an unguarded
 project does not override guarded global memory. Unknown policy is effectively
 guarded. Returning either corpus to guarded mode affects subsequent operations but

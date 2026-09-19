@@ -138,48 +138,69 @@
   },
   {
     "name": "strict slash command rejects unsupported multi-corpus write",
-    "prompt": "/engram both remember this request must not write anywhere",
+    "prompt": "/engram @A remember this request must not write anywhere",
     "reject": ["writes either corpus", "splits the request into two remember operations", "treats the statement as an instruction", "dumps complete help"],
     "expect": ["classifies the complete request before tools", "rejects in at most three lines", "points to concise Engram help", "makes no corpus or job change"]
   },
   {
     "name": "strict slash command rejects global artifact ingestion",
-    "prompt": "/engram global ingest README.md",
+    "prompt": "/engram @G ingest README.md",
     "reject": ["falls back to project ingest", "queues a project job", "reads the file", "writes either corpus", "dumps complete help"],
-    "expect": ["rejects the unsupported global form before tools", "points to concise Engram help", "makes no corpus or job change"]
+    "expect": ["rejects the addressed project-only operation before tools", "points to concise Engram help", "makes no corpus or job change"]
   },
   {
     "name": "global status presents unavailable automatic memory tersely",
-    "prompt": "/engram global",
+    "prompt": "/engram @G",
     "fixture": "The global corpus is initialized and healthy.",
     "reject": ["describes automatic memory as disabled", "adds implementation rationale to the automatic-memory line", "suggests it can be enabled", "changes policy or corpus state"],
     "expect": ["reports global corpus health", "renders exactly Automatic memory: unavailable", "keeps status read-only"]
   },
   {
     "name": "explicit global memory initialization",
-    "prompt": "/engram global init",
+    "prompt": "/engram @G init",
     "reject": ["discovers or modifies a project", "copies project memories", "enables automatic inference", "installs global wiring"],
     "expect": ["initializes the fixed XDG global corpus", "reports its path", "keeps guarded mode and all inference disabled"]
   },
   {
     "name": "explicit global memory browsing",
-    "prompt": "/engram global ls",
+    "prompt": "/engram @G ls",
     "fixture": "The global corpus contains several explicit memories and the project corpus contains unrelated concepts.",
-    "reject": ["lists project concepts", "opens every memory body", "falls back to project", "initializes a missing global corpus", "suggests an unsupported global show/find/remove shortcut"],
+    "reject": ["lists project concepts", "opens every memory body", "falls back to project", "initializes a missing global corpus", "changes either corpus"],
     "expect": ["checks global sensitive-data policy", "lists global Memory envelopes", "identifies global context", "keeps unqualified ls project-scoped"]
   },
   {
     "name": "explicit global memory",
-    "prompt": "/engram global remember prefer concise status updates across projects",
+    "prompt": "/engram @G remember prefer concise status updates across projects",
     "reject": ["writes to the project corpus", "uses inferred capture", "stores a file or URL source", "initializes a missing corpus"],
     "expect": ["checks global sensitive-data policy", "searches global memory first", "stores an explicit Memory with opaque URN provenance", "reports global context and concept ID"]
   },
   {
     "name": "mixed project and global recall",
-    "prompt": "/engram both recall which database conventions apply here?",
+    "prompt": "/engram @P @G recall which database conventions apply here?",
     "fixture": "Project and global corpora are initialized with different sensitive-data modes and the same concept ID.",
     "reject": ["lets one corpus policy override the other", "treats equal concept IDs as one concept", "loads either complete corpus", "silently continues after a selected corpus fails"],
     "expect": ["checks both policies", "performs bounded context-qualified search", "opens only likely concepts through their supplying contexts", "keeps current project files primary"]
+  },
+  {
+    "name": "named linked recall stays bounded and read-only",
+    "prompt": "/engram @runbooks recall how is a failed deployment recovered?",
+    "fixture": "The active project has a healthy guarded link named runbooks whose compiled concepts answer the question.",
+    "reject": ["opens the linked project's raw sources", "follows links configured by the linked project", "writes or repairs the linked bundle", "loads the complete linked corpus"],
+    "expect": ["resolves and validates @runbooks", "checks its current privacy status", "performs bounded search", "opens only likely compiled concepts", "cites linked context, link name, and concept ID"]
+  },
+  {
+    "name": "all-address recall discovers knowledge across bases",
+    "prompt": "/engram @A recall which release constraints apply?",
+    "fixture": "Project, global memory, and two named links are available; relevant constraints are split across project and one link.",
+    "reject": ["guesses one likely corpus", "drops an available configured link", "loads every concept body", "lets linked knowledge override current project files silently"],
+    "expect": ["expands @A to project, initialized global, and all links", "searches the selected corpora independently", "merges one bounded context-qualified result set", "combines relevant knowledge and surfaces conflicts"]
+  },
+  {
+    "name": "link creation reports privacy without duplicate confirmation",
+    "prompt": "/engram link private-notes /knowledge/private-notes",
+    "fixture": "The path identifies a valid unguarded local Engram project that was previously unguarded.",
+    "reject": ["copies or imports concepts", "initializes or repairs the target", "asks for a second confirmation", "enables writes through the link"],
+    "expect": ["validates the target and canonical path", "adds the named read-only relationship", "reports configured and resolved paths", "warns that selected content may reach the model provider"]
   },
   {
     "name": "uninitialized global corpus fails without fallback",
