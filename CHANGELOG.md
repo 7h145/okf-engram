@@ -10,7 +10,9 @@
   recall across project, global, and named linked corpora with context/link labels.
 - Replace the pre-1.0 `global`/`both` human grammar with composable knowledge-base
   addresses: `@project`/`@P`, `@global`/`@G`, `@NAME`, `@linked`/`@L`, and
-  `@all`/`@A`.
+  `@all`/`@A`. Deterministic aggregate read sets make `@A` omit uninitialized
+  global memory while retaining every configured link, including unavailable links
+  that must fail visibly rather than silently degrading retrieval.
 
 ## 0.2.1 — 2026-09-14
 

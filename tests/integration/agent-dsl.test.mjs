@@ -63,6 +63,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /--corpus-context project\|global/);
   assert.match(result.stdout, /corpus links add/);
   assert.match(result.stdout, /--linked-corpus-name NAME/);
+  assert.match(result.stdout, /--corpus-read-set all\|linked/);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
   assert.doesNotMatch(result.stdout, /\b(?:put|flush|check-sources|capture-source)\b/);
@@ -117,15 +118,17 @@ test("Pi prompt keeps only a proven pre-activation guard over portable routing",
   const skill = await fs.readFile(path.join(repository, "SKILL.md"), "utf8");
   assert.ok(Buffer.byteLength(prompt) < 896, "Pi prompt must remain a thin adapter");
   assert.match(prompt, /argument-hint: "\[request\]"/);
-  assert.match(prompt, /Before skill activation or tools/);
-  assert.match(prompt, /exact short built-ins are `@P`, `@G`, `@L`, and `@A`/);
-  assert.match(prompt, /long built-ins\s+are `@project`, `@global`, `@linked`, and `@all`/);
-  assert.match(prompt, /`@A`\/`@all` must be the only address/);
-  assert.match(prompt, /reject obsolete leading `global` or `both` forms/);
-  assert.match(prompt, /Respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
-  assert.match(prompt, /Otherwise activate and follow `okf-engram`/i);
-  assert.match(prompt, /apply its \*\*Strict request preflight\*\*\s+and routing table/i);
-  assert.match(prompt, /`SKILL\.md` is normative; this repeats only the thin Pi guard/);
+  assert.match(prompt, /Before tools/);
+  assert.match(prompt, /aliases\s+`@P\|@G\|@L\|@A`/);
+  assert.match(prompt, /long forms `@project\|@global\|@linked\|@all`/);
+  assert.match(prompt, /`@A` maps to `--corpus-read-set all`/);
+  assert.match(prompt, /global\s+only when initialized, and every configured link/);
+  assert.match(prompt, /Never add an absent global or omit an unavailable/);
+  assert.match(prompt, /obsolete\s+leading `global` or `both`/);
+  assert.match(prompt, /respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/i);
+  assert.match(prompt, /Otherwise activate `okf-engram`/i);
+  assert.match(prompt, /follow its \*\*Strict request preflight\*\* and routing table/i);
+  assert.match(prompt, /`SKILL\.md` is normative; this is only the thin pre-activation Pi guard/);
   assert.match(prompt, /Engram request:\s+\$ARGUMENTS/);
   assert.doesNotMatch(prompt, /\$\{ARGUMENTS\}/);
   assert.doesNotMatch(prompt, /concepts search|corpus status|project-only|current project working directory|user purpose/);
@@ -152,15 +155,18 @@ test("Pi prompt keeps only a proven pre-activation guard over portable routing",
   assert.match(skill, /\| `sources` \| `sources list --corpus-context project` \|/);
   assert.match(skill, /\| `inventory` \| `sources inventory --corpus-context project` \|/);
   assert.match(skill, /\| `\[@P\\\|@G\] remove CONCEPT_ID` \| guided selected `concepts delete/);
-  assert.match(skill, /\| `\[ADDR\.\.\.\] ls` \| composed `concepts list` \|/);
+  assert.match(skill, /\| `\[ADDR\.\.\.\] ls` \| selected\/composed `concepts list`/);
   assert.match(skill, /\| `\[@P\\\|@G\] remember STATEMENT` \| selected `memory remember/);
   assert.match(skill, /\| `link NAME PATH` \| `corpus links add/);
   assert.match(skill, /classify its complete\s+argument string against the routing table below before making any tool call/);
   assert.match(skill, /matching prefix is not a route/);
   assert.match(skill, /`@all`\/`@A` must be the only address/);
+  assert.match(skill, /maps to `--corpus-read-set all`/);
+  assert.match(skill, /An absent\s+global corpus is not a member of `@all`/);
+  assert.match(skill, /Every\s+configured link remains a member of `@linked` and `@all`/);
   assert.match(skill, /Do not\s+read or write a corpus, enqueue a job/);
   assert.match(skill, /Respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
-  assert.match(skill, /never silently continue with another corpus/);
+  assert.match(skill, /Never silently drop an\s+explicit selection or configured link/);
   assert.match(skill, /mandatory two-turn\s+confirmation/);
   assert.match(skill, /Reject an unknown slash command with concise help/);
 });
@@ -281,6 +287,13 @@ test("semantic DSL operations validate typed grammar but require the active skil
   assert.match(parseError(result).message, /semantic skill operation/);
 
   result = await run(["knowledge", "ingest", "--corpus-context", "project", "--source-resource", "project:README.md"]);
+  assert.equal(result.code, 2);
+  assert.match(parseError(result).message, /semantic skill operation/);
+
+  result = await run([
+    "memory", "recall", "--corpus-read-set", "all",
+    "--recall-question", "Which knowledge bases contain the answer?",
+  ]);
   assert.equal(result.code, 2);
   assert.match(parseError(result).message, /semantic skill operation/);
 

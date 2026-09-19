@@ -229,6 +229,16 @@ async function main() {
 
     const xdgDataHome = path.join(root, "xdg-data");
     const globalEnvironment = { XDG_DATA_HOME: xdgDataHome };
+    const coldAll = JSON.parse((await run("npx", [
+      "--yes", "node@20.0.0", cli, "concepts", "list", "--corpus-read-set", "all",
+      "--project-root-path", project,
+    ], { env: globalEnvironment })).stdout);
+    if (
+      coldAll.corpora?.length !== 1 ||
+      coldAll.corpora[0]?.corpusContext !== "project"
+    ) {
+      throw new Error("packed aggregate read set did not omit uninitialized global memory");
+    }
     await run("npx", [
       "--yes", "node@20.0.0", cli, "corpus", "initialize", "--corpus-context", "global",
     ], { env: globalEnvironment });
@@ -287,6 +297,17 @@ async function main() {
       linkedSearch.results?.[0]?.id !== "verification/linked"
     ) {
       throw new Error("packed M6 linked-knowledge search failed");
+    }
+    const aggregateSearch = JSON.parse((await run("npx", [
+      "--yes", "node@20.0.0", cli, "concepts", "search", "--corpus-read-set", "all",
+      "--project-root-path", project, "--query", "packed linked knowledge",
+    ], { env: globalEnvironment })).stdout);
+    if (
+      aggregateSearch.corpora?.map((item) => item.corpusContext).join(",") !==
+        "project,global,linked" ||
+      aggregateSearch.results?.[0]?.corpusLinkName !== "verification"
+    ) {
+      throw new Error("packed aggregate project/global/linked search failed");
     }
 
     const packageRoot = path.join(consumer, "node_modules", "okf-engram");

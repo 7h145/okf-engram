@@ -286,8 +286,8 @@ export async function searchCorpus(context, query, options = {}) {
 }
 
 export async function listCorpora(descriptors, options = {}) {
-  if (!Array.isArray(descriptors) || descriptors.length === 0) {
-    throw errors.usage("Cross-corpus listing requires at least one corpus descriptor");
+  if (!Array.isArray(descriptors)) {
+    throw errors.usage("Cross-corpus listing requires corpus descriptors");
   }
   const listed = await Promise.all(
     descriptors.map(async (descriptor) => ({
@@ -307,8 +307,8 @@ export async function listCorpora(descriptors, options = {}) {
 }
 
 export async function readCorpora(descriptors, id) {
-  if (!Array.isArray(descriptors) || descriptors.length === 0) {
-    throw errors.usage("Cross-corpus read requires at least one corpus descriptor");
+  if (!Array.isArray(descriptors)) {
+    throw errors.usage("Cross-corpus read requires corpus descriptors");
   }
   const matches = [];
   for (const descriptor of descriptors) {
@@ -329,8 +329,8 @@ export async function readCorpora(descriptors, id) {
 }
 
 export async function searchCorpora(descriptors, query, options = {}) {
-  if (!Array.isArray(descriptors) || descriptors.length === 0) {
-    throw errors.usage("Cross-corpus search requires at least one corpus descriptor");
+  if (!Array.isArray(descriptors)) {
+    throw errors.usage("Cross-corpus search requires corpus descriptors");
   }
   const limit = options.limit ?? 10;
   const searched = await Promise.all(

@@ -182,6 +182,13 @@
     "expect": ["checks both policies", "performs bounded context-qualified search", "opens only likely concepts through their supplying contexts", "keeps current project files primary"]
   },
   {
+    "name": "all aggregate omits uninitialized global without dropping links",
+    "prompt": "/engram @A ls",
+    "fixture": "The project corpus and one configured link are healthy; global memory has never been initialized.",
+    "reject": ["selects the absent global corpus", "initializes global memory", "fails with a global NOT_INITIALIZED error", "omits the configured link"],
+    "expect": ["uses the deterministic all read set", "lists context-qualified project and linked envelopes", "keeps an explicit @G selection fail-closed"]
+  },
+  {
     "name": "named linked recall stays bounded and read-only",
     "prompt": "/engram @runbooks recall how is a failed deployment recovered?",
     "fixture": "The active project has a healthy guarded link named runbooks whose compiled concepts answer the question.",

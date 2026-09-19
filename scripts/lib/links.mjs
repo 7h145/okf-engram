@@ -371,6 +371,11 @@ export async function removeCorpusLink(projectContext, name) {
   });
 }
 
+export async function configuredCorpusLinkNames(projectContext) {
+  const { registry } = await readRegistry(projectContext);
+  return registry.links.map((link) => link.name);
+}
+
 export async function resolveCorpusLinks(projectContext, names) {
   const { registry } = await readRegistry(projectContext);
   const byName = new Map(registry.links.map((link) => [link.name, link]));

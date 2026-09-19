@@ -23,6 +23,7 @@ import { EngramError, errors } from "./lib/errors.mjs";
 import { VERSION } from "./lib/constants.mjs";
 import {
   addCorpusLink,
+  configuredCorpusLinkNames,
   listCorpusLinks,
   removeCorpusLink,
   resolveCorpusLinks,
@@ -70,7 +71,7 @@ No address means this project. Prefix knowledge work with:
   @G or @global        global memory
   @NAME                one linked knowledge base
   @L or @linked        every link
-  @A or @all           project, initialized global memory, and every link
+  @A or @all           project, global memory when initialized, and every link
 Repeat addresses for a read subset, for example: /engram @P @docs recall QUESTION
 
 Common work:
@@ -118,8 +119,11 @@ Operation kinds:
 Corpus — the OKF knowledge aggregate: location, health, validation, indexes, and links.
   [D] corpus initialize       --corpus-context CONTEXT
   [D] corpus locate           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
+                              [--corpus-read-set all|linked]
   [D] corpus status           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
+                              [--corpus-read-set all|linked]
   [D] corpus validate         --corpus-context CONTEXT... [--linked-corpus-name NAME]...
+                              [--corpus-read-set all|linked]
   [D] corpus repair-indexes   --corpus-context CONTEXT
   [D] corpus links list       --corpus-context project
   [D] corpus links add        --corpus-context project --link-name NAME
@@ -136,17 +140,21 @@ Memory — semantic remembering and selective retrieval from corpora.
                               --memory-statement TEXT
   [S] memory recall           --corpus-context CONTEXT...
                               [--linked-corpus-name NAME]...
+                              [--corpus-read-set all|linked]
                               --recall-question TEXT
 
 Concepts — deterministic operations on individual OKF concept documents.
   [D] concepts list           --corpus-context CONTEXT...
-                              [--linked-corpus-name NAME]... [--concept-type TYPE]
+                              [--linked-corpus-name NAME]...
+                              [--corpus-read-set all|linked] [--concept-type TYPE]
   [D] concepts search         --corpus-context CONTEXT...
                               [--linked-corpus-name NAME]...
+                              [--corpus-read-set all|linked]
                               --query TEXT [--result-limit INTEGER]
                               [--include-deprecated]
   [D] concepts read           --corpus-context CONTEXT...
-                              [--linked-corpus-name NAME]... --concept-id ID
+                              [--linked-corpus-name NAME]...
+                              [--corpus-read-set all|linked] --concept-id ID
   [D] concepts write          --corpus-context CONTEXT --concept-id ID
                               --document-file-path PATH
                               [--expected-current-sha256 SHA256]
@@ -245,6 +253,10 @@ Context and output:
   --linked-corpus-name NAME
       Select a project-configured read-only corpus link; knowledge reads may repeat it.
       Link selection uses the active project registry and accepts --project-root-path.
+  --corpus-read-set all|linked
+      Deterministic aggregate selection, mutually exclusive with explicit selectors.
+      all includes project, global only when initialized, and every configured link;
+      linked includes every configured link. Unavailable configured links still fail.
   --project-root-path PATH
       Resolve project context from an explicit project root; invalid for global-only operations.
   --corpus-bundle-path PATH
@@ -329,9 +341,36 @@ async function resolveCorpora(
 ) {
   const corpusContexts = takeOptions(args, "--corpus-context");
   const corpusLinkNames = takeOptions(args, "--linked-corpus-name");
+  const corpusReadSet = takeOption(args, "--corpus-read-set");
   const projectRootPath = takeOption(args, "--project-root-path");
   const corpusBundlePath = takeOption(args, "--corpus-bundle-path");
   const selectedCount = corpusContexts.length + corpusLinkNames.length;
+
+  if (corpusReadSet !== undefined) {
+    if (!allowMultiple) {
+      throw errors.usage("--corpus-read-set is available only for composable read operations");
+    }
+    if (!new Set(["all", "linked"]).has(corpusReadSet)) {
+      throw errors.usage("--corpus-read-set must be all or linked");
+    }
+    if (selectedCount || corpusBundlePath !== undefined) {
+      throw errors.usage(
+        "--corpus-read-set is mutually exclusive with explicit corpus, link, and bundle selection",
+      );
+    }
+    const projectContext = await resolveProject({ projectRoot: projectRootPath });
+    const descriptors = [];
+    if (corpusReadSet === "all") {
+      descriptors.push({ corpusContext: "project", context: projectContext });
+      const globalContext = await resolveGlobal();
+      if (globalContext.initialized) {
+        descriptors.push({ corpusContext: "global", context: globalContext });
+      }
+    }
+    const names = await configuredCorpusLinkNames(projectContext);
+    descriptors.push(...await resolveCorpusLinks(projectContext, names));
+    return descriptors;
+  }
 
   if (corpusBundlePath !== undefined) {
     if (!allowBundleOverride) {
@@ -788,11 +827,12 @@ async function main(rawArgs = process.argv.slice(2)) {
       operation = requireOperation(args, domain, ["remember", "recall"]);
       const corpusContexts = takeOptions(args, "--corpus-context");
       const corpusLinkNames = takeOptions(args, "--linked-corpus-name");
+      const corpusReadSet = takeOption(args, "--corpus-read-set");
       const projectRootPath = takeOption(args, "--project-root-path");
-      const selectedCount = corpusContexts.length + corpusLinkNames.length;
+      const selectedCount = corpusContexts.length + corpusLinkNames.length + (corpusReadSet ? 1 : 0);
       if (operation === "remember") {
         const statement = takeOption(args, "--memory-statement");
-        if (selectedCount !== 1 || corpusLinkNames.length || !statement) {
+        if (selectedCount !== 1 || corpusLinkNames.length || corpusReadSet || !statement) {
           throw errors.usage(
             "memory remember requires one writable --corpus-context and --memory-statement",
           );
@@ -806,9 +846,11 @@ async function main(rawArgs = process.argv.slice(2)) {
         }
         if (
           new Set(corpusContexts).size !== corpusContexts.length ||
-          new Set(corpusLinkNames).size !== corpusLinkNames.length
+          new Set(corpusLinkNames).size !== corpusLinkNames.length ||
+          (corpusReadSet && !new Set(["all", "linked"]).has(corpusReadSet)) ||
+          (corpusReadSet && selectedCount !== 1)
         ) {
-          throw errors.usage("memory recall corpus selections must be unique");
+          throw errors.usage("memory recall corpus selections must be unique and non-conflicting");
         }
       }
       if (corpusContexts.some((value) => !["project", "global"].includes(value))) {

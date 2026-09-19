@@ -119,10 +119,13 @@ Every canonical operation identifies its built-in or linked selection:
 ```text
 --corpus-context project|global
 --linked-corpus-name NAME
+--corpus-read-set all|linked
 ```
 
-Read operations may repeat either option; mutations select one writable project or
-global context and reject links. Unsupported, uninitialized, malformed, or
+Read operations may repeat the first two options. The aggregate read-set option is
+mutually exclusive and deterministically expands the human `@all`/`@A` and
+`@linked`/`@L` addresses. Mutations select one writable project or global context
+and reject links and aggregate sets. Unsupported, uninitialized, malformed, or
 inaccessible selections fail without fallback. `--project-root-path PATH` selects
 a project root and its link registry explicitly and is invalid for a global-only
 operation. Without explicit project selection, the agent
@@ -162,8 +165,11 @@ cover the duplicate with parity and model controls.
 
 The human grammar uses optional leading knowledge-base addresses. No address means
 project; `@project`/`@P`, `@global`/`@G`, `@NAME`, `@linked`/`@L`, and `@all`/`@A`
-select built-ins, one link, every link, or every available knowledge base. Repeated
-addresses select a read subset. The old `global` and `both` prefixes are removed.
+select built-ins, one link, every configured link, or the aggregate all set.
+Repeated addresses select an explicit read subset. `all` always contains project,
+contains global only when initialized, and contains every configured link. An
+unavailable configured link fails either aggregate rather than disappearing. The
+old `global` and `both` prefixes are removed.
 `remove CONCEPT_ID` is the sole destructive human shortcut; it accepts exactly one
 project/global address, warns about current-tree-only deletion, asks for yes/no in
 a separate turn, re-reads the concept, and deletes only at the displayed SHA-256.
@@ -225,7 +231,9 @@ score, requested-context order, and concept ID for stable ordering before the to
 limit is applied. Every result includes `corpusContext`; linked results also include
 `corpusLinkName`. Equal concept IDs in separate contexts or links remain distinct.
 Any selected-context failure aborts the operation rather than returning a partial
-fallback. Deprecated concepts are excluded by default.
+fallback. Aggregate `all` does not select global when it is uninitialized, but it
+does select every configured link, so a broken link still aborts visibly.
+Deprecated concepts are excluded by default.
 Generated indexes and private state are not searched as concepts.
 
 Before a semantic write, the agent searches for related knowledge and integrates

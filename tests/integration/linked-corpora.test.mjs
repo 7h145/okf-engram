@@ -192,6 +192,63 @@ test("M6 links lifecycle and context-qualified N-way reads stay read-only", asyn
   assert.equal(result.code, 7);
 });
 
+test("M6 aggregate read sets omit absent global but retain configured links", async (t) => {
+  const f = await fixture(t);
+  await writeConcept(f, f.active, "project/only", "Project knowledge", "Project-only answer.");
+  await writeConcept(f, f.first, "linked/only", "Linked knowledge", "Linked-only answer.");
+  assert.equal((await addLink(f, "shared", f.first)).code, 0);
+
+  let result = await run([
+    "concepts", "list", "--corpus-read-set", "all", "--project-root-path", f.active,
+  ], { env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  let output = JSON.parse(result.stdout);
+  assert.deepEqual(output.corpora, [
+    { corpusContext: "project" },
+    { corpusContext: "linked", corpusLinkName: "shared" },
+  ]);
+  assert.deepEqual(output.concepts.map((concept) => concept.corpusContext), ["project", "linked"]);
+
+  result = await run([
+    "concepts", "search", "--corpus-read-set", "linked", "--project-root-path", f.active,
+    "--query", "Linked-only",
+  ], { env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  output = JSON.parse(result.stdout);
+  assert.deepEqual(output.corpora, [{ corpusContext: "linked", corpusLinkName: "shared" }]);
+  assert.equal(output.results[0].corpusLinkName, "shared");
+
+  result = await run([
+    "concepts", "list", "--corpus-context", "global",
+  ], { env: f.env });
+  assert.equal(result.code, 3);
+  assert.match(JSON.parse(result.stderr).message, /@G init/);
+
+  result = await run([
+    "concepts", "list", "--corpus-read-set", "all", "--corpus-context", "project",
+    "--project-root-path", f.active,
+  ], { env: f.env });
+  assert.equal(result.code, 2);
+  assert.match(JSON.parse(result.stderr).message, /mutually exclusive/);
+
+  await fs.rm(f.first, { recursive: true });
+  for (const readSet of ["all", "linked"]) {
+    result = await run([
+      "concepts", "search", "--corpus-read-set", readSet, "--project-root-path", f.active,
+      "--query", "anything",
+    ], { env: f.env });
+    assert.equal(result.code, 4);
+    assert.match(JSON.parse(result.stderr).message, /@shared is unavailable/);
+  }
+
+  const empty = await fixture(t);
+  result = await run([
+    "concepts", "list", "--corpus-read-set", "linked", "--project-root-path", empty.active,
+  ], { env: empty.env });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { corpora: [], concepts: [], issues: [] });
+});
+
 test("M6 follows a configured boundary symlink and reports broken or unsafe links", async (t) => {
   const f = await fixture(t);
   await writeConcept(f, f.first, "deployment/first", "First deployment", "Blue deployment knowledge.");

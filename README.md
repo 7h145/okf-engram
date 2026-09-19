@@ -185,7 +185,10 @@ means the current project:
 
 The long forms are `@project`, `@global`, `@linked`, and `@all`; the typing
 shortcuts are `@P`, `@G`, `@L`, and `@A`. A named link uses its own address, and
-repeated addresses form an explicit read subset.
+repeated addresses form an explicit read subset. `@A` always includes the project,
+includes global memory only when initialized, and includes every configured link;
+`@L` includes every configured link. An unavailable configured link fails visibly
+instead of being omitted from either aggregate.
 
 Link an already-compiled local Engram project or bundle without copying it:
 
