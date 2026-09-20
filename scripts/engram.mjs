@@ -106,7 +106,7 @@ Setup and policy:
   /engram help — this help
 
 Commands are strict. Linked knowledge is always read-only.
-See /engram --help for the complete agent interface.`;
+See /engram --help for the complete agent interface and exit-code map.`;
 
 const AGENT_HELP = `okf-engram ${VERSION} — canonical agent DSL
 
@@ -275,8 +275,14 @@ Context and output:
   --output-format json|text
       Deterministic operations default to JSON. Text uses concise operation views
       or YAML for direct debugging; it never silently falls back to JSON.
-      Failures use the selected stderr format without raw stack traces; unexpected
-      runtime failures return bounded INTERNAL_ERROR with exit 1.
+      Failures use the selected stderr format without raw stack traces.
+
+Exit codes:
+  1 INTERNAL_ERROR; 2 USAGE; 3 NOT_INITIALIZED; 4 validation-class;
+  5 WRITE_CONFLICT; 6 LOCK_TIMEOUT; 7 NOT_FOUND; 8 CONFIRMATION_REQUIRED;
+  9 UNSAFE_PATH; 10 PERSISTED_INDEX_STALE; 11 ADAPTER_BRIDGE_INCOMPATIBLE.
+  Validation-class errors include VALIDATION_ERROR, WIRING_*, and
+  AUTOMATIC_MEMORY_DISABLED. Parse the structured error field for the exact code.
 
 Unknown commands, positional identifiers, obsolete command forms, ambiguous
 options, and unsupported context combinations are rejected.`;

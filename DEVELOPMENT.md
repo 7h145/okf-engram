@@ -154,10 +154,28 @@ Helper output defaults to bounded JSON. Use `--output-format text` only for dire
 debugging. Text mode uses concise operation-specific views where defined and YAML
 for other structured results; it never silently emits JSON. Aggregate corpus
 location text renders every selected corpus separately. Expected failures use the
-selected format on stderr with stable codes and no stack trace. An unclassified
-runtime failure is bounded to `INTERNAL_ERROR` with exit 1 and an optional safe OS
-cause code; raw exception messages, paths, and stacks are not exposed. Run the
-complete generated reference with:
+selected format on stderr with stable codes and no stack trace. The deterministic
+helper exit-code contract is:
+
+| Exit | Error code/class |
+|---:|---|
+| 1 | `INTERNAL_ERROR` |
+| 2 | `USAGE` |
+| 3 | `NOT_INITIALIZED` |
+| 4 | validation class: `VALIDATION_ERROR`, `WIRING_*`, or `AUTOMATIC_MEMORY_DISABLED` |
+| 5 | `WRITE_CONFLICT` |
+| 6 | `LOCK_TIMEOUT` |
+| 7 | `NOT_FOUND` |
+| 8 | `CONFIRMATION_REQUIRED` |
+| 9 | `UNSAFE_PATH` |
+| 10 | `PERSISTED_INDEX_STALE` |
+| 11 | `ADAPTER_BRIDGE_INCOMPATIBLE` |
+
+Machine consumers must parse the structured `error` field for the exact code,
+particularly within exit 4. An unclassified runtime failure is bounded to
+`INTERNAL_ERROR` with exit 1 and an optional safe OS cause code; raw exception
+messages, paths, and stacks are not exposed. Run the complete generated reference
+with:
 
 ```bash
 node scripts/engram.mjs --help

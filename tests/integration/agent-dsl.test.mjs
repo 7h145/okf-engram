@@ -74,6 +74,22 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /exact, case-sensitive, open OKF value/i);
   assert.match(result.stdout, /explicit external, non-portable local-file locator/i);
   assert.match(result.stdout, /guarded mode governs retained knowledge/i);
+  for (const [exitCode, errorCode] of [
+    [1, "INTERNAL_ERROR"],
+    [2, "USAGE"],
+    [3, "NOT_INITIALIZED"],
+    [5, "WRITE_CONFLICT"],
+    [6, "LOCK_TIMEOUT"],
+    [7, "NOT_FOUND"],
+    [8, "CONFIRMATION_REQUIRED"],
+    [9, "UNSAFE_PATH"],
+    [10, "PERSISTED_INDEX_STALE"],
+    [11, "ADAPTER_BRIDGE_INCOMPATIBLE"],
+  ]) {
+    assert.match(result.stdout, new RegExp(`\\b${exitCode} ${errorCode}\\b`));
+  }
+  assert.match(result.stdout, /4 validation-class/);
+  assert.match(result.stdout, /VALIDATION_ERROR, WIRING_\*, and\s+AUTOMATIC_MEMORY_DISABLED/);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
   assert.doesNotMatch(result.stdout, /\b(?:put|flush|check-sources|capture-source)\b/);
@@ -119,7 +135,7 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.match(result.stdout, /show CONCEPT_ID — show one unambiguous concept/);
   assert.match(result.stdout, /\/engram \[@P\|@G\] init/);
   assert.match(result.stdout, /Commands are strict/);
-  assert.match(result.stdout, /See \/engram --help for the complete agent interface\./);
+  assert.match(result.stdout, /See \/engram --help for the complete agent interface and exit-code map\./);
   assert.doesNotMatch(result.stdout, /\bforget\b/i);
 });
 

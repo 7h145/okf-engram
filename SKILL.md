@@ -80,8 +80,13 @@ node <skill-dir>/scripts/engram.mjs <domain> <operation> [descriptive-long-optio
 Helper operations default to bounded JSON output. Add `--output-format text` only
 for direct debugging; it uses concise operation-specific views where defined and
 YAML for other structured results rather than silently returning JSON. Failures
-use the selected format on stderr without raw stack traces; an unexpected runtime
-failure is a bounded `INTERNAL_ERROR` with exit 1. Canonical built-in and linked
+use the selected format on stderr without raw stack traces. Deterministic helper
+exit codes are: `1 INTERNAL_ERROR`, `2 USAGE`, `3 NOT_INITIALIZED`, `4`
+validation-class, `5 WRITE_CONFLICT`, `6 LOCK_TIMEOUT`, `7 NOT_FOUND`,
+`8 CONFIRMATION_REQUIRED`, `9 UNSAFE_PATH`, `10 PERSISTED_INDEX_STALE`, and
+`11 ADAPTER_BRIDGE_INCOMPATIBLE`. Validation-class errors include
+`VALIDATION_ERROR`, `WIRING_*`, and `AUTOMATIC_MEMORY_DISABLED`; parse the
+structured `error` field for the exact code. Canonical built-in and linked
 selections use:
 
 ```text

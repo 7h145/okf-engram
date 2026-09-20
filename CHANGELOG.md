@@ -20,6 +20,8 @@
   than source access.
 - Document `--concept-type` as an exact, case-sensitive filter over OKF's open type
   values, where unknown or mismatched values validly produce an empty result.
+- Publish the deterministic helper's complete exit-code map in agent help and the
+  portable/contributor contracts, including the shared validation-class status.
 
 ## 0.3.0 — 2026-09-20
 
