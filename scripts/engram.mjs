@@ -119,7 +119,7 @@ Operation kinds:
 
 Corpus — the OKF knowledge aggregate: location, health, validation, indexes, and links.
   [D] corpus initialize       --corpus-context CONTEXT
-      Creates a missing adjacent read-only discovery README; never overwrites one.
+      Managed project/global init creates a missing adjacent discovery README.
   [D] corpus locate           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
                               [--corpus-read-set all|linked]
   [D] corpus status           --corpus-context CONTEXT... [--linked-corpus-name NAME]...

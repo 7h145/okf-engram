@@ -74,7 +74,7 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /exact, case-sensitive, open OKF value/i);
   assert.match(result.stdout, /explicit external, non-portable local-file locator/i);
   assert.match(result.stdout, /guarded mode governs retained knowledge/i);
-  assert.match(result.stdout, /missing adjacent read-only discovery README/i);
+  assert.match(result.stdout, /managed project\/global init creates a missing adjacent discovery README/i);
   for (const [exitCode, errorCode] of [
     [1, "INTERNAL_ERROR"],
     [2, "USAGE"],

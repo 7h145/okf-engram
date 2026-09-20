@@ -168,6 +168,22 @@ test("initialization creates a read-only discovery guide without treating it as 
   assert.equal((await fs.stat(readme)).isDirectory(), true);
 });
 
+test("expert bundle initialization does not create documentation in an arbitrary parent", async (t) => {
+  const root = await tempProject(t, "engram expert discovery boundary ");
+  const bundle = path.join(root, "external-okf");
+  const readme = path.join(root, "README.md");
+
+  const result = await run(["corpus", "initialize", "--corpus-bundle-path", bundle]);
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.corpusContext, "explicit-bundle");
+  assert.equal(output.created, true);
+  assert.equal(output.readmeCreated, undefined);
+  assert.equal(output.readmeFilePath, undefined);
+  await assert.rejects(() => fs.access(readme));
+  assert.equal((await fs.stat(path.join(bundle, "index.md"))).isFile(), true);
+});
+
 test("R2 generated index updates preserve root metadata and surrounding user text", async (t) => {
   const root = await tempProject(t);
   const { bundle } = paths(root);

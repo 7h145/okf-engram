@@ -153,8 +153,10 @@ Digests identify the exact source bytes, while selectors are navigation hints.
 The compiled concept remains useful when its source cannot be reopened.
 `;
 
-async function ensureDiscoveryReadme(bundle) {
-  const readmeFile = path.join(path.dirname(bundle), "README.md");
+async function ensureDiscoveryReadme(context) {
+  if (context.method === "explicit-bundle") return {};
+  if (!(context.corpusContext === "project" || context.corpusContext === "global")) return {};
+  const readmeFile = path.join(path.dirname(context.bundle), "README.md");
   try {
     await fs.lstat(readmeFile);
     return { readmeFile, readmeCreated: false };
@@ -208,7 +210,7 @@ export async function initializeCorpus(context) {
       }
       return {
         created: false,
-        ...await ensureDiscoveryReadme(context.bundle),
+        ...await ensureDiscoveryReadme(context),
         ...(isGlobalCorpus(context)
           ? { dataHome: context.dataHome, logicalStateRoot: context.logicalStateRoot, stateRoot: context.stateRoot }
           : { projectRoot: context.projectRoot }),
@@ -220,7 +222,7 @@ export async function initializeCorpus(context) {
     await writeIndexes(concepts, context.bundle);
     return {
       created: true,
-      ...await ensureDiscoveryReadme(context.bundle),
+      ...await ensureDiscoveryReadme(context),
       ...(isGlobalCorpus(context)
         ? { dataHome: context.dataHome, logicalStateRoot: context.logicalStateRoot, stateRoot: context.stateRoot }
         : { projectRoot: context.projectRoot }),

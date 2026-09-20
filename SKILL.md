@@ -263,10 +263,12 @@ node <skill-dir>/scripts/engram.mjs corpus initialize \
   --corpus-context global
 ```
 
-Initialization creates a concise read-only discovery `README.md` beside the
-selected `bundle/` when absent, so an agent without Engram can recognize and read
-the OKF knowledge base. It never reads or overwrites an existing path there, and
-the README is not corpus content. Initialization does not alter Git,
+Managed project/global initialization creates a concise read-only discovery
+`README.md` beside the selected `bundle/` when absent, so an agent without Engram
+can recognize and read the OKF knowledge base. It never reads or overwrites an
+existing path there, and the README is not corpus content. Expert
+`--corpus-bundle-path` initialization does not write outside the selected bundle.
+Initialization does not alter Git,
 `.gitignore`, `AGENTS.md`, automatic-memory policy, or sensitive-data policy. It
 may suggest the separate `/engram wire` command afterward.
 

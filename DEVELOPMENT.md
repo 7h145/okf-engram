@@ -215,13 +215,16 @@ a separate turn, re-reads the concept, and deletes only at the displayed SHA-256
 
 ## Initialization and project wiring
 
-Initialization creates exactly one selected bundle after explicit user intent. It
-also creates a mode-0600 `README.md` beside `bundle/` when that path is absent. The
-discovery guide identifies the OKF corpus, preferred Engram reader, direct read-
+Initialization creates exactly one selected bundle after explicit user intent.
+Managed project/global initialization also creates a mode-0600 `README.md` beside
+`bundle/` when that path is absent. The discovery guide identifies the OKF corpus,
+preferred Engram reader, direct read-
 only workflow, trust boundary, and compact `sources:` convention. It is outside
 the corpus, has no effect on validation or retrieval, and any existing file,
 directory, or symlink at that path is preserved without reading or overwriting it.
-Initialization reports `readmeFilePath` and `readmeCreated` in structured output.
+Managed initialization reports `readmeFilePath` and `readmeCreated` in structured
+output. Expert `--corpus-bundle-path` initialization mutates only the selected
+bundle and does not create documentation in its arbitrary parent directory.
 
 Initialization does not alter Git, `.gitignore`, `AGENTS.md`, automatic-memory
 policy, or sensitive-data policy. Global initialization creates its state root and

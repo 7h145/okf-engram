@@ -22,9 +22,9 @@
   values, where unknown or mismatched values validly produce an empty result.
 - Publish the deterministic helper's complete exit-code map in agent help and the
   portable/contributor contracts, including the shared validation-class status.
-- Create a non-overwriting discovery README beside initialized bundles so agents
-  without Engram can consume the OKF knowledge base safely as a read-only Markdown
-  wiki and understand the compact `sources:` provenance convention.
+- Create a non-overwriting discovery README beside initialized managed bundles so
+  agents without Engram can consume the OKF knowledge base safely as a read-only
+  Markdown wiki and understand the compact `sources:` provenance convention.
 
 ## 0.3.0 — 2026-09-20
 
