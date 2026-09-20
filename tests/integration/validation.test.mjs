@@ -149,6 +149,20 @@ test("R4 type-only OKF concepts remain consumable while Engram-authored puts sta
   assert.equal(JSON.parse(result.stdout).concepts.find((item) => item.id === "minimal").title, "minimal");
 
   result = await run([
+    "concepts", "list", "--concept-type", "Note",
+    "--corpus-context", "project", "--project-root-path", root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).concepts.some((item) => item.id === "minimal"), true);
+
+  result = await run([
+    "concepts", "list", "--concept-type", "note",
+    "--corpus-context", "project", "--project-root-path", root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).concepts, []);
+
+  result = await run([
     "concepts",
     "search",
     "--query",

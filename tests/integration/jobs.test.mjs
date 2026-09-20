@@ -286,6 +286,13 @@ test("M3a enqueue writes a bounded private capsule outside the OKF bundle and de
 
   const oversized = await enqueue(root, ["--ingest-instruction", "x".repeat(4_001)]);
   assert.equal(oversized.code, 4);
+
+  const unsupported = await enqueue(root, ["--source-resource", "https://example.invalid/source"]);
+  assert.equal(unsupported.code, 4);
+  const unsupportedError = JSON.parse(unsupported.stderr);
+  assert.match(unsupportedError.message, /project-contained/);
+  assert.match(unsupportedError.message, /explicit external local file/);
+  assert.doesNotMatch(unsupportedError.message, /bounded project: or file:/);
 });
 
 test("large artifact batches expose one running job and ordered waiting work under one queue runner", async (t) => {

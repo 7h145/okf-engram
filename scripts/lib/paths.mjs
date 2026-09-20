@@ -5,6 +5,13 @@ import { errors } from "./errors.mjs";
 
 const MAX_PATH_COMPONENT_BYTES = 255;
 const CONCEPT_FILE_SUFFIX_BYTES = Buffer.byteLength(".md", "utf8");
+// write-file-atomic v5 appends "." plus an unsigned 32-bit decimal hash to the
+// destination basename. Reserve its ten-digit maximum so every accepted concept
+// ID remains writable through the atomic path rather than failing at fs.open().
+const ATOMIC_TEMP_SUFFIX_MAX_BYTES = Buffer.byteLength(".4294967295", "utf8");
+const MAX_CONCEPT_BASENAME_BYTES = MAX_PATH_COMPONENT_BYTES
+  - CONCEPT_FILE_SUFFIX_BYTES
+  - ATOMIC_TEMP_SUFFIX_MAX_BYTES;
 
 export function validateConceptId(id) {
   if (typeof id !== "string" || id.length === 0 || id.includes("\0")) {
@@ -26,7 +33,7 @@ export function validateConceptId(id) {
     || windowsDevice.test(part)
     || Buffer.byteLength(part, "utf8") > (
       index === parts.length - 1
-        ? MAX_PATH_COMPONENT_BYTES - CONCEPT_FILE_SUFFIX_BYTES
+        ? MAX_CONCEPT_BASENAME_BYTES
         : MAX_PATH_COMPONENT_BYTES
     )
   ));

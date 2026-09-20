@@ -15,7 +15,9 @@ Every concept document has:
 - a Markdown body;
 - `generated: { by, at }`, normalized by the helper.
 
-Unknown types and fields are accepted and preserved.
+Unknown types and fields are accepted and preserved. Type filtering is therefore
+exact and case-sensitive rather than enum validation or case canonicalization; an
+unmatched type filter returns no concepts.
 
 ## Memory extension
 
@@ -45,9 +47,16 @@ Unknown fields are otherwise preserved.
 Engram recognizes:
 
 - `project:path/to/file` for a project-relative artifact;
-- `file:///absolute/path` for an external local artifact;
+- `file:///absolute/path` for an explicitly selected external local artifact;
 - normal URLs;
 - `urn:okf-engram:conversation:<id>` for conversation evidence.
+
+`project:` is contained by the project root after symlink resolution. `file:` is
+deliberately absolute, may resolve anywhere readable by the current OS user, and
+is non-portable; it is not a project sandbox. Exact capture preserves selected
+source bytes without redaction. Guarded mode governs retained knowledge rather
+than source-file access, and selected bytes may reach the configured model during
+semantic compilation.
 
 Local sources may carry the additive field `digest: sha256:<hex>`. Material
 sources should have a unique `id` used by nearby Markdown footnotes. They may

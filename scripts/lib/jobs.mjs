@@ -548,7 +548,9 @@ function validateArtifactResources(resources, maximum) {
       resource.length > 2_048 ||
       !(resource.startsWith("project:") || resource.startsWith("file:"))
     ) {
-      throw errors.validation("queued ingest resources must be bounded project: or file: locators");
+      throw errors.validation(
+        "queued ingest resources must be at most 2048 characters and use project: (project-contained) or file: (explicit external local file) locators",
+      );
     }
   }
 }

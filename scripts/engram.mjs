@@ -148,6 +148,7 @@ Concepts — deterministic operations on individual OKF concept documents.
   [D] concepts list           --corpus-context CONTEXT...
                               [--linked-corpus-name NAME]...
                               [--corpus-read-set all|linked] [--concept-type TYPE]
+      TYPE is an exact, case-sensitive, open OKF value (for example Concept or Memory).
   [D] concepts search         --corpus-context CONTEXT...
                               [--linked-corpus-name NAME]...
                               [--corpus-read-set all|linked]
@@ -181,6 +182,10 @@ Sources — project/explicit-bundle evidence capture, reopening, and freshness c
   [D] sources list            --corpus-context CONTEXT [--concept-id ID]
   [D] sources check           --corpus-context CONTEXT [--concept-id ID]
   [D] sources inventory       --corpus-context CONTEXT [--concept-id ID]
+      project:PATH is contained by the project root. file:///ABSOLUTE/PATH is an
+      explicit external, non-portable local-file locator and may be outside it.
+      Capture preserves exact selected bytes; guarded mode governs retained knowledge,
+      not source-file access or deterministic redaction.
 
 Jobs — durable lifecycle management for deferred semantic work.
   [D] jobs enqueue artifact-ingest

@@ -11,8 +11,15 @@
   results now use YAML instead of silently returning JSON, and aggregate corpus
   location renders each selected knowledge base without `undefined` fields.
 - Preserve bounded error output for filesystem boundary failures: account for the
-  `.md` suffix in concept-ID limits, validate explicit project roots, and sanitize
-  unexpected runtime errors instead of exposing raw stack traces.
+  `.md` and atomic-write temporary suffixes in concept-ID limits, validate explicit
+  project roots, and sanitize unexpected runtime errors instead of exposing raw
+  stack traces.
+- Clarify local-source trust boundaries: `project:` is project-contained, while
+  `file:` deliberately selects an external non-portable file; exact capture does
+  not redact selected bytes, and guarded mode governs retained knowledge rather
+  than source access.
+- Document `--concept-type` as an exact, case-sensitive filter over OKF's open type
+  values, where unknown or mismatched values validly produce an empty result.
 
 ## 0.3.0 — 2026-09-20
 

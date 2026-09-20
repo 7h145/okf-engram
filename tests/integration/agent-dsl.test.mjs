@@ -71,6 +71,9 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /corpus links add/);
   assert.match(result.stdout, /--linked-corpus-name NAME/);
   assert.match(result.stdout, /--corpus-read-set all\|linked/);
+  assert.match(result.stdout, /exact, case-sensitive, open OKF value/i);
+  assert.match(result.stdout, /explicit external, non-portable local-file locator/i);
+  assert.match(result.stdout, /guarded mode governs retained knowledge/i);
   assert.doesNotMatch(result.stdout, / \| /);
   assert.match(result.stdout, /unsupported context combinations are rejected/);
   assert.doesNotMatch(result.stdout, /\b(?:put|flush|check-sources|capture-source)\b/);
@@ -280,12 +283,26 @@ test("filesystem input failures preserve bounded error output", async (t) => {
   const bundle = path.join(root, ".agents", "data", "okf-engram", "bundle");
   const bundleEntriesBefore = (await fs.readdir(bundle)).sort();
   result = await run([
-    "concepts", "write", "--concept-id", "b".repeat(253),
+    "concepts", "write", "--concept-id", "b".repeat(242),
     "--document-file-path", draft, ...projectCorpus(root),
   ]);
   assert.equal(result.code, 9);
   assertBoundedJsonError(result, "UNSAFE_PATH");
   assert.deepEqual((await fs.readdir(bundle)).sort(), bundleEntriesBefore);
+
+  // os.tmpdir() is a FUSE mount with NAME_MAX=251 in the boxed test harness.
+  // Exercise the documented 255-byte component boundary on the repository
+  // filesystem, matching normal project filesystems and the validator contract.
+  const boundaryRoot = await fs.mkdtemp(path.join(repository, ".engram-boundary-test-"));
+  t.after(() => fs.rm(boundaryRoot, { recursive: true, force: true }));
+  result = await run(["corpus", "initialize", ...projectCorpus(boundaryRoot)]);
+  assert.equal(result.code, 0, result.stderr);
+  result = await run([
+    "concepts", "write", "--concept-id", "b".repeat(241),
+    "--document-file-path", draft, ...projectCorpus(boundaryRoot),
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).id, "b".repeat(241));
 });
 
 test("canonical helper output defaults to contextual JSON with explicit text as an opt-in", async (t) => {

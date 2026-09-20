@@ -245,7 +245,10 @@ source provenance, job lifecycle, recovery behavior, and test setup.
 Engram stores project knowledge as plaintext. Concepts may be versioned, backed
 up, read by tools, or sent to your configured model provider when relevant. The
 default guarded mode tells the model not to retain sensitive data, but this is a
-content policy rather than encryption, access control, or a secrets vault.
+content policy rather than encryption, access control, source-file redaction, or a
+secrets vault. Source artifacts explicitly selected for compilation may reach the
+configured model so it can extract relevant knowledge; prefer project-contained
+paths, and treat an absolute `file:` locator as a deliberate external-file choice.
 
 Automatic memory is a separate project opt-in and defaults off. When enabled, the
 active skill may notice and queue a useful memory candidate; it may also miss one.
