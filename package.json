@@ -1,6 +1,6 @@
 {
   "name": "okf-engram",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Project, global, and linked knowledge as agent-maintained OKF bundles",
   "author": "thias <github.attic@typedef.net>",
   "contributors": [

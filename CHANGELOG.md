@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-09-20
+
 - Add M6 named read-only links to existing local Engram/OKF knowledge bases, with
   explicit lifecycle, a 32-link project-private registry, boundary-symlink
   retargeting, canonical deduplication, target validation, privacy visibility, and
