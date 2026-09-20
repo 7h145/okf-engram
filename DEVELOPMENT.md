@@ -48,7 +48,7 @@ a shared package installation.
 
 ```text
 SKILL.md                         normative semantic and safety contract
-prompts/engram.md                Pi /engram prompt alias
+prompts/engram.md                Pi /engram activation and argument-forwarding shim
 scripts/engram.mjs               deterministic CLI entry point
 scripts/lib/                     storage, policy, source, and job mechanics
 references/okf-profile.md        Engram's OKF v0.2 profile
@@ -155,13 +155,19 @@ Ordinary natural language remains available outside the slash grammar.
 `/engram help` returns the bounded human summary; `/engram --help` returns the
 complete agent interface.
 
-Harness-specific configuration must remain a thin adapter. Duplicating portable
-product grammar, safety policy, or workflows in a client prompt is unnecessary
-feature creep and an anti-pattern; normative behavior belongs in `SKILL.md`, while
-hard enforcement belongs in deterministic helper and storage boundaries. A client
-adapter may repeat only a narrow pre-activation guard when dogfood demonstrates
-that the client otherwise crosses that boundary; keep the skill authoritative and
-cover the duplicate with parity and model controls.
+Harness-specific configuration is transport, not a product-policy layer. A client
+invocation shim may register the command, identify the request as strict, activate
+`SKILL.md` before tools, and forward the exact arguments. It must not parse
+addresses, expand aliases or aggregate sets, choose contexts, duplicate rejection
+rules, or restate safety policy and workflows. Normative behavior belongs in the
+portable skill; hard enforcement belongs in deterministic helper and storage
+boundaries.
+
+If a client cannot reliably activate the skill and forward opaque arguments, treat
+that as a compatibility defect and test it explicitly rather than growing a second
+client-local grammar. Contract tests should keep the shim bounded, prove exact
+argument forwarding, and reject product command forms or canonical options in the
+shim itself.
 
 The human grammar uses optional leading knowledge-base addresses. No address means
 project; `@project`/`@P`, `@global`/`@G`, `@NAME`, `@linked`/`@L`, and `@all`/`@A`

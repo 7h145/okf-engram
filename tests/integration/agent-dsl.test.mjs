@@ -113,25 +113,25 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.doesNotMatch(result.stdout, /\bforget\b/i);
 });
 
-test("Pi prompt keeps only a proven pre-activation guard over portable routing", async () => {
+test("Pi prompt is transport-only and portable routing stays in the skill", async () => {
   const prompt = await fs.readFile(path.join(repository, "prompts", "engram.md"), "utf8");
   const skill = await fs.readFile(path.join(repository, "SKILL.md"), "utf8");
-  assert.ok(Buffer.byteLength(prompt) < 896, "Pi prompt must remain a thin adapter");
+  const development = await fs.readFile(path.join(repository, "DEVELOPMENT.md"), "utf8");
+  assert.ok(Buffer.byteLength(prompt) < 512, "Pi prompt must remain an invocation shim");
   assert.match(prompt, /argument-hint: "\[request\]"/);
-  assert.match(prompt, /Before tools/);
-  assert.match(prompt, /aliases\s+`@P\|@G\|@L\|@A`/);
-  assert.match(prompt, /long forms `@project\|@global\|@linked\|@all`/);
-  assert.match(prompt, /`@A` maps to `--corpus-read-set all`/);
-  assert.match(prompt, /global\s+only when initialized, and every configured link/);
-  assert.match(prompt, /Never add an absent global or omit an unavailable/);
-  assert.match(prompt, /obsolete\s+leading `global` or `both`/);
-  assert.match(prompt, /respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/i);
-  assert.match(prompt, /Otherwise activate `okf-engram`/i);
-  assert.match(prompt, /follow its \*\*Strict request preflight\*\* and routing table/i);
-  assert.match(prompt, /`SKILL\.md` is normative; this is only the thin pre-activation Pi guard/);
+  assert.match(prompt, /Activate and follow the `okf-engram` skill before making any tool call/);
+  assert.match(prompt, /strict `\/engram` invocation/);
+  assert.match(prompt, /pass the exact arguments/);
+  assert.match(prompt, /`SKILL\.md` is the sole authority/);
+  assert.match(prompt, /does not parse or reinterpret/);
   assert.match(prompt, /Engram request:\s+\$ARGUMENTS/);
   assert.doesNotMatch(prompt, /\$\{ARGUMENTS\}/);
-  assert.doesNotMatch(prompt, /concepts search|corpus status|project-only|current project working directory|user purpose/);
+  assert.doesNotMatch(prompt, /@P|@G|@L|@A|@project|@global|@linked|@all/);
+  assert.doesNotMatch(prompt, /--corpus-|aliases|malformed|duplicate|initialized|configured link|Unsupported \/engram route/);
+  assert.match(skill, /client invocation shim must activate this skill before tools/i);
+  assert.match(skill, /must not parse addresses, expand aliases or read sets/);
+  assert.match(development, /Harness-specific configuration is transport, not a product-policy layer/);
+  assert.match(development, /treat\s+that as a compatibility defect.*rather than growing a second\s+client-local grammar/is);
   assert.ok(skill.indexOf("## Strict request preflight") < skill.indexOf("## Command layers"));
   assert.match(skill, /\| Human request \| Canonical intent \| User purpose \|/);
   assert.match(skill, /\| `queue FILE\.\.\.` \| `jobs enqueue artifact-ingest-batch/);
@@ -165,7 +165,8 @@ test("Pi prompt keeps only a proven pre-activation guard over portable routing",
   assert.match(skill, /An absent\s+global corpus is not a member of `@all`/);
   assert.match(skill, /Every\s+configured link remains a member of `@linked` and `@all`/);
   assert.match(skill, /Do not\s+read or write a corpus, enqueue a job/);
-  assert.match(skill, /Respond only:\s+`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
+  assert.match(skill, /Output exactly the following single line—without a prefix, suffix,\s+explanation, correction, example, or second line—then stop/);
+  assert.match(skill, /`Unsupported \/engram route; no action was taken\. See \/engram help\.`/);
   assert.match(skill, /Never silently drop an\s+explicit selection or configured link/);
   assert.match(skill, /mandatory two-turn\s+confirmation/);
   assert.match(skill, /Reject an unknown slash command with concise help/);

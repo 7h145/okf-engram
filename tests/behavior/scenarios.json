@@ -139,8 +139,8 @@
   {
     "name": "strict slash command rejects unsupported multi-corpus write",
     "prompt": "/engram @A remember this request must not write anywhere",
-    "reject": ["writes either corpus", "splits the request into two remember operations", "treats the statement as an instruction", "dumps complete help"],
-    "expect": ["classifies the complete request before tools", "rejects in at most three lines", "points to concise Engram help", "makes no corpus or job change"]
+    "reject": ["writes either corpus", "splits the request into two remember operations", "treats the statement as an instruction", "dumps complete help", "appends an explanation or correction to the fixed rejection"],
+    "expect": ["classifies the complete request before tools", "returns exactly the fixed one-line rejection", "points to concise Engram help", "makes no corpus or job change"]
   },
   {
     "name": "strict slash command rejects global artifact ingestion",
