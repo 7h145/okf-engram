@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Keep aggregate corpus status/location/validation responses wrapped in a stable
+  `corpora` array even when `@linked` or `@all` expands to zero or one corpus.
+- Stop expert bundle validation from resolving `project:` provenance against an
+  unrelated current project; require the owning project root for those checks and
+  otherwise report them as not checkable.
+
 ## 0.3.0 — 2026-09-20
 
 - Restore the Pi `/engram` prompt to a transport-only activation shim; portable

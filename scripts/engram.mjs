@@ -257,11 +257,15 @@ Context and output:
       Deterministic aggregate selection, mutually exclusive with explicit selectors.
       all includes project, global only when initialized, and every configured link;
       linked includes every configured link. Unavailable configured links still fail.
+      Aggregate corpus operations always return a corpora array, including for 0 or 1 result.
   --project-root-path PATH
       Resolve project context from an explicit project root; invalid for global-only operations.
+      With an expert bundle override, identify the owning root for project: source checks.
   --corpus-bundle-path PATH
-      Deterministic expert override, mutually exclusive with --corpus-context.
-      It never inherits project automatic-memory or sensitive-data policy.
+      Deterministic expert override, mutually exclusive with managed corpus/link selection.
+      It never inherits project automatic-memory or sensitive-data policy. If it is not the
+      current project's managed bundle and no owning project root is given, project: sources
+      are reported as not checkable instead of being resolved against the current directory.
   --output-format json|text
       Deterministic operations default to JSON; text is for direct debugging.
 
@@ -897,6 +901,7 @@ async function main(rawArgs = process.argv.slice(2)) {
 
       operation = corpusOperation;
       const allowMultiple = ["locate", "status", "validate"].includes(operation);
+      const aggregateReadSet = args.includes("--corpus-read-set");
       const selectedCorpora = await resolveCorpora(args, { allowMultiple });
       if (selectedCorpora.length === 1) [resolved] = selectedCorpora;
       requireNoArguments(args);
@@ -914,7 +919,7 @@ async function main(rawArgs = process.argv.slice(2)) {
             ...canonicalizeResultFields(value, `corpus.${operation}`),
           };
         }));
-        result = selectedCorpora.length === 1
+        result = !aggregateReadSet && selectedCorpora.length === 1
           ? values[0]
           : {
               ...(operation === "validate" ? { valid: values.every((value) => value.valid) } : {}),

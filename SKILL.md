@@ -88,14 +88,19 @@ for direct debugging. Canonical built-in and linked selections use:
 
 Repeat the first two options for an explicit read set. The aggregate read-set
 option is mutually exclusive with them and deterministically implements `@all` or
-`@linked`. Mutations select exactly one project or global
-context; every linked mutation is rejected. `--project-root-path <path>` optionally
+`@linked`. Aggregate corpus operations always return a `corpora` array, including
+for an empty or singleton expansion; explicit singleton selection remains flat.
+Mutations select exactly one project or global context; every linked mutation is
+rejected. `--project-root-path <path>` optionally
 selects the project that owns both its primary corpus and link registry. It is
 invalid for global-only operations. Global memory resolves independently at
 `${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/`; `XDG_DATA_HOME`, when set,
 must be absolute. The deterministic expert override `--corpus-bundle-path <path>`
 is mutually exclusive with managed corpus and link selection and does not inherit
-managed policy. No operation falls back between knowledge bases.
+managed policy. For an override outside the current project's managed bundle,
+pass the owning `--project-root-path <path>` to check `project:` sources. Without
+it, those checks are reported as unavailable rather than resolved against an
+unrelated current project. No operation falls back between knowledge bases.
 
 Unless the user explicitly selects another project root, preserve the agent
 client's current project working directory and let the helper discover its

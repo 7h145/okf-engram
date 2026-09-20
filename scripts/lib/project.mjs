@@ -50,6 +50,15 @@ function withCorpusContext(context, corpusContext) {
   return context;
 }
 
+function withProjectSourceResolution(context, available) {
+  Object.defineProperty(context, "projectSourceRootAvailable", {
+    value: available,
+    enumerable: false,
+    writable: false,
+  });
+  return context;
+}
+
 export async function resolveGlobal(options = {}) {
   const environment = options.env ?? process.env;
   const configuredDataHome = environment.XDG_DATA_HOME;
@@ -109,15 +118,19 @@ export async function resolveProject(options = {}) {
 
   if (options.bundle) {
     const logicalBundle = path.resolve(cwd, options.bundle);
-    return withCorpusContext({
-      projectRoot: options.projectRoot
-        ? await fs.realpath(path.resolve(cwd, options.projectRoot))
-        : await gitRoot(cwd) ?? await fs.realpath(cwd),
+    const bundle = await realpathOrResolved(logicalBundle);
+    const explicitProjectRoot = options.projectRoot
+      ? await fs.realpath(path.resolve(cwd, options.projectRoot))
+      : undefined;
+    const projectRoot = explicitProjectRoot ?? await gitRoot(cwd) ?? await fs.realpath(cwd);
+    const defaultProjectBundle = await realpathOrResolved(defaultBundle(projectRoot));
+    return withProjectSourceResolution(withCorpusContext({
+      projectRoot,
       logicalBundle,
-      bundle: await realpathOrResolved(logicalBundle),
+      bundle,
       method: "explicit-bundle",
       initialized: await pathExists(logicalBundle),
-    }, "project");
+    }, "project"), Boolean(explicitProjectRoot) || bundle === defaultProjectBundle);
   }
 
   if (options.projectRoot) {

@@ -124,17 +124,24 @@ Every canonical operation identifies its built-in or linked selection:
 
 Read operations may repeat the first two options. The aggregate read-set option is
 mutually exclusive and deterministically expands the human `@all`/`@A` and
-`@linked`/`@L` addresses. Mutations select one writable project or global context
-and reject links and aggregate sets. Unsupported, uninitialized, malformed, or
-inaccessible selections fail without fallback. `--project-root-path PATH` selects
+`@linked`/`@L` addresses. Aggregate `corpus locate|status|validate` output always
+uses a `corpora` array, including when expansion selects zero or one corpus;
+explicit singleton selection retains the flat contextual result. Mutations select
+one writable project or global context and reject links and aggregate sets.
+Unsupported, uninitialized, malformed, or inaccessible selections fail without
+fallback. `--project-root-path PATH` selects
 a project root and its link registry explicitly and is invalid for a global-only
 operation. Without explicit project selection, the agent
 preserves the client project cwd and discovers its containing Git worktree; it
 must not change to an agent configuration or skill-installation directory. Global
 resolution does no project discovery: it uses an absolute `XDG_DATA_HOME` when
 set, otherwise `~/.local/share`. The deterministic expert override
-`--corpus-bundle-path PATH` is mutually exclusive with `--corpus-context` and does
-not inherit managed policy.
+`--corpus-bundle-path PATH` is mutually exclusive with managed corpus/link
+selection and does not inherit managed policy. When the override is not the
+current project's managed bundle, pass its owning `--project-root-path PATH` to
+check `project:` source freshness and Git identity. Without that owner context,
+those checks are reported once as unavailable and individual claims are
+`not-checkable`; they are never resolved against an unrelated current project.
 
 Knowledge reads accept one or more project, global, and named linked descriptors.
 Search, listing, and exact reads remain context-qualified; an exact read across a

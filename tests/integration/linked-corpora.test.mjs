@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -247,6 +248,80 @@ test("M6 aggregate read sets omit absent global but retain configured links", as
   ], { env: empty.env });
   assert.equal(result.code, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), { corpora: [], concepts: [], issues: [] });
+
+  result = await run([
+    "corpus", "status", "--corpus-read-set", "linked", "--project-root-path", empty.active,
+  ], { env: empty.env });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { corpora: [] });
+
+  result = await run([
+    "corpus", "status", "--corpus-read-set", "all", "--project-root-path", empty.active,
+  ], { env: empty.env });
+  assert.equal(result.code, 0, result.stderr);
+  output = JSON.parse(result.stdout);
+  assert.equal(output.corpora.length, 1);
+  assert.equal(output.corpora[0].corpusContext, "project");
+
+  assert.equal((await addLink(empty, "shared", empty.first)).code, 0);
+  result = await run([
+    "corpus", "status", "--corpus-read-set", "linked", "--project-root-path", empty.active,
+  ], { env: empty.env });
+  assert.equal(result.code, 0, result.stderr);
+  output = JSON.parse(result.stdout);
+  assert.equal(output.corpora.length, 1);
+  assert.equal(output.corpora[0].corpusLinkName, "shared");
+
+  result = await run([
+    "corpus", "status", ...linkedOptions(empty.active, "shared"),
+  ], { env: empty.env });
+  assert.equal(result.code, 0, result.stderr);
+  output = JSON.parse(result.stdout);
+  assert.equal(output.corpusContext, "linked");
+  assert.equal(output.corpusLinkName, "shared");
+  assert.equal(output.corpora, undefined);
+});
+
+
+test("explicit bundle validation does not resolve project sources against an unrelated cwd", async (t) => {
+  const f = await fixture(t);
+  const source = "Owner-relative evidence.\n";
+  const digest = `sha256:${createHash("sha256").update(source).digest("hex")}`;
+  await fs.writeFile(path.join(f.first, "NOTES.md"), source);
+  const draft = path.join(f.root, "sourced.md");
+  await fs.writeFile(
+    draft,
+    `---\ntype: Note\ntitle: Sourced knowledge\ndescription: Uses owner-relative evidence.\nsources:\n  - id: owner-notes\n    resource: project:NOTES.md\n    digest: ${digest}\n---\n# Sourced knowledge\n\nEvidence-backed knowledge.\n`,
+  );
+  let result = await run([
+    "concepts", "write", ...projectOptions(f.first), "--concept-id", "notes/sourced",
+    "--document-file-path", draft,
+  ], { env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+
+  result = await run([
+    "corpus", "validate", "--corpus-bundle-path", f.bundle(f.first),
+  ], { cwd: f.active, env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  let output = JSON.parse(result.stdout);
+  assert.equal(output.valid, true);
+  assert.deepEqual(output.issues.map((issue) => issue.code), ["source-project-root-unavailable"]);
+
+  result = await run([
+    "sources", "check", "--corpus-bundle-path", f.bundle(f.first),
+  ], { cwd: f.active, env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  output = JSON.parse(result.stdout);
+  assert.equal(output.sourceClaims[0].state, "not-checkable");
+  assert.equal(output.sourceClaims[0].reason, "project-root-unavailable");
+
+  result = await run([
+    "corpus", "validate", "--corpus-bundle-path", f.bundle(f.first),
+    "--project-root-path", f.first,
+  ], { cwd: f.active, env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  output = JSON.parse(result.stdout);
+  assert.equal(output.counts.warnings, 0);
 });
 
 test("M6 follows a configured boundary symlink and reports broken or unsafe links", async (t) => {

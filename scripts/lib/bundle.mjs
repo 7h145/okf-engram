@@ -28,6 +28,17 @@ function isLinkedCorpus(context) {
   return context.corpusContext === "linked";
 }
 
+function projectResourceNeedsRoot(context, resource) {
+  return typeof resource === "string"
+    && resource.startsWith("project:")
+    && context.projectSourceRootAvailable === false;
+}
+
+function sourceNeedsProjectRoot(context, source) {
+  return projectResourceNeedsRoot(context, source.resource)
+    || projectResourceNeedsRoot(context, source.git?.repository);
+}
+
 function assertWritableCorpus(context) {
   if (isLinkedCorpus(context)) {
     throw errors.usage(`Linked corpus @${context.corpusLinkName} is read-only`);
@@ -439,12 +450,28 @@ export async function inspectSourceClaims(context, id) {
         });
         continue;
       }
+      if (projectResourceNeedsRoot(context, source.resource)) {
+        results.push({
+          id: item.id,
+          sourceId: source.id,
+          resource: source.resource,
+          expected: source.digest,
+          state: "not-checkable",
+          reason: "project-root-unavailable",
+          ...(source.git === undefined ? {} : { gitState: "not-checkable" }),
+        });
+        continue;
+      }
       let gitState;
       let gitError;
       if (source.git !== undefined) {
-        const immutable = await resolvePinnedSource(context, source, { verifyOnly: true });
-        gitState = immutable.state === "resolved" ? "verified" : immutable.reason;
-        gitError = immutable.error;
+        if (projectResourceNeedsRoot(context, source.git?.repository)) {
+          gitState = "not-checkable";
+        } else {
+          const immutable = await resolvePinnedSource(context, source, { verifyOnly: true });
+          gitState = immutable.state === "resolved" ? "verified" : immutable.reason;
+          gitError = immutable.error;
+        }
       }
       try {
         const actual = (await digestResource(source.resource, context.projectRoot)).digest;
@@ -522,6 +549,10 @@ async function inspectSummaryGit(context, claims) {
   const states = [];
   const issues = [];
   for (const claim of claims.filter(({ source }) => source.git !== undefined)) {
+    if (sourceNeedsProjectRoot(context, claim.source)) {
+      states.push("not-checkable");
+      continue;
+    }
     const immutable = await resolvePinnedSource(context, claim.source, { verifyOnly: true });
     const state = immutable.state === "resolved" ? "verified" : immutable.reason;
     states.push(state);
@@ -546,6 +577,9 @@ async function inspectSummaryGit(context, claims) {
 async function inspectSummaryLive(context, resource, expectedDigests) {
   const local = /^(?:project:|file:)/.test(resource);
   if (!local) return { state: "not-checkable", reason: "non-local" };
+  if (projectResourceNeedsRoot(context, resource)) {
+    return { state: "not-checkable", reason: "project-root-unavailable" };
+  }
   if (!expectedDigests.length) return { state: "not-checkable", reason: "digest-missing" };
   try {
     const actual = (await digestResource(resource, context.projectRoot)).digest;
@@ -619,8 +653,13 @@ export async function listSourceFiles(context, id) {
       sourceIds: [...group.sourceIds].sort(compareText),
     };
     try {
-      item.sourceFilePath = await resolveLocalResource(resource, context.projectRoot);
-      item.state = (await fs.stat(item.sourceFilePath)).isFile() ? "available" : "not-file";
+      if (projectResourceNeedsRoot(context, resource)) {
+        item.state = "not-checkable";
+        item.reason = "project-root-unavailable";
+      } else {
+        item.sourceFilePath = await resolveLocalResource(resource, context.projectRoot);
+        item.state = (await fs.stat(item.sourceFilePath)).isFile() ? "available" : "not-file";
+      }
     } catch (error) {
       item.state = error.code === "NOT_FOUND" ? "missing" : error.code === "UNSAFE_PATH" ? "unsafe" : "unresolvable";
       item.error = error.message;
@@ -800,8 +839,18 @@ export async function validateCorpus(context, { fix = false } = {}) {
       }),
     );
     const sources = isGlobalCorpus(context) || isLinkedCorpus(context) ? [] : await inspectSourceClaims(context);
+    if (sources.some(
+      (item) => item.reason === "project-root-unavailable" || item.gitState === "not-checkable",
+    )) {
+      issues.push({
+        severity: "warning",
+        category: "profile",
+        code: "source-project-root-unavailable",
+        message: "project: source freshness and Git identity are not checked for this explicit bundle; add --project-root-path for its owning project",
+      });
+    }
     sources
-      .filter((item) => item.state !== "unchanged")
+      .filter((item) => !["unchanged", "not-checkable"].includes(item.state))
       .forEach((item) =>
         issues.push({
           severity: "warning",
@@ -812,7 +861,7 @@ export async function validateCorpus(context, { fix = false } = {}) {
         }),
       );
     sources
-      .filter((item) => item.gitState && item.gitState !== "verified")
+      .filter((item) => item.gitState && !["verified", "not-checkable"].includes(item.gitState))
       .forEach((item) =>
         issues.push({
           severity: "warning",
