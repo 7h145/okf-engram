@@ -106,7 +106,7 @@ Setup and policy:
   /engram help — this help
 
 Commands are strict. Linked knowledge is always read-only.
-See /engram --help for the complete agent interface and exit-code map.`;
+See /engram --help for the complete agent interface.`;
 
 const AGENT_HELP = `okf-engram ${VERSION} — canonical agent DSL
 

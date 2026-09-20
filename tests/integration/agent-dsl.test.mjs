@@ -136,7 +136,8 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.match(result.stdout, /show CONCEPT_ID — show one unambiguous concept/);
   assert.match(result.stdout, /\/engram \[@P\|@G\] init/);
   assert.match(result.stdout, /Commands are strict/);
-  assert.match(result.stdout, /See \/engram --help for the complete agent interface and exit-code map\./);
+  assert.match(result.stdout, /See \/engram --help for the complete agent interface\./);
+  assert.doesNotMatch(result.stdout, /exit-code map/i);
   assert.doesNotMatch(result.stdout, /\bforget\b/i);
 });
 
