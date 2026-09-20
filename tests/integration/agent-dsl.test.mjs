@@ -257,6 +257,18 @@ test("canonical helper output defaults to contextual JSON with explicit text as 
   assert.match(result.stdout, /^Corpus context: project/m);
   assert.match(result.stdout, /^Bundle:/m);
 
+  for (const args of [
+    ["corpus", "status", ...projectCorpus(root)],
+    ["corpus", "validate", ...projectCorpus(root)],
+    ["corpus", "links", "list", ...projectCorpus(root)],
+    ["policy", "project", "automatic-memory", "status", ...projectCorpus(root)],
+  ]) {
+    result = await run([...args, "--output-format", "text"]);
+    assert.equal(result.code, 0, `${args.join(" ")}\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^\s*(?:\{|\[)/);
+    assert.match(result.stdout, /^corpusContext: project/m);
+  }
+
   result = await run(["corpus", "status", ...projectCorpus(root), "--output-format", "yaml"]);
   assert.equal(result.code, 2);
   assert.match(parseError(result).message, /json or text/);

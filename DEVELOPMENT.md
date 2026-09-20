@@ -149,7 +149,10 @@ set fails when the same concept ID exists more than once. No unqualified operati
 consults global or linked knowledge.
 
 Helper output defaults to bounded JSON. Use `--output-format text` only for direct
-debugging. Run the complete generated reference with:
+debugging. Text mode uses concise operation-specific views where defined and YAML
+for other structured results; it never silently emits JSON. Aggregate corpus
+location text renders every selected corpus separately. Run the complete generated
+reference with:
 
 ```bash
 node scripts/engram.mjs --help

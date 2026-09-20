@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
 import process from "node:process";
+import { stringify as stringifyYaml } from "yaml";
 import { resolveGlobal, resolveProject } from "./lib/project.mjs";
 import {
   initializeCorpus,
@@ -267,7 +268,8 @@ Context and output:
       current project's managed bundle and no owning project root is given, project: sources
       are reported as not checkable instead of being resolved against the current directory.
   --output-format json|text
-      Deterministic operations default to JSON; text is for direct debugging.
+      Deterministic operations default to JSON. Text uses concise operation views
+      or YAML for direct debugging; it never silently falls back to JSON.
 
 Unknown commands, positional identifiers, obsolete command forms, ambiguous
 options, and unsupported context combinations are rejected.`;
@@ -498,6 +500,18 @@ function attachCorpusContext(
   return { ...reference, value: canonical };
 }
 
+function printCorpusLocation(result) {
+  console.log(`Corpus context: ${result.corpusContext}`);
+  if (result.corpusLinkName) console.log(`Corpus link: @${result.corpusLinkName}`);
+  if (result.projectRootPath) console.log(`Project root: ${result.projectRootPath}`);
+  if (result.dataHomePath) console.log(`XDG data home: ${result.dataHomePath}`);
+  if (result.configuredPath) console.log(`Configured path: ${result.configuredPath}`);
+  console.log(`Bundle: ${result.logicalBundlePath}`);
+  if (result.bundlePath !== result.logicalBundlePath) console.log(`Canonical bundle: ${result.bundlePath}`);
+  console.log(`Discovery: ${result.method}`);
+  console.log(`Initialized: ${result.initialized ? "yes" : "no"}`);
+}
+
 function printText(result, operation) {
   if (operation === "concepts.read") {
     process.stdout.write(result.text);
@@ -517,13 +531,18 @@ function printText(result, operation) {
     return;
   }
   if (operation === "corpus.locate") {
-    console.log(`Corpus context: ${result.corpusContext}`);
-    if (result.projectRootPath) console.log(`Project root: ${result.projectRootPath}`);
-    if (result.dataHomePath) console.log(`XDG data home: ${result.dataHomePath}`);
-    console.log(`Bundle: ${result.logicalBundlePath}`);
-    if (result.bundlePath !== result.logicalBundlePath) console.log(`Canonical bundle: ${result.bundlePath}`);
-    console.log(`Discovery: ${result.method}`);
-    console.log(`Initialized: ${result.initialized ? "yes" : "no"}`);
+    if (!Array.isArray(result.corpora)) {
+      printCorpusLocation(result);
+      return;
+    }
+    if (!result.corpora.length) {
+      console.log("No knowledge bases selected.");
+      return;
+    }
+    result.corpora.forEach((corpus, index) => {
+      if (index) console.log();
+      printCorpusLocation(corpus);
+    });
     return;
   }
   if (operation === "corpus.initialize") {
@@ -603,7 +622,7 @@ function printText(result, operation) {
     return;
   }
   if (typeof result === "string") console.log(result);
-  else console.log(JSON.stringify(result, null, 2));
+  else process.stdout.write(stringifyYaml(result));
 }
 
 function printResult(

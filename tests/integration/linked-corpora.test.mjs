@@ -280,6 +280,18 @@ test("M6 aggregate read sets omit absent global but retain configured links", as
   assert.equal(output.corpusContext, "linked");
   assert.equal(output.corpusLinkName, "shared");
   assert.equal(output.corpora, undefined);
+
+  for (const readSet of ["linked", "all"]) {
+    result = await run([
+      "corpus", "locate", "--corpus-read-set", readSet,
+      "--project-root-path", empty.active, "--output-format", "text",
+    ], { env: empty.env });
+    assert.equal(result.code, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /undefined/);
+    assert.match(result.stdout, /^Corpus context: linked/m);
+    assert.match(result.stdout, /^Corpus link: @shared/m);
+    if (readSet === "all") assert.match(result.stdout, /^Corpus context: project/m);
+  }
 });
 
 

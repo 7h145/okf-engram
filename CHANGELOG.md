@@ -7,6 +7,9 @@
 - Stop expert bundle validation from resolving `project:` provenance against an
   unrelated current project; require the owning project root for those checks and
   otherwise report them as not checkable.
+- Make text output honest across deterministic operations: structured fallback
+  results now use YAML instead of silently returning JSON, and aggregate corpus
+  location renders each selected knowledge base without `undefined` fields.
 
 ## 0.3.0 — 2026-09-20
 
