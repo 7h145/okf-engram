@@ -27,6 +27,13 @@ function run(args, { cwd = repository } = {}) {
 
 const parseError = (result) => JSON.parse(result.stderr);
 
+function assertBoundedJsonError(result, code) {
+  assert.equal(result.stdout, "");
+  assert.equal(parseError(result).error, code);
+  assert.ok(Buffer.byteLength(result.stderr) < 4_096);
+  assert.doesNotMatch(result.stderr, /(?:^Error:|\n\s+at )/m);
+}
+
 async function temporaryProject(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram agent dsl "));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -242,6 +249,43 @@ test("canonical operations require an explicit supported corpus context and neve
   ]);
   assert.equal(result.code, 2);
   assert.match(parseError(result).message, /mutually exclusive/);
+});
+
+test("filesystem input failures preserve bounded error output", async (t) => {
+  const root = await temporaryProject(t);
+  const missingRoot = path.join(root, "missing");
+
+  let result = await run(["corpus", "locate", ...projectCorpus(missingRoot)]);
+  assert.equal(result.code, 7);
+  assertBoundedJsonError(result, "NOT_FOUND");
+  assert.match(parseError(result).message, /Project root .* not found/);
+
+  result = await run(["corpus", "locate", ...projectCorpus(missingRoot), "--output-format", "text"]);
+  assert.equal(result.code, 7);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /^engram: Project root .* not found\n$/);
+  assert.doesNotMatch(result.stderr, /(?:^Error:|\n\s+at )/m);
+
+  const fileRoot = path.join(root, "not-a-directory");
+  await fs.writeFile(fileRoot, "file\n");
+  result = await run(["corpus", "locate", ...projectCorpus(fileRoot)]);
+  assert.equal(result.code, 4);
+  assertBoundedJsonError(result, "VALIDATION_ERROR");
+  assert.match(parseError(result).message, /not a directory/);
+
+  result = await run(["corpus", "initialize", ...projectCorpus(root)]);
+  assert.equal(result.code, 0, result.stderr);
+  const draft = path.join(root, "draft.md");
+  await fs.writeFile(draft, "---\ntype: Note\ntitle: Boundary\ndescription: Boundary test.\n---\n# Boundary\n");
+  const bundle = path.join(root, ".agents", "data", "okf-engram", "bundle");
+  const bundleEntriesBefore = (await fs.readdir(bundle)).sort();
+  result = await run([
+    "concepts", "write", "--concept-id", "b".repeat(253),
+    "--document-file-path", draft, ...projectCorpus(root),
+  ]);
+  assert.equal(result.code, 9);
+  assertBoundedJsonError(result, "UNSAFE_PATH");
+  assert.deepEqual((await fs.readdir(bundle)).sort(), bundleEntriesBefore);
 });
 
 test("canonical helper output defaults to contextual JSON with explicit text as an opt-in", async (t) => {

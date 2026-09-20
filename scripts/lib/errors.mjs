@@ -9,6 +9,16 @@ export class EngramError extends Error {
 }
 
 export const errors = {
+  internal: (cause) => {
+    const causeCode = typeof cause?.code === "string" && /^[A-Z0-9_]{1,64}$/.test(cause.code)
+      ? cause.code
+      : undefined;
+    return new EngramError("Unexpected internal Engram failure", {
+      code: "INTERNAL_ERROR",
+      exitCode: 1,
+      details: causeCode ? { causeCode } : undefined,
+    });
+  },
   usage: (message) => new EngramError(message, { code: "USAGE", exitCode: 2 }),
   notInitialized: (path, corpusContext = "project") =>
     new EngramError(

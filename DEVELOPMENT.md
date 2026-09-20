@@ -151,8 +151,11 @@ consults global or linked knowledge.
 Helper output defaults to bounded JSON. Use `--output-format text` only for direct
 debugging. Text mode uses concise operation-specific views where defined and YAML
 for other structured results; it never silently emits JSON. Aggregate corpus
-location text renders every selected corpus separately. Run the complete generated
-reference with:
+location text renders every selected corpus separately. Expected failures use the
+selected format on stderr with stable codes and no stack trace. An unclassified
+runtime failure is bounded to `INTERNAL_ERROR` with exit 1 and an optional safe OS
+cause code; raw exception messages, paths, and stacks are not exposed. Run the
+complete generated reference with:
 
 ```bash
 node scripts/engram.mjs --help

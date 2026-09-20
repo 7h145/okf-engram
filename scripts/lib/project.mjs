@@ -37,6 +37,28 @@ async function gitRoot(cwd) {
   }
 }
 
+async function resolveExplicitProjectRoot(cwd, input) {
+  const requested = path.resolve(cwd, input);
+  let projectRoot;
+  try {
+    projectRoot = await fs.realpath(requested);
+    if (!(await fs.stat(projectRoot)).isDirectory()) {
+      throw errors.validation(`Project root is not a directory: ${requested}`, { path: requested });
+    }
+  } catch (error) {
+    if (error?.name === "EngramError") throw error;
+    if (error?.code === "ENOENT") throw errors.notFound(`Project root ${requested}`);
+    if (error?.code === "ENOTDIR") {
+      throw errors.validation(`Project root is not a directory: ${requested}`, { path: requested });
+    }
+    throw errors.validation(`Project root is unavailable: ${requested}`, {
+      path: requested,
+      reason: error?.code ?? "unknown",
+    });
+  }
+  return projectRoot;
+}
+
 function defaultBundle(projectRoot) {
   return path.join(projectRoot, ...STATE_PARTS, BUNDLE_NAME);
 }
@@ -120,7 +142,7 @@ export async function resolveProject(options = {}) {
     const logicalBundle = path.resolve(cwd, options.bundle);
     const bundle = await realpathOrResolved(logicalBundle);
     const explicitProjectRoot = options.projectRoot
-      ? await fs.realpath(path.resolve(cwd, options.projectRoot))
+      ? await resolveExplicitProjectRoot(cwd, options.projectRoot)
       : undefined;
     const projectRoot = explicitProjectRoot ?? await gitRoot(cwd) ?? await fs.realpath(cwd);
     const defaultProjectBundle = await realpathOrResolved(defaultBundle(projectRoot));
@@ -134,7 +156,7 @@ export async function resolveProject(options = {}) {
   }
 
   if (options.projectRoot) {
-    const projectRoot = await fs.realpath(path.resolve(cwd, options.projectRoot));
+    const projectRoot = await resolveExplicitProjectRoot(cwd, options.projectRoot);
     const logicalBundle = defaultBundle(projectRoot);
     return withCorpusContext({
       projectRoot,

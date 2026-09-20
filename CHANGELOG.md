@@ -10,6 +10,9 @@
 - Make text output honest across deterministic operations: structured fallback
   results now use YAML instead of silently returning JSON, and aggregate corpus
   location renders each selected knowledge base without `undefined` fields.
+- Preserve bounded error output for filesystem boundary failures: account for the
+  `.md` suffix in concept-ID limits, validate explicit project roots, and sanitize
+  unexpected runtime errors instead of exposing raw stack traces.
 
 ## 0.3.0 — 2026-09-20
 

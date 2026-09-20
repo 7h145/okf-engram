@@ -7,9 +7,11 @@ import { conceptPath, rejectInternalSymlinks, validateConceptId } from "../../sc
 
 test("accepts safe nested IDs and rejects reserved or escaping IDs", () => {
   assert.deepEqual(validateConceptId("memories/python-version"), ["memories", "python-version"]);
+  assert.deepEqual(validateConceptId("a".repeat(252)), ["a".repeat(252)]);
+  assert.deepEqual(validateConceptId(`${"a".repeat(255)}/leaf`), ["a".repeat(255), "leaf"]);
   for (const id of [
     "../secret", "/absolute", "a\\b", "index", "group/log", "x.md", "a//b",
-    ".git/config", "CON", "bad?name", "trailing.",
+    ".git/config", "CON", "bad?name", "trailing.", "a".repeat(253),
   ]) {
     assert.throws(() => validateConceptId(id), /Unsafe|Reserved|omit/);
   }

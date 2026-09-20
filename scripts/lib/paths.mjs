@@ -3,6 +3,9 @@ import path from "node:path";
 import { RESERVED_BASENAMES } from "./constants.mjs";
 import { errors } from "./errors.mjs";
 
+const MAX_PATH_COMPONENT_BYTES = 255;
+const CONCEPT_FILE_SUFFIX_BYTES = Buffer.byteLength(".md", "utf8");
+
 export function validateConceptId(id) {
   if (typeof id !== "string" || id.length === 0 || id.includes("\0")) {
     throw errors.unsafePath("Concept ID must be a non-empty string");
@@ -12,7 +15,7 @@ export function validateConceptId(id) {
   }
   const parts = id.split("/");
   const windowsDevice = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
-  const unsafePart = parts.find((part) => (
+  const unsafePart = parts.find((part, index) => (
     !part
     || part === "."
     || part === ".."
@@ -21,7 +24,11 @@ export function validateConceptId(id) {
     || [...part].some((character) => character.codePointAt(0) < 32)
     || /[. ]$/.test(part)
     || windowsDevice.test(part)
-    || Buffer.byteLength(part, "utf8") > 255
+    || Buffer.byteLength(part, "utf8") > (
+      index === parts.length - 1
+        ? MAX_PATH_COMPONENT_BYTES - CONCEPT_FILE_SUFFIX_BYTES
+        : MAX_PATH_COMPONENT_BYTES
+    )
   ));
   if (unsafePart !== undefined || Buffer.byteLength(id, "utf8") > 1024) {
     throw errors.unsafePath(`Unsafe concept ID: ${id}`);

@@ -270,6 +270,8 @@ Context and output:
   --output-format json|text
       Deterministic operations default to JSON. Text uses concise operation views
       or YAML for direct debugging; it never silently falls back to JSON.
+      Failures use the selected stderr format without raw stack traces; unexpected
+      runtime failures return bounded INTERNAL_ERROR with exit 1.
 
 Unknown commands, positional identifiers, obsolete command forms, ambiguous
 options, and unsupported context combinations are rejected.`;
@@ -1452,16 +1454,12 @@ main().then(
     }
     const outputFormatIndex = process.argv.indexOf("--output-format");
     const outputFormat = outputFormatIndex >= 0 ? process.argv[outputFormatIndex + 1] : "json";
-    if (error instanceof EngramError) {
-      if (outputFormat !== "text") {
-        console.error(JSON.stringify({ error: error.code, message: error.message, details: error.details }));
-      } else {
-        console.error(`engram: ${error.message}`);
-      }
-      process.exitCode = error.exitCode;
-      return;
+    const failure = error instanceof EngramError ? error : errors.internal(error);
+    if (outputFormat !== "text") {
+      console.error(JSON.stringify({ error: failure.code, message: failure.message, details: failure.details }));
+    } else {
+      console.error(`engram: ${failure.message}`);
     }
-    console.error(error.stack ?? String(error));
-    process.exitCode = 1;
+    process.exitCode = failure.exitCode;
   },
 );

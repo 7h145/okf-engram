@@ -79,8 +79,10 @@ node <skill-dir>/scripts/engram.mjs <domain> <operation> [descriptive-long-optio
 
 Helper operations default to bounded JSON output. Add `--output-format text` only
 for direct debugging; it uses concise operation-specific views where defined and
-YAML for other structured results rather than silently returning JSON. Canonical
-built-in and linked selections use:
+YAML for other structured results rather than silently returning JSON. Failures
+use the selected format on stderr without raw stack traces; an unexpected runtime
+failure is a bounded `INTERNAL_ERROR` with exit 1. Canonical built-in and linked
+selections use:
 
 ```text
 --corpus-context project|global
