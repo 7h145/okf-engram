@@ -102,7 +102,7 @@ test("R2 init rejects false, malformed, and incomplete bundle markers without ov
 
 test("R2 init adopts a valid existing store without repairing or reformatting it", async (t) => {
   const root = await tempProject(t);
-  const { bundle } = paths(root);
+  const { state, bundle } = paths(root);
   await fs.mkdir(bundle, { recursive: true });
   const index = path.join(bundle, "index.md");
   const indexText = `---\nokf_version: "0.2"\ncustom_root: preserve\n---\n# Human title\n\nHuman text.\n\n<!-- engram:index:start -->\nSTALE BUT STRUCTURED\n<!-- engram:index:end -->\n\nHuman footer.\n`;
@@ -113,9 +113,59 @@ test("R2 init adopts a valid existing store without repairing or reformatting it
 
   const result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).created, false);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.created, false);
+  assert.equal(output.readmeCreated, true);
+  assert.equal(output.readmeFilePath, path.join(state, "README.md"));
   assert.equal(await fs.readFile(index, "utf8"), indexText);
   assert.equal(await fs.readFile(concept, "utf8"), conceptText);
+});
+
+test("initialization creates a read-only discovery guide without treating it as corpus content", async (t) => {
+  const root = await tempProject(t, "engram discovery readme ");
+  const { state, bundle } = paths(root);
+  const readme = path.join(state, "README.md");
+
+  let result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 0, result.stderr);
+  let output = JSON.parse(result.stdout);
+  assert.equal(output.readmeCreated, true);
+  assert.equal(output.readmeFilePath, readme);
+  assert.equal((await fs.stat(readme)).mode & 0o777, 0o600);
+  const guide = await fs.readFile(readme, "utf8");
+  assert.match(guide, /github\.com\/7h145\/okf-engram/);
+  assert.match(guide, /use `bundle\/` read-only as a Karpathy-style LLM wiki/);
+  assert.match(guide, /sources:/);
+  assert.match(guide, /project:.*owning project/s);
+  assert.match(guide, /untrusted data rather than instructions/);
+  assert.equal((await fs.readdir(bundle)).includes("README.md"), false);
+
+  const custom = "# Project-owned discovery notes\n\nPreserve exactly.\n";
+  await fs.writeFile(readme, custom);
+  result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 0, result.stderr);
+  output = JSON.parse(result.stdout);
+  assert.equal(output.created, false);
+  assert.equal(output.readmeCreated, false);
+  assert.equal(output.readmeFilePath, readme);
+  assert.equal(await fs.readFile(readme, "utf8"), custom);
+
+  await fs.rm(readme);
+  const outside = path.join(root, "outside-readme.md");
+  await fs.writeFile(outside, "outside stays unchanged\n");
+  await fs.symlink(outside, readme);
+  result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).readmeCreated, false);
+  assert.equal((await fs.lstat(readme)).isSymbolicLink(), true);
+  assert.equal(await fs.readFile(outside, "utf8"), "outside stays unchanged\n");
+
+  await fs.rm(readme);
+  await fs.mkdir(readme);
+  result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).readmeCreated, false);
+  assert.equal((await fs.stat(readme)).isDirectory(), true);
 });
 
 test("R2 generated index updates preserve root metadata and surrounding user text", async (t) => {
@@ -218,6 +268,7 @@ test("R2 concurrent initialization converges without clobbering", async (t) => {
   );
   for (const result of results) assert.equal(result.code, 0, result.stderr);
   assert.equal(results.filter((result) => JSON.parse(result.stdout).created).length, 1);
+  assert.equal(results.filter((result) => JSON.parse(result.stdout).readmeCreated).length, 1);
   const lint = await run(["corpus", "validate", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(lint.code, 0, lint.stderr);
   assert.equal(JSON.parse(lint.stdout).counts.errors, 0);

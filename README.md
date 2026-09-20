@@ -124,9 +124,11 @@ the knowledge base deliberately from the intended project directory:
 /engram init
 ```
 
-This creates `.agents/data/okf-engram/bundle/`. It does not edit `AGENTS.md`,
-initialize or change Git, add ignore rules, enable automatic memory, or change the
-sensitive-data policy.
+This creates `.agents/data/okf-engram/bundle/` and, when absent, an adjacent
+`.agents/data/okf-engram/README.md` explaining read-only use for agents without
+Engram. It never overwrites an existing README. Initialization does not edit
+`AGENTS.md`, initialize or change Git, add ignore rules, enable automatic memory,
+or change the sensitive-data policy.
 
 Now retain one real piece of project knowledge and ask for it again:
 

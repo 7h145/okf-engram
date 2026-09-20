@@ -119,6 +119,7 @@ Operation kinds:
 
 Corpus — the OKF knowledge aggregate: location, health, validation, indexes, and links.
   [D] corpus initialize       --corpus-context CONTEXT
+      Creates a missing adjacent read-only discovery README; never overwrites one.
   [D] corpus locate           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
                               [--corpus-read-set all|linked]
   [D] corpus status           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
@@ -475,6 +476,7 @@ function canonicalizeResultFields(value, operation) {
   renameResultField(result, "dataHome", "dataHomePath");
   renameResultField(result, "logicalStateRoot", "logicalStateRootPath");
   renameResultField(result, "stateRoot", "stateRootPath");
+  renameResultField(result, "readmeFile", "readmeFilePath");
   if (result.automaticMemory && typeof result.automaticMemory === "object") {
     result.automaticMemory = canonicalizeResultFields(result.automaticMemory, "policy.project.automatic-memory.status");
   }
@@ -561,6 +563,7 @@ function printText(result, operation) {
   if (operation === "corpus.initialize") {
     console.log(`${result.created ? "Initialized" : "Found existing"} Engram corpus: ${result.logicalBundlePath}`);
     if (result.bundlePath !== result.logicalBundlePath) console.log(`Canonical bundle: ${result.bundlePath}`);
+    if (result.readmeCreated) console.log(`Created read-only discovery guide: ${result.readmeFilePath}`);
     if (result.corpusContext === "project") {
       console.log("Optional: run /engram wire to add the project reminder; this does not enable automatic memory.");
     } else {

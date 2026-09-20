@@ -104,6 +104,8 @@ test("M5 global resolution is XDG-scoped, explicit, restrictive, and project-ind
   assert.equal(output.created, true);
   assert.equal(output.dataHomePath, f.xdg);
   assert.equal(output.logicalBundlePath, f.bundle);
+  assert.equal(output.readmeCreated, true);
+  assert.equal(output.readmeFilePath, path.join(f.state, "README.md"));
   assert.equal((await fs.stat(f.state)).mode & 0o777, 0o700);
   assert.equal((await fs.stat(f.bundle)).mode & 0o777, 0o700);
   assert.equal((await fs.stat(path.join(f.bundle, "index.md"))).mode & 0o777, 0o600);
@@ -111,7 +113,9 @@ test("M5 global resolution is XDG-scoped, explicit, restrictive, and project-ind
 
   result = await initializeGlobal(f);
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).created, false);
+  output = JSON.parse(result.stdout);
+  assert.equal(output.created, false);
+  assert.equal(output.readmeCreated, false);
 
   result = await run(["corpus", "status", "--corpus-context", "global"], { env: f.env });
   assert.equal(result.code, 0, result.stderr);
@@ -343,6 +347,7 @@ test("M5 rejects invalid adopted global content and concurrent initialization co
   const results = await Promise.all(Array.from({ length: 4 }, () => initializeGlobal(f)));
   for (const result of results) assert.equal(result.code, 0, result.stderr);
   assert.equal(results.filter((result) => JSON.parse(result.stdout).created).length, 1);
+  assert.equal(results.filter((result) => JSON.parse(result.stdout).readmeCreated).length, 1);
 
   await fs.writeFile(
     path.join(f.bundle, "invalid.md"),

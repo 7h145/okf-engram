@@ -216,10 +216,18 @@ a separate turn, re-reads the concept, and deletes only at the displayed SHA-256
 ## Initialization and project wiring
 
 Initialization creates exactly one selected bundle after explicit user intent. It
-does not alter Git, `.gitignore`, `AGENTS.md`, automatic-memory policy, or
-sensitive-data policy. Global initialization creates its state root and bundle at
-mode 0700 where supported; generated files and policy settings use mode 0600. It
-copies no project memory, enables no inference, and creates no global wiring.
+also creates a mode-0600 `README.md` beside `bundle/` when that path is absent. The
+discovery guide identifies the OKF corpus, preferred Engram reader, direct read-
+only workflow, trust boundary, and compact `sources:` convention. It is outside
+the corpus, has no effect on validation or retrieval, and any existing file,
+directory, or symlink at that path is preserved without reading or overwriting it.
+Initialization reports `readmeFilePath` and `readmeCreated` in structured output.
+
+Initialization does not alter Git, `.gitignore`, `AGENTS.md`, automatic-memory
+policy, or sensitive-data policy. Global initialization creates its state root and
+bundle at mode 0700 where supported; generated files and policy settings use mode
+0600. It copies no project memory, enables no inference, and creates no global
+wiring.
 
 Optional `/engram wire` appends a canonical marker-delimited reminder to the end
 of `<project-root>/AGENTS.md`, after project-owned instructions:

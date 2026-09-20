@@ -5,6 +5,8 @@ https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md
 
 The upstream specification is published under Apache-2.0. Engram links to and
 implements the format; it does not vendor or modify the specification text.
+Managed initialization may create a read-only discovery `README.md` beside the
+`bundle/`; that sibling is operational documentation, not part of the OKF corpus.
 
 ## Required for Engram writes
 
