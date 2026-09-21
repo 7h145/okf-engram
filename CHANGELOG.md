@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-09-21
+
+- Add M6 named read-only links to existing local Engram/OKF knowledge bases, with
+  explicit lifecycle, a 32-link project-private registry, boundary-symlink
+  retargeting, canonical deduplication, target validation, privacy visibility, and
+  hard rejection of linked mutation or raw-source access.
+- Extend bounded N-way list, search, exact read, status, validation, and semantic
+  recall across project, global, and named linked corpora with context/link labels.
+- Replace the pre-1.0 `global`/`both` human grammar with composable knowledge-base
+  addresses: `@project`/`@P`, `@global`/`@G`, `@NAME`, `@linked`/`@L`, and
+  `@all`/`@A`. Deterministic aggregate read sets make `@A` omit uninitialized
+  global memory while retaining every configured link, including unavailable links
+  that must fail visibly rather than silently degrading retrieval.
+- Restore the Pi `/engram` prompt to a transport-only activation shim; portable
+  grammar, routing, wildcard semantics, and safety policy remain solely in
+  `SKILL.md` and deterministic helper boundaries.
 - Keep aggregate corpus status/location/validation responses wrapped in a stable
   `corpora` array even when `@linked` or `@all` expands to zero or one corpus.
 - Stop expert bundle validation from resolving `project:` provenance against an
@@ -25,23 +41,6 @@
 - Create a non-overwriting discovery README beside initialized managed bundles so
   agents without Engram can consume the OKF knowledge base safely as a read-only
   Markdown wiki and understand the compact `sources:` provenance convention.
-
-## 0.3.0 — 2026-09-20
-
-- Restore the Pi `/engram` prompt to a transport-only activation shim; portable
-  grammar, routing, wildcard semantics, and safety policy remain solely in
-  `SKILL.md` and deterministic helper boundaries.
-- Add M6 named read-only links to existing local Engram/OKF knowledge bases, with
-  explicit lifecycle, a 32-link project-private registry, boundary-symlink
-  retargeting, canonical deduplication, target validation, privacy visibility, and
-  hard rejection of linked mutation or raw-source access.
-- Extend bounded N-way list, search, exact read, status, validation, and semantic
-  recall across project, global, and named linked corpora with context/link labels.
-- Replace the pre-1.0 `global`/`both` human grammar with composable knowledge-base
-  addresses: `@project`/`@P`, `@global`/`@G`, `@NAME`, `@linked`/`@L`, and
-  `@all`/`@A`. Deterministic aggregate read sets make `@A` omit uninitialized
-  global memory while retaining every configured link, including unavailable links
-  that must fail visibly rather than silently degrading retrieval.
 
 ## 0.2.1 — 2026-09-14
 
