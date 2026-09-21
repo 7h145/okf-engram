@@ -119,7 +119,13 @@ This creates `.agents/data/okf-engram/bundle/` and, when absent, an adjacent
 `.agents/data/okf-engram/README.md` explaining read-only use for agents without
 Engram. It never overwrites an existing README. Initialization does not edit
 `AGENTS.md`, initialize or change Git, add ignore rules, enable automatic memory,
-or change the sensitive-data policy.
+or change the sensitive-data policy. For project initialization it suggests this
+optional snippet:
+
+```gitignore
+/.agents/data/okf-engram/jobs/
+/.agents/run/
+```
 
 Now retain one real piece of project knowledge and ask for it again:
 
@@ -155,6 +161,9 @@ To compile existing project documents without blocking the conversation:
 
 Engram uses managed background execution when one is available and clearly falls
 back to foreground ingest otherwise, rather than leaving a job without a runner.
+Successful jobs automatically drop bulky compiler traces after preserving their
+compact result. `/engram tidy` previews and, after confirmation, removes completed
+or broken private job metadata; it never changes knowledge or source files.
 
 ### Pi example: everyday use
 
@@ -168,6 +177,7 @@ back to foreground ingest otherwise, rather than leaving a job without a runner.
 /engram show CONCEPT_ID         read one concept
 /engram sources                 list referenced local source files
 /engram jobs [JOB_ID]           inspect background work
+/engram tidy                    remove private job metadata, never knowledge
 /engram help                    show commands, setup, and policy controls
 ```
 

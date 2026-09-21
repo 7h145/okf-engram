@@ -41,6 +41,7 @@ import {
   enqueueInferredMemoryJob,
   inspectJobs,
   cleanJob,
+  tidyJobs,
   cancelJob,
   retryJob,
   runJobs,
@@ -72,8 +73,8 @@ No address means this project. Prefix knowledge work with:
   @G or @global        global memory
   @NAME                one linked knowledge base
   @L or @linked        every link
-  @A or @all           project, global memory when initialized, and every link
-Repeat addresses for a read subset, for example: /engram @P @docs recall QUESTION
+  @A or @all           project, initialized global memory, and every link
+Repeat addresses for a read subset: /engram @P @docs recall QUESTION
 
 Common work:
   /engram — status of the project knowledge base
@@ -95,6 +96,7 @@ Further actions:
   /engram ingest FILE... — ingest project data in the foreground
   /engram inventory — inspect project source references
   /engram jobs [JOB_ID] — inspect jobs
+  /engram tidy — remove private job metadata, never knowledge
   /engram cancel JOB_ID — cancel deferred work
   /engram [@P|@G] remove CONCEPT_ID — delete after confirmation
 
@@ -119,7 +121,8 @@ Operation kinds:
 
 Corpus — the OKF knowledge aggregate: location, health, validation, indexes, and links.
   [D] corpus initialize       --corpus-context CONTEXT
-      Managed project/global init creates a missing adjacent discovery README.
+      Managed project/global init creates a missing adjacent discovery README;
+      project init also returns concise optional .gitignore suggestions.
   [D] corpus locate           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
                               [--corpus-read-set all|linked]
   [D] corpus status           --corpus-context CONTEXT... [--linked-corpus-name NAME]...
@@ -220,6 +223,9 @@ Jobs — durable lifecycle management for deferred semantic work.
   [D] jobs retry              --corpus-context project --job-id ID
   [D] jobs clean              --corpus-context project --job-id ID
                               --confirm-job-state-deletion [--confirm-reconciled]
+  [D] jobs tidy               --corpus-context project
+                              [--confirm-private-job-metadata-deletion]
+      Removes completed and structurally invalid private job metadata, never knowledge.
   [D] jobs discard-invalid    --corpus-context project --job-id ID
                               --confirm-invalid-job-deletion
 
@@ -565,6 +571,10 @@ function printText(result, operation) {
     if (result.bundlePath !== result.logicalBundlePath) console.log(`Canonical bundle: ${result.bundlePath}`);
     if (result.readmeCreated) console.log(`Created read-only discovery guide: ${result.readmeFilePath}`);
     if (result.corpusContext === "project") {
+      if (result.gitignoreSuggestions?.length) {
+        console.log("Consider adding to .gitignore:");
+        for (const suggestion of result.gitignoreSuggestions) console.log(suggestion);
+      }
       console.log("Optional: run /engram wire to add the project reminder; this does not enable automatic memory.");
     } else {
       console.log("Global memory remains explicit; initialization enables no automatic inference or fallback.");
@@ -1374,7 +1384,7 @@ async function main(rawArgs = process.argv.slice(2)) {
       } else {
         operation = first;
         if (
-          !["list", "show", "run", "run-all-queued", "cancel", "retry", "clean", "discard-invalid"].includes(operation)
+          !["list", "show", "run", "run-all-queued", "cancel", "retry", "clean", "tidy", "discard-invalid"].includes(operation)
         ) {
           throw errors.usage("Unknown jobs operation");
         }
@@ -1384,37 +1394,44 @@ async function main(rawArgs = process.argv.slice(2)) {
         const confirmDeletion = takeOption(args, "--confirm-job-state-deletion", { boolean: true });
         const confirmReconciled = takeOption(args, "--confirm-reconciled", { boolean: true });
         const confirmInvalidDeletion = takeOption(args, "--confirm-invalid-job-deletion", { boolean: true });
+        const confirmTidy = takeOption(args, "--confirm-private-job-metadata-deletion", { boolean: true });
         resolved = await resolveCorpus(args, { projectOnly: true, allowBundleOverride: false });
         requireNoArguments(args);
         if (operation === "list") {
-          if (jobId || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion) {
+          if (jobId || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion || confirmTidy) {
             throw errors.usage("jobs list accepts only --job-state and corpus options");
           }
           result = await inspectJobs(resolved.context, undefined, { state: jobState });
         } else if (operation === "show") {
-          if (!jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion) {
+          if (
+            !jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion || confirmTidy
+          ) {
             throw errors.usage("jobs show requires only --job-id and corpus options");
           }
           result = await inspectJobs(resolved.context, jobId);
         } else if (operation === "run") {
-          if (!jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion) {
+          if (
+            !jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion || confirmTidy
+          ) {
             throw errors.usage("jobs run requires only --job-id and corpus options");
           }
           result = await runJobs(resolved.context, { jobId });
         } else if (operation === "run-all-queued") {
-          if (jobId || jobState || confirmDeletion || confirmReconciled || confirmInvalidDeletion) {
+          if (jobId || jobState || confirmDeletion || confirmReconciled || confirmInvalidDeletion || confirmTidy) {
             throw errors.usage("jobs run-all-queued accepts only its confirmation and corpus options");
           }
           if (!confirmRunAll) throw errors.confirmation("Running all queued jobs requires --confirm-run-all-queued");
           result = await runJobs(resolved.context, { waitForWorker: true });
         } else if (operation === "cancel" || operation === "retry") {
-          if (!jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion) {
+          if (
+            !jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion || confirmTidy
+          ) {
             throw errors.usage(`jobs ${operation} requires only --job-id and corpus options`);
           }
           result =
             operation === "cancel" ? await cancelJob(resolved.context, jobId) : await retryJob(resolved.context, jobId);
         } else if (operation === "clean") {
-          if (!jobId || jobState || confirmRunAll || confirmInvalidDeletion) {
+          if (!jobId || jobState || confirmRunAll || confirmInvalidDeletion || confirmTidy) {
             throw errors.usage("jobs clean requires --job-id; --confirm-reconciled is optional");
           }
           if (!confirmDeletion) {
@@ -1424,8 +1441,15 @@ async function main(rawArgs = process.argv.slice(2)) {
             confirmJobStateDeletion: confirmDeletion,
             confirmReconciled,
           });
+        } else if (operation === "tidy") {
+          if (jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmInvalidDeletion) {
+            throw errors.usage("jobs tidy accepts only its confirmation and corpus options");
+          }
+          result = await tidyJobs(resolved.context, {
+            confirmPrivateJobMetadataDeletion: confirmTidy,
+          });
         } else {
-          if (!jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled) {
+          if (!jobId || jobState || confirmRunAll || confirmDeletion || confirmReconciled || confirmTidy) {
             throw errors.usage("jobs discard-invalid requires --job-id with its confirmation option");
           }
           if (!confirmInvalidDeletion) {

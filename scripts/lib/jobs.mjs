@@ -1199,6 +1199,113 @@ async function rejectTreeSymlinks(directory) {
   }
 }
 
+async function privateTreeSize(directory) {
+  const directoryStat = await fs.lstat(directory);
+  if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+    throw errors.unsafePath(`Refusing to tidy an unsafe job directory: ${directory}`);
+  }
+  let sizeBytes = 0;
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const target = path.join(directory, entry.name);
+    const stat = await fs.lstat(target);
+    if (stat.isSymbolicLink()) throw errors.unsafePath(`Refusing to tidy a job containing a symlink: ${target}`);
+    if (stat.isDirectory()) {
+      sizeBytes += await privateTreeSize(target);
+      continue;
+    }
+    if (!stat.isFile()) throw errors.unsafePath(`Refusing to tidy an unusual job entry: ${target}`);
+    sizeBytes += stat.size;
+    if (!Number.isSafeInteger(sizeBytes)) throw errors.validation("Private job metadata size exceeds safe bounds");
+  }
+  return sizeBytes;
+}
+
+async function classifyTidyCandidates(context) {
+  const listed = await listJobIds(context);
+  const completed = [];
+  const invalid = [];
+  const protectedJobs = [];
+  for (const jobId of listed.ids) {
+    let job;
+    try {
+      job = await readJob(context, jobId);
+    } catch (error) {
+      if (!["VALIDATION_ERROR", "NOT_FOUND"].includes(error.code)) {
+        protectedJobs.push({ jobId, reason: "unsafe-or-unreadable" });
+        continue;
+      }
+      try {
+        invalid.push({ jobId, sizeBytes: await privateTreeSize(jobDirectory(context, jobId)) });
+      } catch {
+        protectedJobs.push({ jobId, reason: "unsafe-or-unreadable" });
+      }
+      continue;
+    }
+    if (job.state.state !== "completed") {
+      protectedJobs.push({ jobId, state: job.state.state, reason: "not-completed" });
+      continue;
+    }
+    if (
+      job.capsule.kind === "inferred-memory" &&
+      (await readJobResultAcknowledgement(job)).acknowledgementState !== "acknowledged"
+    ) {
+      protectedJobs.push({ jobId, state: job.state.state, reason: "unacknowledged-result" });
+      continue;
+    }
+    try {
+      completed.push({ jobId, sizeBytes: await privateTreeSize(job.directory) });
+    } catch {
+      protectedJobs.push({ jobId, state: job.state.state, reason: "unsafe-or-unreadable" });
+    }
+  }
+  return { completed, invalid, protectedJobs, issues: listed.issues };
+}
+
+export async function tidyJobs(context, { confirmPrivateJobMetadataDeletion = false } = {}) {
+  return withWorkerLock(
+    context,
+    () =>
+      withJobsLock(context, async () => {
+        const classified = await classifyTidyCandidates(context);
+        const candidates = [...classified.completed, ...classified.invalid];
+        const candidateBytes = candidates.reduce((sum, item) => sum + item.sizeBytes, 0);
+        const result = {
+          scope: "private-job-metadata",
+          knowledgeChanged: false,
+          confirmed: confirmPrivateJobMetadataDeletion,
+          candidates: {
+            completed: classified.completed,
+            invalid: classified.invalid,
+          },
+          protectedJobs: classified.protectedJobs,
+          issues: classified.issues,
+          totals: {
+            completedJobs: classified.completed.length,
+            invalidJobs: classified.invalid.length,
+            protectedJobs: classified.protectedJobs.length,
+            candidateJobs: candidates.length,
+            candidateBytes,
+          },
+        };
+        if (!confirmPrivateJobMetadataDeletion || !candidates.length) {
+          return { ...result, confirmationRequired: !confirmPrivateJobMetadataDeletion && candidates.length > 0 };
+        }
+        for (const candidate of candidates) {
+          const directory = jobDirectory(context, candidate.jobId);
+          await rejectTreeSymlinks(directory);
+          await fs.rm(directory, { recursive: true });
+        }
+        return {
+          ...result,
+          cleanedJobs: candidates.map((item) => item.jobId),
+          reclaimedBytes: candidateBytes,
+        };
+      }),
+    { retries: 0 },
+  );
+}
+
 export async function cleanJob(
   context,
   jobId,
@@ -1541,15 +1648,31 @@ function defaultCandidateDisposition(state, reason) {
   };
 }
 
+async function pruneCompletedAttemptDiagnostics(job) {
+  const attemptSuffix = job.state.attempt === 1 ? "" : `-${job.state.attempt}`;
+  await removeIfPresent(path.join(job.directory, `events${attemptSuffix}.jsonl`));
+  await removeIfPresent(path.join(job.directory, `stderr${attemptSuffix}.log`));
+}
+
 async function terminalize(context, job, state, details) {
   return withJobsLock(context, async () => {
     const latest = await readJob(context, job.capsule.jobId);
     if (TERMINAL_STATES.has(latest.state.state)) {
+      let diagnosticCleanup = "retained";
+      if (latest.state.state === "completed") {
+        try {
+          await pruneCompletedAttemptDiagnostics(latest);
+          diagnosticCleanup = "pruned";
+        } catch {
+          // Successful job state is authoritative; unsafe or failed pruning leaves diagnostics in place.
+        }
+      }
       return {
         jobId: job.capsule.jobId,
         state: latest.state.state,
         reason: latest.result?.reason ?? "already-terminal",
         changes: latest.result?.changes?.length ?? 0,
+        diagnosticCleanup,
       };
     }
     job.state = latest.state;
@@ -1583,7 +1706,22 @@ async function terminalize(context, job, state, details) {
       cancelledAt: state === "cancelled" ? timestamp : job.state.cancelledAt,
     };
     await writeJson(path.join(job.directory, "state.json"), nextState);
-    return { jobId: job.capsule.jobId, state, reason: result.reason, changes: result.changes.length };
+    let diagnosticCleanup = "retained";
+    if (state === "completed") {
+      try {
+        await pruneCompletedAttemptDiagnostics(job);
+        diagnosticCleanup = "pruned";
+      } catch {
+        // Successful job state is authoritative; unsafe or failed pruning leaves diagnostics in place.
+      }
+    }
+    return {
+      jobId: job.capsule.jobId,
+      state,
+      reason: result.reason,
+      changes: result.changes.length,
+      diagnosticCleanup,
+    };
   });
 }
 
@@ -1993,12 +2131,23 @@ async function recoverPersistedTerminalResult(context, job) {
       recoveredAt: now(),
     };
     await writeJson(path.join(latest.directory, "state.json"), state);
+    let diagnosticCleanup = "retained";
+    if (state.state === "completed") {
+      latest.state = state;
+      try {
+        await pruneCompletedAttemptDiagnostics(latest);
+        diagnosticCleanup = "pruned";
+      } catch {
+        // Recovery remains successful when diagnostic pruning is unsafe or unavailable.
+      }
+    }
     return {
       jobId: job.capsule.jobId,
       state: latest.result.state,
       reason: latest.result.reason,
       changes: latest.result.changes.length,
       recovered: true,
+      diagnosticCleanup,
     };
   });
 }

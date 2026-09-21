@@ -125,12 +125,28 @@ test("initialization creates a read-only discovery guide without treating it as 
   const root = await tempProject(t, "engram discovery readme ");
   const { state, bundle } = paths(root);
   const readme = path.join(state, "README.md");
+  const gitignore = path.join(root, ".gitignore");
+  const gitignoreText = "# Project-owned ignore rules\n/build/\n";
+  await fs.writeFile(gitignore, gitignoreText);
 
   let result = await run(["corpus", "initialize", "--corpus-context", "project", "--project-root-path", root]);
   assert.equal(result.code, 0, result.stderr);
   let output = JSON.parse(result.stdout);
   assert.equal(output.readmeCreated, true);
   assert.equal(output.readmeFilePath, readme);
+  assert.deepEqual(output.gitignoreSuggestions, [
+    "/.agents/data/okf-engram/jobs/",
+    "/.agents/run/",
+  ]);
+  const textResult = await run([
+    "corpus", "initialize", "--corpus-context", "project", "--project-root-path", root, "--output-format", "text",
+  ]);
+  assert.equal(textResult.code, 0, textResult.stderr);
+  assert.match(
+    textResult.stdout,
+    /Consider adding to \.gitignore:\n\/\.agents\/data\/okf-engram\/jobs\/\n\/\.agents\/run\//,
+  );
+  assert.equal(await fs.readFile(gitignore, "utf8"), gitignoreText);
   assert.equal((await fs.stat(readme)).mode & 0o777, 0o600);
   const guide = await fs.readFile(readme, "utf8");
   assert.match(guide, /github\.com\/7h145\/okf-engram/);
@@ -178,6 +194,7 @@ test("expert bundle initialization does not create documentation in an arbitrary
   const output = JSON.parse(result.stdout);
   assert.equal(output.corpusContext, "explicit-bundle");
   assert.equal(output.created, true);
+  assert.equal(output.gitignoreSuggestions, undefined);
   assert.equal(output.readmeCreated, undefined);
   assert.equal(output.readmeFilePath, undefined);
   await assert.rejects(() => fs.access(readme));

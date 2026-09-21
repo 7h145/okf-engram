@@ -85,7 +85,9 @@ retaining frozen source digests. `jobs list` renders queued work as waiting and
 reports queue position and batch progress. Do not manually split a supported
 human batch merely to evade an event cap.
 
-Keep JSONL/stderr private. Surface only compact job state/results. Source or corpus
+Keep JSONL/stderr private. After successful compact result and terminal-state
+persistence, remove those bulky traces automatically; retain them for unsuccessful
+or review-required work. Surface only compact job state/results. Source or corpus
 drift, malformed reports, invalid/index-stale bundles, unreported writes,
 cancellation after writes, and orphaned workers become failed or `needs-review`
 without blind replay. Result persistence precedes terminal state so restart
@@ -95,7 +97,11 @@ Use `jobs retry` only after unchanged-corpus reconciliation. Cancel active jobs
 before cleanup. `jobs clean --confirm-job-state-deletion` accepts terminal jobs;
 `needs-review` additionally requires `--confirm-reconciled`. `jobs discard-invalid
 --confirm-invalid-job-deletion` removes only structurally unreadable private jobs,
-rejects valid jobs/symlinks, and cannot bypass result acknowledgement.
+rejects valid jobs/symlinks, and cannot bypass result acknowledgement. `jobs tidy`
+previews project-wide private metadata cleanup; its confirmation form removes
+completed or structurally invalid regular job directories while protecting every
+other valid state, unacknowledged inferred result, symlink, and unusual entry. It
+never changes knowledge or source files.
 
 ## Explicit memory
 

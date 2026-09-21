@@ -227,7 +227,9 @@ output. Expert `--corpus-bundle-path` initialization mutates only the selected
 bundle and does not create documentation in its arbitrary parent directory.
 
 Initialization does not alter Git, `.gitignore`, `AGENTS.md`, automatic-memory
-policy, or sensitive-data policy. Global initialization creates its state root and
+policy, or sensitive-data policy. Managed project initialization returns the
+copyable `.gitignore` suggestions `/.agents/data/okf-engram/jobs/` and
+`/.agents/run/`; global and expert initialization do not. Global initialization creates its state root and
 bundle at mode 0700 where supported; generated files and policy settings use mode
 0600. It copies no project memory, enables no inference, and creates no global
 wiring.
@@ -545,13 +547,14 @@ effective when its model invocation begins.
 
 Normal deferred work returns control without inline polling, including no
 post-launch sleeps, log reads, or job inspection unless the user explicitly asks
-to debug. Worker traces remain
-in private job files. Foreground results contain only bounded state, concept IDs
-and hashes, coverage, warnings, and review or error reasons. Source drift stops
+to debug. Successful jobs remove their event and stderr traces only after compact
+result and terminal state persistence succeeds; failed, cancelled, and
+`needs-review` jobs retain diagnostics. Foreground results contain only bounded
+state, concept IDs and hashes, coverage, warnings, and review or error reasons. Source drift stops
 only the affected job before worker execution. Jobs are cancellable and never
 blindly replay `needs-review` changes.
 
-Terminal state remains until explicit cleanup:
+Compact terminal state remains until explicit cleanup:
 
 ```bash
 node scripts/engram.mjs jobs clean \
@@ -561,11 +564,19 @@ node scripts/engram.mjs jobs clean \
 node scripts/engram.mjs jobs discard-invalid \
   --corpus-context project --job-id <job-id> \
   --confirm-invalid-job-deletion
+
+node scripts/engram.mjs jobs tidy --corpus-context project
+node scripts/engram.mjs jobs tidy --corpus-context project \
+  --confirm-private-job-metadata-deletion
 ```
 
 A `needs-review` job additionally requires `--confirm-reconciled`.
 Inferred-memory results must be acknowledged before cleanup. Invalid-job discard
-refuses valid jobs and symlinks.
+refuses valid jobs and symlinks. Project-wide tidy first previews counts and bytes,
+then under explicit confirmation removes completed jobs and structurally invalid
+regular job directories while protecting every other valid state, unacknowledged
+inferred result, symlink, and unusual entry. Its result states that knowledge was
+unchanged.
 
 ### Opportunistic inferred-memory jobs
 

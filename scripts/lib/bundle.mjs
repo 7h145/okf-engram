@@ -121,6 +121,11 @@ async function assertBundle(context) {
   if (!stat.isDirectory()) throw errors.validation(`Bundle is not a directory: ${context.bundle}`);
 }
 
+const PROJECT_GITIGNORE_SUGGESTIONS = [
+  "/.agents/data/okf-engram/jobs/",
+  "/.agents/run/",
+];
+
 const DISCOVERY_README = `# Engram knowledge base
 
 This directory contains state managed by
@@ -213,7 +218,12 @@ export async function initializeCorpus(context) {
         ...await ensureDiscoveryReadme(context),
         ...(isGlobalCorpus(context)
           ? { dataHome: context.dataHome, logicalStateRoot: context.logicalStateRoot, stateRoot: context.stateRoot }
-          : { projectRoot: context.projectRoot }),
+          : {
+              projectRoot: context.projectRoot,
+              ...(context.corpusContext === "project" && context.method !== "explicit-bundle"
+                ? { gitignoreSuggestions: PROJECT_GITIGNORE_SUGGESTIONS }
+                : {}),
+            }),
         logicalBundle: context.logicalBundle,
         bundle: context.bundle,
       };
@@ -225,7 +235,12 @@ export async function initializeCorpus(context) {
       ...await ensureDiscoveryReadme(context),
       ...(isGlobalCorpus(context)
         ? { dataHome: context.dataHome, logicalStateRoot: context.logicalStateRoot, stateRoot: context.stateRoot }
-        : { projectRoot: context.projectRoot }),
+        : {
+            projectRoot: context.projectRoot,
+            ...(context.corpusContext === "project" && context.method !== "explicit-bundle"
+              ? { gitignoreSuggestions: PROJECT_GITIGNORE_SUGGESTIONS }
+              : {}),
+          }),
       logicalBundle: context.logicalBundle,
       bundle: context.bundle,
     };

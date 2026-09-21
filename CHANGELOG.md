@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add `/engram tidy` with a preview-and-confirm workflow that removes completed or
+  structurally invalid private job metadata while protecting knowledge, sources,
+  active/reviewable work, unacknowledged results, and unsafe filesystem entries.
+- Prune bulky event and stderr traces automatically after successful compact job
+  results are durably recorded; retain diagnostics for unsuccessful work.
+- Show two concise, copyable private-runtime `.gitignore` suggestions after managed
+  project initialization without editing `.gitignore`.
+
 ## 0.3.0 — 2026-09-21
 
 - Add M6 named read-only links to existing local Engram/OKF knowledge bases, with

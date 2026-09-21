@@ -106,6 +106,7 @@ test("M5 global resolution is XDG-scoped, explicit, restrictive, and project-ind
   assert.equal(output.logicalBundlePath, f.bundle);
   assert.equal(output.readmeCreated, true);
   assert.equal(output.readmeFilePath, path.join(f.state, "README.md"));
+  assert.equal(output.gitignoreSuggestions, undefined);
   assert.equal((await fs.stat(f.state)).mode & 0o777, 0o700);
   assert.equal((await fs.stat(f.bundle)).mode & 0o777, 0o700);
   assert.equal((await fs.stat(path.join(f.bundle, "index.md"))).mode & 0o777, 0o600);

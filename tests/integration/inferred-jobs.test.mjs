@@ -467,6 +467,21 @@ test("M3b1 compiler preserves deterministic discard and review dispositions", as
   assert.equal(inspected.result.candidate.status, "discarded");
   assert.equal(inspected.result.candidate.reason, "not-durable");
 
+  result = await run([
+    "jobs",
+    "tidy",
+    "--corpus-context",
+    "project",
+    "--confirm-private-job-metadata-deletion",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(parse(result).protectedJobs, [
+    { jobId: queued.jobId, state: "completed", reason: "unacknowledged-result" },
+  ]);
+  assert.ok(await fs.stat(queued.jobDirectoryPath));
+
   const second = await enqueueCandidate(root, policy.generation, {
     claim: "A conflicting storage choice may have been approved.",
     evidence: "The exchange contains conflicting statements about storage.",

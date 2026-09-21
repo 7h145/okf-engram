@@ -198,6 +198,7 @@ mutations accept exactly one writable `@project`/`@P` or `@global`/`@G` address.
 | `ingest FILE...` | `knowledge ingest --source-resource ...` | Ingest project data in the foreground when immediate work is wanted or background work is unavailable. |
 | `queue FILE...` | `jobs enqueue artifact-ingest-batch --source-resource ...` | Ingest project data asynchronously and return control quickly. |
 | `jobs [JOB_ID]` | `jobs list` or `jobs show --job-id JOB_ID` | See all project work or inspect one job. |
+| `tidy` | preview `jobs tidy`, then after confirmation repeat with `--confirm-private-job-metadata-deletion` | Remove completed or structurally invalid private job metadata without changing knowledge. |
 | `cancel JOB_ID` | `jobs cancel --job-id JOB_ID` | Stop unwanted deferred project work safely. |
 | `[@P\|@G] remove CONCEPT_ID` | guided selected `concepts delete --concept-id CONCEPT_ID` workflow | Deliberately remove one current-tree concept. |
 
@@ -212,7 +213,7 @@ user to repeat it with one supplying address.
 
 The strict request preflight governs this entire table. Do not infer addresses
 from a question's wording. Project-operational commands (`wire`, `auto`, sources,
-ingest, queue, jobs, and cancel) reject any address prefix, including `@P`; they
+ingest, queue, jobs, tidy, and cancel) reject any address prefix, including `@P`; they
 remain deliberately unprefixed and project-only. Link lifecycle commands likewise
 reject address prefixes because they configure the active project's registry.
 `remove` is deliberately spelled out and deletes exactly one selected writable
@@ -269,8 +270,16 @@ can recognize and read the OKF knowledge base. It never reads or overwrites an
 existing path there, and the README is not corpus content. Expert
 `--corpus-bundle-path` initialization does not write outside the selected bundle.
 Initialization does not alter Git,
-`.gitignore`, `AGENTS.md`, automatic-memory policy, or sensitive-data policy. It
-may suggest the separate `/engram wire` command afterward.
+`.gitignore`, `AGENTS.md`, automatic-memory policy, or sensitive-data policy. After
+managed project initialization, present this concise optional `.gitignore` snippet
+exactly as returned by the helper:
+
+```gitignore
+/.agents/data/okf-engram/jobs/
+/.agents/run/
+```
+
+It may also suggest the separate `/engram wire` command afterward.
 
 Global initialization creates no project wiring, copies no project memories, and
 enables no inference or fallback. Inspect health with `corpus status` and the same
@@ -581,7 +590,10 @@ work may use `jobs retry`;
 changed sources/bundles require reconciliation, and `needs-review` is never blindly
 replayed.
 
-Terminal operational state persists until explicit cleanup:
+Successful workers automatically remove their bulky event and stderr traces after
+the compact result and terminal state are safely persisted. Failed, cancelled, and
+`needs-review` jobs retain diagnostics. Compact terminal operational state persists
+until explicit cleanup:
 
 ```bash
 node <skill-dir>/scripts/engram.mjs jobs clean \
@@ -598,7 +610,34 @@ node <skill-dir>/scripts/engram.mjs jobs discard-invalid \
 
 Invalid-job discard holds the worker lock, rejects symlinks, and refuses valid
 jobs. It cannot bypass normal terminal, reconciliation, or result-acknowledgement
-rules. Worker processes are context-separated, not OS security sandboxes.
+rules.
+
+For the human `/engram tidy` workflow, first preview the bounded project-wide
+cleanup without a confirmation flag:
+
+```bash
+node <skill-dir>/scripts/engram.mjs jobs tidy \
+  --corpus-context project
+```
+
+State plainly that it removes only private Engram job metadata and never knowledge
+or source files. Surface completed, structurally invalid, protected, and byte
+counts. If there are candidates, ask `Tidy this private job metadata? yes/no` and
+stop. Only an unambiguous affirmative response to that pending prompt may invoke:
+
+```bash
+node <skill-dir>/scripts/engram.mjs jobs tidy \
+  --corpus-context project --confirm-private-job-metadata-deletion
+```
+
+The helper holds the worker and jobs locks, removes safely completed jobs plus
+structurally invalid regular job directories, and rejects symlinked or unusual
+content. It protects queued, running, failed, cancelled, `needs-review`, and
+unacknowledged inferred-memory jobs. A negative, ambiguous, unrelated, or absent
+response deletes nothing. `tidy` never changes the OKF bundle, settings, links,
+sources, or project instructions.
+
+Worker processes are context-separated, not OS security sandboxes.
 
 ## Explicit memory
 

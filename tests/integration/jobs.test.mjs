@@ -500,7 +500,8 @@ test("M3a job run executes one isolated Pi backend and exposes only compact veri
   assert.equal(inspected.result.changes[0].id, "decisions/background-queue");
   assert.match(inspected.result.changes[0].hash, /^[0-9a-f]{64}$/);
   assert.equal(JSON.stringify(inspected.result).includes("SECRET_WORKER_TRACE"), false);
-  assert.match(await fs.readFile(path.join(queued.jobDirectoryPath, "events.jsonl"), "utf8"), /SECRET_WORKER_TRACE/);
+  await assert.rejects(() => fs.access(path.join(queued.jobDirectoryPath, "events.jsonl")), { code: "ENOENT" });
+  await assert.rejects(() => fs.access(path.join(queued.jobDirectoryPath, "stderr.log")), { code: "ENOENT" });
   assert.equal((await fs.stat(path.join(queued.jobDirectoryPath, "worker-report.json"))).mode & 0o777, 0o600);
 });
 
@@ -528,11 +529,11 @@ test("artifact workers receive the sensitive-data mode effective when execution 
   );
   assert.equal(result.code, 0, result.stderr);
   const processed = parse(result).processed[0];
-  const workerStderr = await fs.readFile(path.join(queued.jobDirectoryPath, "stderr.log"), "utf8");
   const inspected = parse(
     await run(["jobs", "show", "--job-id", queued.jobId, "--corpus-context", "project", "--project-root-path", root]),
   ).job;
-  assert.equal(processed.state, "completed", `${JSON.stringify(inspected.result)}\n${workerStderr}`);
+  assert.equal(processed.state, "completed", JSON.stringify(inspected.result));
+  await assert.rejects(() => fs.access(path.join(queued.jobDirectoryPath, "stderr.log")), { code: "ENOENT" });
   const prompt = await fs.readFile(promptDump, "utf8");
   assert.match(prompt, /Project knowledge mode is unguarded/);
   assert.match(prompt, /credentials, and secret values may be stored when relevant/);
@@ -981,6 +982,78 @@ test("M3a invalid-job discard removes malformed jobs but cannot bypass normal cl
   await assert.rejects(() => fs.access(queued.jobDirectoryPath), { code: "ENOENT" });
 });
 
+test("tidy previews and removes completed plus structurally invalid private job metadata", async (t) => {
+  const root = await project(t);
+
+  const completed = parse(await enqueue(root));
+  const fake = await fakePi(t, successWorker);
+  let result = await run(
+    ["jobs", "run", "--job-id", completed.jobId, "--corpus-context", "project", "--project-root-path", root],
+    { env: fake.env },
+  );
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(parse(result).processed[0].state, "completed");
+
+  const invalid = parse(await enqueue(root, ["--ingest-instruction", "Broken private metadata fixture."]));
+  await fs.writeFile(path.join(invalid.jobDirectoryPath, "events.jsonl"), "private diagnostic bytes\n", { mode: 0o600 });
+  await fs.writeFile(path.join(invalid.jobDirectoryPath, "capsule.json"), "{malformed\n", { mode: 0o600 });
+
+  const queued = parse(await enqueue(root, ["--ingest-instruction", "Protected queued work."]));
+
+  result = await run([
+    "jobs",
+    "tidy",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  let output = parse(result);
+  assert.equal(output.scope, "private-job-metadata");
+  assert.equal(output.knowledgeChanged, false);
+  assert.equal(output.confirmed, false);
+  assert.equal(output.confirmationRequired, true);
+  assert.deepEqual(output.candidates.completed.map((item) => item.jobId), [completed.jobId]);
+  assert.deepEqual(output.candidates.invalid.map((item) => item.jobId), [invalid.jobId]);
+  assert.deepEqual(output.protectedJobs, [{ jobId: queued.jobId, state: "queued", reason: "not-completed" }]);
+  assert.equal(output.totals.candidateJobs, 2);
+  assert.ok(output.totals.candidateBytes > 0);
+  assert.ok(await fs.stat(completed.jobDirectoryPath));
+  assert.ok(await fs.stat(invalid.jobDirectoryPath));
+  assert.ok(await fs.stat(queued.jobDirectoryPath));
+
+  result = await run([
+    "jobs",
+    "tidy",
+    "--corpus-context",
+    "project",
+    "--confirm-private-job-metadata-deletion",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  output = parse(result);
+  assert.equal(output.confirmed, true);
+  assert.deepEqual(new Set(output.cleanedJobs), new Set([completed.jobId, invalid.jobId]));
+  assert.ok(output.reclaimedBytes > 0);
+  await assert.rejects(() => fs.access(completed.jobDirectoryPath), { code: "ENOENT" });
+  await assert.rejects(() => fs.access(invalid.jobDirectoryPath), { code: "ENOENT" });
+  assert.ok(await fs.stat(queued.jobDirectoryPath));
+
+  result = await run([
+    "concepts",
+    "read",
+    "--concept-id",
+    "decisions/background-queue",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+});
+
 test("M3a immutable capsules are integrity-checked and bound to their canonical project", async (t) => {
   const root = await project(t);
   const queued = parse(await enqueue(root));
@@ -1033,6 +1106,19 @@ test("M3a malformed or symlinked job state is rejected without following it", as
     root,
   ]);
   assert.equal(result.code, 9);
+
+  result = await run([
+    "jobs",
+    "tidy",
+    "--corpus-context",
+    "project",
+    "--confirm-private-job-metadata-deletion",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(parse(result).protectedJobs, [{ jobId: queued.jobId, reason: "unsafe-or-unreadable" }]);
+  assert.deepEqual(parse(result).cleanedJobs, undefined);
   assert.ok(await fs.lstat(statePath));
   assert.equal(await fs.readFile(outside, "utf8"), "not json\n");
 });

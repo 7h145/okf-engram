@@ -63,6 +63,8 @@ test("agent help defines every domain and distinguishes semantic workflows from 
   assert.match(result.stdout, /\[D\] concepts write/);
   assert.match(result.stdout, /\[D\] sources list/);
   assert.match(result.stdout, /\[D\] jobs enqueue artifact-ingest-batch/);
+  assert.match(result.stdout, /\[D\] jobs tidy/);
+  assert.match(result.stdout, /--confirm-private-job-metadata-deletion/);
   assert.match(result.stdout, /\[D\] policy project sensitive-data status\|allow\|deny/);
   assert.match(result.stdout, /\[D\] policy global sensitive-data status\|allow\|deny/);
   assert.match(result.stdout, /\[D\] adapter bridge handshake\|project-policy-status/);
@@ -122,6 +124,7 @@ test("human help is bounded and exposes only a guarded destructive shortcut", as
   assert.match(result.stdout, /\/engram remember STATEMENT/);
   assert.match(result.stdout, /\/engram \[@ADDRESS \.\.\.\] ls — list concepts/);
   assert.match(result.stdout, /\/engram jobs \[JOB_ID\]/);
+  assert.match(result.stdout, /\/engram tidy — remove private job metadata, never knowledge/);
   assert.match(result.stdout, /\/engram \[@P\|@G\] remove CONCEPT_ID — delete after confirmation/);
   assert.match(result.stdout, /Common work:/);
   assert.match(result.stdout, /Further actions:/);
@@ -186,6 +189,9 @@ test("Pi prompt is transport-only and portable routing stays in the skill", asyn
   assert.match(skill, /\| `\[ADDR\.\.\.\] ls` \| selected\/composed `concepts list`/);
   assert.match(skill, /\| `\[@P\\\|@G\] remember STATEMENT` \| selected `memory remember/);
   assert.match(skill, /\| `link NAME PATH` \| `corpus links add/);
+  assert.match(skill, /\| `tidy` \| preview `jobs tidy`/);
+  assert.match(skill, /Tidy this private job metadata\? yes\/no/);
+  assert.match(skill, /`tidy` never changes the OKF bundle, settings, links/);
   assert.match(skill, /classify its complete\s+argument string against the routing table below before making any tool call/);
   assert.match(skill, /matching prefix is not a route/);
   assert.match(skill, /`@all`\/`@A` must be the only address/);
