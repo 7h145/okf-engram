@@ -1002,7 +1002,7 @@ test("tidy previews and removes completed plus structurally invalid private job 
 
   result = await run([
     "jobs",
-    "tidy",
+    "list",
     "--corpus-context",
     "project",
     "--project-root-path",
@@ -1010,6 +1010,35 @@ test("tidy previews and removes completed plus structurally invalid private job 
   ]);
   assert.equal(result.code, 0, result.stderr);
   let output = parse(result);
+  assert.deepEqual(new Set(output.jobs.map((job) => job.jobId)), new Set([completed.jobId, queued.jobId]));
+  assert.deepEqual(output.issues.map((issue) => issue.jobId), [invalid.jobId]);
+
+  result = await run([
+    "jobs",
+    "tidy",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+    "--output-format",
+    "text",
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /^\s*\{/);
+  assert.match(result.stdout, /^corpusContext: project$/m);
+  assert.match(result.stdout, /^scope: private-job-metadata$/m);
+  assert.match(result.stdout, /^confirmationRequired: true$/m);
+
+  result = await run([
+    "jobs",
+    "tidy",
+    "--corpus-context",
+    "project",
+    "--project-root-path",
+    root,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  output = parse(result);
   assert.equal(output.scope, "private-job-metadata");
   assert.equal(output.knowledgeChanged, false);
   assert.equal(output.confirmed, false);
