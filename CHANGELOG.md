@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.1 — 2026-09-21
+
 - Add `/engram tidy` with a preview-and-confirm workflow that removes completed or
   structurally invalid private job metadata while protecting knowledge, sources,
   active/reviewable work, unacknowledged results, and unsafe filesystem entries.

@@ -79,7 +79,7 @@ pi install git:github.com/7h145/okf-engram
 
 Pi clones Git packages and installs their npm dependencies. The command above
 follows the repository's default branch; append a reviewed tag such as
-`@v0.3.0` if you prefer a pinned release.
+`@v0.3.1` if you prefer a pinned release.
 
 Start or restart Pi in the project where you want to use Engram. The package adds
 the strict `/engram` prompt command; Pi can also activate the skill from an
