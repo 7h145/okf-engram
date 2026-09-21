@@ -96,6 +96,16 @@ npm ci
 pi install /path/to/okf-engram
 ```
 
+### Updates and compatibility
+
+Starting with v0.3.1, Engram treats its documented human commands and valid
+on-disk managed state as compatibility-sensitive. Updates should preserve familiar
+human workflows and either continue reading existing data or convert it safely;
+routine upgrades should not require hand-editing or discarding a knowledge base.
+Unavoidable transitions will be called out in release notes. The exact long-term
+v1 compatibility boundary will be finalized from real-world use rather than
+speculation.
+
 ## Usage
 
 Follow the skill-loading and invocation documentation for your agent harness. Once

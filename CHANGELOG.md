@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Establish v0.3.1 as the pre-v1 compatibility baseline for documented human
+  commands and valid managed on-disk state: prefer stable additive interfaces and
+  require backward-readable or safely migrated routine upgrades.
+
 ## 0.3.1 — 2026-09-21
 
 - Add `/engram tidy` with a preview-and-confirm workflow that removes completed or

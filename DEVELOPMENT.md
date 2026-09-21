@@ -98,6 +98,37 @@ Semantic compilation is model work. Parsing, containment, validation, locking,
 optimistic concurrency, and atomic replacement do not depend on model discipline.
 A worker subprocess isolates model context but is not an operating-system sandbox.
 
+## Stability and upgrades
+
+The valid managed state and documented human interface accepted by v0.3.1 are the
+pre-v1 compatibility baseline. From this baseline onward:
+
+- preserve documented `/engram` shortcuts and their safety-relevant meanings when
+  practical; prefer additive changes and require concrete evidence before a rename,
+  removal, or semantic break;
+- a routine update must continue reading valid OKF bundles, settings, links, jobs,
+  and result acknowledgements, or convert them through a safe, idempotent, tested
+  migration without asking the user to edit internal files;
+- migrations must preserve knowledge and user choices, use the existing locking
+  and atomic-write boundaries, and fail closed before partial mutation when an
+  input cannot be converted safely;
+- corruption, tampering, unsafe filesystem structures, and state already invalid
+  at the v0.3.1 baseline may require explicit reconciliation rather than automatic
+  repair; and
+- ephemeral runner files, worker diagnostics, tests, and undocumented module
+  internals are not persistent compatibility surfaces.
+
+Backward readability by a new release is required for the supported baseline;
+forward readability by an older binary is not promised unless a format contract
+states otherwise. The versioned adapter bridge retains its own negotiation rules.
+The canonical helper remains an agent/developer interface rather than a frozen
+end-user CLI, but documented output, exit-code, and safety contracts must not drift
+casually.
+
+Before v1.0.0, enumerate the final supported public surfaces and formalize semantic
+versioning, deprecation windows, and migration support from observed use. This is a
+contract-hardening phase, not permission for speculative interface churn.
+
 ## Command model
 
 The canonical interface is:
@@ -679,7 +710,9 @@ version 4, corpus-link registry schema version 1, private project job-record sch
 version 2, adapter-bridge manifest version 1, and adapter-bridge protocol version 1.
 Existing project/global data requires no conversion; `links.json` is absent until a
 link is added. Unknown concept frontmatter is preserved subject to the global
-memory-only profile. There is no automatic content migration or raw-source archive.
+memory-only profile. The v0.3.1 baseline therefore needs no migration pass; a
+future persistent-schema change must add the compatible reader or safe migration
+required above. Engram retains no raw-source archive.
 
 ## Tests and release verification
 
