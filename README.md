@@ -40,31 +40,22 @@ every question.
 
 Engram can:
 
-- compile project documents into linked concepts and update those concepts as new
-  information is accepted;
-- track evidence and attribute claims to their sources;
-- retain explicit project or user-global memories and recall project, global, or
-  linked knowledge only when selected;
-- browse and search the resulting knowledge without loading the whole corpus;
-- queue larger document-ingest requests and continue the conversation while one
-  ordered background runner processes them;
-- detect changed local source material and, where available, reopen the exact
-  committed Git version used as evidence;
-- coordinate concurrent agents with deterministic locking and conditional
-  writes; and
-- let optional agent-client add-ons suggest project memories through Engram's
-  existing consent and safety rules.
+- turn project documents into a connected knowledge base and keep it up to date;
+- tie retained knowledge back to the sources that support it;
+- remember what you tell it for this project or for use across projects;
+- read from other local knowledge bases without copying them, on their own or
+  together with this project's knowledge;
+- browse and search retained knowledge without loading everything at once;
+- process larger sets of documents in the background;
+- notice when source files have changed and, when Git allows it, reopen the exact
+  version used as evidence;
+- safely coordinate several agents using the same knowledge base; and
+- accept project-memory suggestions from optional agent-client add-ons while
+  preserving your settings and safety rules.
 
-That integration point is deliberately narrow: it lets an add-on hand a suggested
-project memory to Engram for normal processing. It is not a general-purpose
-harness API and does not let an integration bypass the user's settings or write to
-global memory.
-
-Sources stay untouched. Engram records references and digests, while compiled
-project knowledge goes into its project-local bundle. Explicit global memories go
-to `${XDG_DATA_HOME:-~/.local/share}/okf-engram/bundle/`. Links read compiled
-concepts only: they do not import knowledge, reopen the owning project's sources,
-or silently fall back to another knowledge base.
+Engram leaves source documents untouched. Project knowledge stays with its project,
+global memory stays separate, and linked knowledge remains in its original
+location.
 
 ## Install
 
@@ -141,6 +132,20 @@ Explicit remember and recall work while automatic memory is off. You can also as
 normally—“remember why we chose SQLite” or “what did we decide about the
 cache?”—when a slash command would just get in the way.
 
+Knowledge-base addresses name the source for a command. Without one, Engram uses
+the current project. Add one or more when you want another source or a
+combination:
+
+```text
+/engram @G init
+/engram @G remember prefer concise status updates across projects
+/engram @G ls
+/engram @P @G recall which status conventions apply here?
+```
+
+`@P` means project knowledge and `@G` means global memory. Multiple addresses form
+an explicit read set. Named links get their own `@NAME` address, as shown below.
+
 To compile existing project documents without blocking the conversation:
 
 ```text
@@ -163,36 +168,21 @@ back to foreground ingest otherwise, rather than leaving a job without a runner.
 /engram show CONCEPT_ID         read one concept
 /engram sources                 list referenced local source files
 /engram jobs [JOB_ID]           inspect background work
+/engram help                    show commands, setup, and policy controls
 ```
 
-Prefix knowledge reads with an address such as `@G`, `@runbooks`, repeated
-addresses, `@L`, or `@A`; unprefixed commands keep using this project. `/engram
-help` shows the complete human command summary, including links, setup, and policy
-controls. `/engram --help` shows the canonical agent interface. The slash grammar
-is intentionally strict; ask the agent normally for free-form work outside it.
+The same address prefixes work with browsing and retrieval commands. `/engram
+--help` shows the canonical agent interface. The slash grammar is intentionally
+strict; ask the agent normally for free-form work outside it.
 
 Optional `/engram wire` adds a short reminder after the project's own `AGENTS.md`
 instructions so later agents know when to use the skill. Initialization never does
 this implicitly.
 
-Knowledge-base addresses select where an operation reads or writes. No address
-means the current project:
+### Linked knowledge bases
 
-```text
-/engram @G init
-/engram @G remember prefer concise status updates across projects
-/engram @G ls
-/engram @P @G recall which status conventions apply here?
-```
-
-The long forms are `@project`, `@global`, `@linked`, and `@all`; the typing
-shortcuts are `@P`, `@G`, `@L`, and `@A`. A named link uses its own address, and
-repeated addresses form an explicit read subset. `@A` always includes the project,
-includes global memory only when initialized, and includes every configured link;
-`@L` includes every configured link. An unavailable configured link fails visibly
-instead of being omitted from either aggregate.
-
-Link an already-compiled local Engram project or bundle without copying it:
+A named link lets the current project read an already-compiled local Engram
+project or bundle without copying it:
 
 ```text
 /engram link skill-development /path/to/skill-development
@@ -202,10 +192,19 @@ Link an already-compiled local Engram project or bundle without copying it:
 /engram @A recall where is the relevant guidance?
 ```
 
+The link name becomes its address: `@skill-development` in this example. Repeated
+addresses select an explicit combination; `@L` selects every configured link, and
+`@A` selects the project, initialized global memory, and every configured link.
+The long forms of the built-in addresses are `@project`, `@global`, `@linked`, and
+`@all`. An unavailable configured link fails visibly instead of being omitted from
+an aggregate.
+
 Links are always read-only. Their configured path may be a stable symlink that is
 retargeted during deployment; Engram resolves and validates the current target on
 every operation. `/engram unlink NAME` removes only the relationship. A project
 may configure at most 32 links.
+
+### Global memory and persistence
 
 Global memory is for memories you deliberately state, not for project documents.
 Engram never copies project memories into it or adds global memories on its own.
