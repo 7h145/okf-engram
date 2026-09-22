@@ -5,6 +5,9 @@
 - Establish v0.3.1 as the pre-v1 compatibility baseline for documented human
   commands and valid managed on-disk state: prefer stable additive interfaces and
   require backward-readable or safely migrated routine upgrades.
+- Enforce the documented `memories/<slug>` namespace for global Memory concepts so
+  semantic writes cannot create a second singular `memory/` group beside the
+  canonical generated group.
 
 ## 0.3.1 — 2026-09-21
 

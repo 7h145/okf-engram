@@ -148,6 +148,11 @@ test("M5 global writes enforce explicit Memory-only provenance at the storage bo
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).corpusContext, "global");
 
+  result = await writeGlobal(f, "memory/editor", valid);
+  assert.equal(result.code, 4);
+  assert.match(JSON.parse(result.stderr).message, /must use memories\/<slug>/);
+  await assert.rejects(() => fs.access(path.join(f.bundle, "memory")), { code: "ENOENT" });
+
   const inferred = await writeDraft(
     f.root,
     "inferred",
@@ -350,13 +355,30 @@ test("M5 rejects invalid adopted global content and concurrent initialization co
   assert.equal(results.filter((result) => JSON.parse(result.stdout).created).length, 1);
   assert.equal(results.filter((result) => JSON.parse(result.stdout).readmeCreated).length, 1);
 
+  const singularDirectory = path.join(f.bundle, "memory");
+  await fs.mkdir(singularDirectory);
+  await fs.writeFile(
+    path.join(singularDirectory, "wrong-group.md"),
+    memoryDraft("Wrong group", "This valid Memory uses the wrong concept-ID group."),
+  );
+  let result = await run(["corpus", "validate", "--corpus-context", "global"], { env: f.env });
+  assert.equal(result.code, 4, result.stderr);
+  let report = JSON.parse(result.stdout);
+  assert.ok(report.issues.some((issue) => issue.code === "global-memory-id" && issue.severity === "error"));
+  result = await run([
+    "concepts", "search", "--corpus-context", "global", "--query", "wrong group",
+  ], { env: f.env });
+  assert.equal(result.code, 4);
+  assert.match(JSON.parse(result.stderr).message, /memory-only profile/);
+  await fs.rm(singularDirectory, { recursive: true });
+
   await fs.writeFile(
     path.join(f.bundle, "invalid.md"),
     "---\ntype: Note\ntitle: Invalid\ndescription: Invalid global type.\n---\n# Invalid\n\nBody.\n",
   );
-  let result = await run(["corpus", "validate", "--corpus-context", "global"], { env: f.env });
+  result = await run(["corpus", "validate", "--corpus-context", "global"], { env: f.env });
   assert.equal(result.code, 4, result.stderr);
-  const report = JSON.parse(result.stdout);
+  report = JSON.parse(result.stdout);
   assert.ok(report.issues.some((issue) => issue.code === "global-memory-type" && issue.severity === "error"));
   result = await run([
     "concepts", "search", "--corpus-context", "global", "--query", "invalid",

@@ -68,6 +68,9 @@ function globalProfileIssues(concepts) {
   });
   for (const item of concepts) {
     const data = item.concept.data;
+    if (!/^memories\/[^/]+$/.test(item.id)) {
+      add(item, "global-memory-id", "Global Memory concept IDs must use memories/<slug>");
+    }
     if (data.type !== "Memory") add(item, "global-memory-type", "Global corpora may contain only Memory concepts");
     if (data.capture !== "explicit") {
       add(item, "global-memory-capture", "Global Memory concepts require capture: explicit");

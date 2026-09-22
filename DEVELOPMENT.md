@@ -336,6 +336,7 @@ explicit global operation. It reuses OKF parsing, indexes, search, per-bundle
 locking, atomic conditional writes, validation, deprecation, deletion, and repair.
 Every create or update boundary additionally requires:
 
+- a canonical concept ID of `memories/<slug>`;
 - `type: Memory`;
 - `capture: explicit`;
 - at least one URN provenance source; and
