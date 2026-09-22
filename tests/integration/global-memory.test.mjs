@@ -122,6 +122,9 @@ test("M5 global resolution is XDG-scoped, explicit, restrictive, and project-ind
   assert.equal(result.code, 0, result.stderr);
   output = JSON.parse(result.stdout);
   assert.equal(output.corpusContext, "global");
+  assert.equal(output.valid, true);
+  assert.deepEqual(output.profileIssues, []);
+  assert.equal(output.profileIssuesOmitted, 0);
   assert.equal(output.automaticMemory.available, false);
   assert.equal(output.automaticMemory.automaticMemory, "off");
   assert.equal(output.automaticMemory.issue, undefined);
@@ -357,11 +360,36 @@ test("M5 rejects invalid adopted global content and concurrent initialization co
 
   const singularDirectory = path.join(f.bundle, "memory");
   await fs.mkdir(singularDirectory);
-  await fs.writeFile(
-    path.join(singularDirectory, "wrong-group.md"),
-    memoryDraft("Wrong group", "This valid Memory uses the wrong concept-ID group."),
-  );
-  let result = await run(["corpus", "validate", "--corpus-context", "global"], { env: f.env });
+  await Promise.all(Array.from({ length: 20 }, (_, index) => fs.writeFile(
+    path.join(singularDirectory, `wrong-group-${index}.md`),
+    memoryDraft(`Wrong group ${index}`, "This valid Memory uses the wrong concept-ID group."),
+  )));
+
+  let result = await run(["corpus", "status", "--corpus-context", "global"], { env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  let status = JSON.parse(result.stdout);
+  assert.equal(status.valid, false);
+  assert.equal(status.profileErrors, 20);
+  assert.equal(status.profileIssues.length, 16);
+  assert.equal(status.profileIssuesOmitted, 4);
+  assert.deepEqual(Object.keys(status.profileIssues[0]), ["code", "id", "message"]);
+  assert.ok(status.profileIssues.every((issue) => issue.code === "global-memory-id"));
+
+  await fs.mkdir(f.project);
+  assert.equal((await run([
+    "corpus", "initialize", "--corpus-context", "project", "--project-root-path", f.project,
+  ], { env: f.env })).code, 0);
+  result = await run([
+    "corpus", "status", "--corpus-read-set", "all", "--project-root-path", f.project,
+  ], { env: f.env });
+  assert.equal(result.code, 0, result.stderr);
+  status = JSON.parse(result.stdout).corpora.find((corpus) => corpus.corpusContext === "global");
+  assert.equal(status.valid, false);
+  assert.equal(status.profileErrors, 20);
+  assert.equal(status.profileIssues.length, 16);
+  assert.equal(status.profileIssuesOmitted, 4);
+
+  result = await run(["corpus", "validate", "--corpus-context", "global"], { env: f.env });
   assert.equal(result.code, 4, result.stderr);
   let report = JSON.parse(result.stdout);
   assert.ok(report.issues.some((issue) => issue.code === "global-memory-id" && issue.severity === "error"));

@@ -348,9 +348,14 @@ addressed global source operation: `sources` inventories referenced local files
 and remains project-only, while `@G ls` browses global Memory envelopes.
 
 Global initialization and validation reject an existing bundle containing concepts
-outside that profile. Artifact ingest, all jobs and inferred candidates, source-
-file operations, project wiring, automatic-memory policy, and adapter targeting
-remain project-only. Global corpus status therefore exposes automatic memory as
+outside that profile. `corpus status` remains a tolerant diagnostic and exits
+successfully when the bundle can be inspected, but returns `valid: false` plus up
+to sixteen bounded `profileIssues` (`code`, `id`, and `message`) and a
+`profileIssuesOmitted` count. Direct and aggregate status use the same member
+shape. Human presentation must call such a corpus unhealthy rather than treating
+exit 0 as validation success. Artifact ingest, all jobs and inferred candidates,
+source-file operations, project wiring, automatic-memory policy, and adapter
+targeting remain project-only. Global corpus status therefore exposes automatic memory as
 unavailable and human presentation says only `Automatic memory: unavailable`.
 The terse label distinguishes an absent capability from a configurable policy and
 keeps implementation rationale out of routine status output: global writes require

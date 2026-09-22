@@ -8,6 +8,9 @@
 - Enforce the documented `memories/<slug>` namespace for global Memory concepts so
   semantic writes cannot create a second singular `memory/` group beside the
   canonical generated group.
+- Make tolerant corpus status explicit with a `valid` flag and bounded global
+  profile issue summaries, including aggregate status, so invalid state cannot be
+  mistaken for health merely because inspection exits successfully.
 
 ## 0.3.1 — 2026-09-21
 

@@ -283,7 +283,11 @@ It may also suggest the separate `/engram wire` command afterward.
 
 Global initialization creates no project wiring, copies no project memories, and
 enables no inference or fallback. Inspect health with `corpus status` and the same
-single selected context. When presenting global corpus status, render the policy
+single selected context. Status is deliberately tolerant so it can diagnose an
+invalid corpus without failing the inspection itself; never infer health from exit
+0 alone. Present the corpus as unhealthy whenever `valid` is false, surface the
+bounded `profileIssues` entries and any `profileIssuesOmitted` count, and direct the
+user to validation or reconciliation. When presenting global corpus status, render the policy
 line exactly as `Automatic memory: unavailable`, with no appended explanation.
 
 ## Corpus links

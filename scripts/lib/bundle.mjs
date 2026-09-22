@@ -56,6 +56,8 @@ function qualifyForCorpus(value, descriptor) {
   return { ...value, ...corpusReference(descriptor) };
 }
 
+const STATUS_PROFILE_ISSUE_LIMIT = 16;
+
 function globalProfileIssues(concepts) {
   const issues = [];
   const add = (item, code, message) => issues.push({
@@ -991,6 +993,13 @@ export async function inspectCorpusStatus(context) {
   }
   const byType = {};
   for (const item of concepts) byType[item.envelope.type] = (byType[item.envelope.type] ?? 0) + 1;
+  const statusErrors = [...issues, ...profileIssues, ...indexIssues]
+    .filter((issue) => issue.severity === "error");
+  const boundedProfileIssues = profileIssues.slice(0, STATUS_PROFILE_ISSUE_LIMIT).map((issue) => ({
+    code: issue.code,
+    id: issue.id,
+    message: issue.message,
+  }));
   return {
     ...(isGlobalCorpus(context)
       ? { dataHome: context.dataHome }
@@ -1001,8 +1010,11 @@ export async function inspectCorpusStatus(context) {
     bundle: context.bundle,
     concepts: concepts.length,
     byType,
+    valid: statusErrors.length === 0,
     parseErrors: issues.filter((issue) => issue.severity === "error").length,
     profileErrors: profileIssues.length,
+    profileIssues: boundedProfileIssues,
+    profileIssuesOmitted: profileIssues.length - boundedProfileIssues.length,
     indexDrift: drift.length,
     indexIssues,
     sourceStates,
