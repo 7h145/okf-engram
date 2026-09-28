@@ -11,6 +11,9 @@
 - Make tolerant corpus status explicit with a `valid` flag and bounded global
   profile issue summaries, including aggregate status, so invalid state cannot be
   mistaken for health merely because inspection exits successfully.
+- Keep observational job and inferred-result listings read-only: missing private
+  job state returns empty collections, and existing jobs can be inspected on a
+  read-only project without changing directory permissions.
 
 ## 0.3.1 — 2026-09-21
 

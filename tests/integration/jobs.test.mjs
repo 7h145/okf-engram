@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -243,6 +243,106 @@ async function waitForState(root, jobId, expected, timeoutMs = 8_000) {
   }
   throw new Error(`Timed out waiting for job ${jobId} to reach ${expected}`);
 }
+
+test("job listings leave absent or existing private job roots untouched", async (t) => {
+  const root = await project(t);
+  const options = ["--corpus-context", "project", "--project-root-path", root];
+  const jobs = path.join(root, ".agents", "data", "okf-engram", "jobs");
+  await assert.rejects(() => fs.lstat(jobs), { code: "ENOENT" });
+
+  let result = await run(["jobs", "list", ...options]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(parse(result).jobs, []);
+  assert.deepEqual(parse(result).issues, []);
+  result = await run(["jobs", "results", "list", ...options]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(parse(result).results, []);
+  assert.deepEqual(parse(result).issues, []);
+  result = await run(["jobs", "results", "list", "--job-id", "job-00000000-aaaaaaaaaaaa", ...options]);
+  assert.equal(result.code, 7, result.stderr);
+  assert.equal(JSON.parse(result.stderr).error, "NOT_FOUND");
+  const bridgeOptions = ["--adapter-bridge-protocol-version", "1", "--project-working-directory", root];
+  for (const [operation, collection] of [["inferred-jobs-list", "jobs"], ["inferred-results-list", "results"]]) {
+    result = await run(["adapter", "bridge", operation, ...bridgeOptions]);
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(parse(result)[collection], []);
+  }
+  await assert.rejects(() => fs.lstat(jobs), { code: "ENOENT" });
+
+  const queued = parse(await enqueue(root));
+  await fs.chmod(jobs, 0o500);
+  try {
+    const before = await fs.stat(jobs);
+    result = await run(["jobs", "list", ...options]);
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(parse(result).jobs.map((item) => item.jobId), [queued.jobId]);
+    result = await run(["jobs", "results", "list", ...options]);
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(parse(result).results, []);
+    result = await run(["adapter", "bridge", "inferred-jobs-list", ...bridgeOptions]);
+    assert.equal(result.code, 0, result.stderr);
+    result = await run(["adapter", "bridge", "inferred-results-list", ...bridgeOptions]);
+    assert.equal(result.code, 0, result.stderr);
+    const after = await fs.stat(jobs);
+    assert.equal(after.mode & 0o777, 0o500);
+    assert.equal(after.ctimeMs, before.ctimeMs);
+  } finally {
+    await fs.chmod(jobs, 0o700);
+  }
+});
+
+test("job listings reject an unsafe jobs root without following it", async (t) => {
+  const root = await project(t);
+  const jobs = path.join(root, ".agents", "data", "okf-engram", "jobs");
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "engram jobs outside "));
+  t.after(() => fs.rm(outside, { recursive: true, force: true }));
+  const options = ["--corpus-context", "project", "--project-root-path", root];
+  await fs.symlink(outside, jobs);
+  for (const args of [["jobs", "list"], ["jobs", "results", "list"]]) {
+    const result = await run([...args, ...options]);
+    assert.equal(result.code, 9, result.stderr);
+    assert.equal(JSON.parse(result.stderr).error, "UNSAFE_PATH");
+  }
+  await fs.unlink(jobs);
+  await fs.writeFile(jobs, "not a directory\n");
+  for (const args of [["jobs", "list"], ["jobs", "results", "list"]]) {
+    const result = await run([...args, ...options]);
+    assert.equal(result.code, 9, result.stderr);
+    assert.equal(JSON.parse(result.stderr).error, "UNSAFE_PATH");
+  }
+});
+
+test("job listings work on an isolated read-only mount when supported", async (t) => {
+  if (process.platform !== "linux") return t.skip("Linux mount namespaces are unavailable");
+  const root = await project(t);
+  const options = ["--corpus-context", "project", "--project-root-path", root];
+  const mounted = (args) => spawnSync("unshare", [
+    "-Ur", "-m", "sh", "-ec",
+    'mount --bind "$1" "$1"; mount -o remount,bind,ro "$1"; shift; exec "$@"',
+    "sh", root, process.execPath, ...args,
+  ], { cwd: repo, encoding: "utf8", timeout: 20_000 });
+  const probe = mounted(["-e", "process.exit(0)"]);
+  if (probe.error || probe.status !== 0) return t.skip("Isolated read-only bind mounts are unavailable");
+
+  const read = (...args) => mounted([cli, ...args]);
+  let result = read("jobs", "list", ...options);
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  assert.deepEqual(JSON.parse(result.stdout).jobs, []);
+  await assert.rejects(() => fs.lstat(path.join(root, ".agents", "data", "okf-engram", "jobs")), { code: "ENOENT" });
+
+  const queued = parse(await enqueue(root));
+  result = read("jobs", "list", ...options);
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  assert.deepEqual(JSON.parse(result.stdout).jobs.map((item) => item.jobId), [queued.jobId]);
+  result = read("jobs", "results", "list", ...options);
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  assert.deepEqual(JSON.parse(result.stdout).results, []);
+  for (const operation of ["inferred-jobs-list", "inferred-results-list"]) {
+    result = read("adapter", "bridge", operation, "--adapter-bridge-protocol-version", "1",
+      "--project-working-directory", root);
+    assert.equal(result.status, 0, result.stderr || result.error?.message);
+  }
+});
 
 test("M3a enqueue writes a bounded private capsule outside the OKF bundle and deduplicates active input", async (t) => {
   const root = await project(t);

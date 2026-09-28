@@ -591,6 +591,13 @@ state, concept IDs and hashes, coverage, warnings, and review or error reasons. 
 only the affected job before worker execution. Jobs are cancellable and never
 blindly replay `needs-review` changes.
 
+Observational `jobs list`, `jobs show`, and `jobs results list` do not create the
+private jobs directory or change its permissions. An initialized project without
+a jobs directory has empty job/result collections; existing records can be read
+from read-only project storage. Job writes still create and harden private state
+under the usual locks. `jobs tidy` preview is distinct: it acquires worker and
+jobs locks and therefore still requires writable storage.
+
 Compact terminal state remains until explicit cleanup:
 
 ```bash

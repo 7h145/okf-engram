@@ -100,10 +100,17 @@ async function rejectSymlink(target, label) {
   }
 }
 
-async function ensureJobsRoot(context) {
+async function inspectJobsRoot(context) {
   requireInitialized(context);
   const root = jobsRoot(context);
-  await rejectSymlink(root, "Engram jobs root");
+  const stat = await rejectSymlink(root, "Engram jobs root");
+  if (!stat) return undefined;
+  if (!stat.isDirectory()) throw errors.unsafePath(`Engram jobs root is not a directory: ${root}`);
+  return root;
+}
+
+async function ensureJobsRoot(context) {
+  const root = (await inspectJobsRoot(context)) ?? jobsRoot(context);
   await fs.mkdir(root, { recursive: true, mode: 0o700 });
   await fs.chmod(root, 0o700);
   return root;
@@ -376,7 +383,8 @@ async function readJob(context, jobId) {
 }
 
 async function listJobIds(context) {
-  const root = await ensureJobsRoot(context);
+  const root = await inspectJobsRoot(context);
+  if (!root) return { ids: [], issues: [] };
   const entries = await fs.readdir(root, { withFileTypes: true });
   const ids = [];
   const issues = [];
