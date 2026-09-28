@@ -617,7 +617,9 @@ jobs. It cannot bypass normal terminal, reconciliation, or result-acknowledgemen
 rules.
 
 For the human `/engram tidy` workflow, first preview the bounded project-wide
-cleanup without a confirmation flag:
+cleanup without a confirmation flag. Even preview acquires write locks and needs
+writable project storage; if preparation fails, report the writable-storage
+requirement and do not suggest that tidying succeeded:
 
 ```bash
 node <skill-dir>/scripts/engram.mjs jobs tidy \

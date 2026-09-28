@@ -142,9 +142,14 @@ async function withJobsLock(context, fn) {
   return withLock(root, `${root}.lock`, fn);
 }
 
-async function withWorkerLock(context, fn, options = {}) {
-  const root = await ensureJobsRoot(context);
-  return withLock(path.dirname(root), path.join(root, ".worker.lock"), fn, options);
+async function withWorkerLock(context, fn, { retries = 20, onPrepareError } = {}) {
+  let root;
+  try {
+    root = await ensureJobsRoot(context);
+  } catch (error) {
+    throw onPrepareError ? onPrepareError(error) : error;
+  }
+  return withLock(path.dirname(root), path.join(root, ".worker.lock"), fn, { retries });
 }
 
 async function writeJson(file, value) {
@@ -1270,6 +1275,14 @@ async function classifyTidyCandidates(context) {
   return { completed, invalid, protectedJobs, issues: listed.issues };
 }
 
+function tidyPreparationError(error) {
+  if (!["EROFS", "ENOENT", "EACCES", "EPERM"].includes(error?.code)) return error;
+  return errors.validation(
+    "Cannot tidy private job metadata: this operation requires writable project storage. Check that the project and its private job state are available for writing.",
+    { causeCode: error.code },
+  );
+}
+
 export async function tidyJobs(context, { confirmPrivateJobMetadataDeletion = false } = {}) {
   return withWorkerLock(
     context,
@@ -1310,7 +1323,7 @@ export async function tidyJobs(context, { confirmPrivateJobMetadataDeletion = fa
           reclaimedBytes: candidateBytes,
         };
       }),
-    { retries: 0 },
+    { retries: 0, onPrepareError: tidyPreparationError },
   );
 }
 

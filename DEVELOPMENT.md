@@ -596,7 +596,11 @@ private jobs directory or change its permissions. An initialized project without
 a jobs directory has empty job/result collections; existing records can be read
 from read-only project storage. Job writes still create and harden private state
 under the usual locks. `jobs tidy` preview is distinct: it acquires worker and
-jobs locks and therefore still requires writable storage.
+jobs locks and therefore still requires writable storage. If preparation of its
+private jobs root fails with `EROFS`, `ENOENT`, `EACCES`, or `EPERM`, tidy reports
+an actionable `VALIDATION_ERROR` (exit 4) with a bounded `causeCode`, rather than
+an unexplained internal failure. Unrelated initialization, unsafe-path, and
+lock-contention errors retain their existing codes.
 
 Compact terminal state remains until explicit cleanup:
 

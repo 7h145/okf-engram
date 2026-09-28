@@ -14,6 +14,8 @@
 - Keep observational job and inferred-result listings read-only: missing private
   job state returns empty collections, and existing jobs can be inspected on a
   read-only project without changing directory permissions.
+- Explain that `jobs tidy` requires writable project storage when job-root setup
+  fails on a read-only or inaccessible project, including its preview operation.
 
 ## 0.3.1 — 2026-09-21
 

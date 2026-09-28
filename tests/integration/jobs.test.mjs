@@ -29,6 +29,14 @@ function run(args, { cwd = repo, env = {} } = {}) {
   });
 }
 
+function runOnReadOnlyMount(root, args) {
+  return spawnSync("unshare", [
+    "-Ur", "-m", "sh", "-ec",
+    'mount --bind "$1" "$1"; mount -o remount,bind,ro "$1"; shift; exec "$@"',
+    "sh", root, process.execPath, ...args,
+  ], { cwd: repo, encoding: "utf8", timeout: 20_000 });
+}
+
 async function project(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "engram jobs Ω "));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -316,15 +324,10 @@ test("job listings work on an isolated read-only mount when supported", async (t
   if (process.platform !== "linux") return t.skip("Linux mount namespaces are unavailable");
   const root = await project(t);
   const options = ["--corpus-context", "project", "--project-root-path", root];
-  const mounted = (args) => spawnSync("unshare", [
-    "-Ur", "-m", "sh", "-ec",
-    'mount --bind "$1" "$1"; mount -o remount,bind,ro "$1"; shift; exec "$@"',
-    "sh", root, process.execPath, ...args,
-  ], { cwd: repo, encoding: "utf8", timeout: 20_000 });
-  const probe = mounted(["-e", "process.exit(0)"]);
+  const probe = runOnReadOnlyMount(root, ["-e", "process.exit(0)"]);
   if (probe.error || probe.status !== 0) return t.skip("Isolated read-only bind mounts are unavailable");
 
-  const read = (...args) => mounted([cli, ...args]);
+  const read = (...args) => runOnReadOnlyMount(root, [cli, ...args]);
   let result = read("jobs", "list", ...options);
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   assert.deepEqual(JSON.parse(result.stdout).jobs, []);
@@ -342,6 +345,60 @@ test("job listings work on an isolated read-only mount when supported", async (t
       "--project-working-directory", root);
     assert.equal(result.status, 0, result.stderr || result.error?.message);
   }
+});
+
+test("tidy explains its writable-storage requirement on read-only mounts", async (t) => {
+  if (process.platform !== "linux") return t.skip("Linux mount namespaces are unavailable");
+  const root = await project(t);
+  const probe = runOnReadOnlyMount(root, ["-e", "process.exit(0)"]);
+  if (probe.error || probe.status !== 0) return t.skip("Isolated read-only bind mounts are unavailable");
+
+  const jobs = path.join(root, ".agents", "data", "okf-engram", "jobs");
+  const options = ["--corpus-context", "project", "--project-root-path", root];
+  const tidy = (...args) => runOnReadOnlyMount(root, [cli, "jobs", "tidy", ...options, ...args]);
+  for (const existing of [false, true]) {
+    if (existing) await fs.mkdir(jobs, { mode: 0o700 });
+    for (const flags of [[], ["--confirm-private-job-metadata-deletion"]]) {
+      const result = tidy(...flags);
+      assert.equal(result.status, 4, result.stderr || result.error?.message);
+      const failure = JSON.parse(result.stderr);
+      assert.equal(failure.error, "VALIDATION_ERROR");
+      assert.match(failure.message, /requires writable project storage/);
+      assert.ok(["ENOENT", "EROFS"].includes(failure.details.causeCode));
+    }
+    if (!existing) await assert.rejects(() => fs.lstat(jobs), { code: "ENOENT" });
+    else assert.equal((await fs.stat(jobs)).mode & 0o777, 0o700);
+  }
+  const text = tidy("--output-format", "text");
+  assert.equal(text.status, 4, text.stderr || text.error?.message);
+  assert.match(text.stderr, /requires writable project storage/);
+  assert.doesNotMatch(text.stderr, /Unexpected internal/);
+
+  const missingProject = await fs.mkdtemp(path.join(os.tmpdir(), "engram uninitialized tidy "));
+  t.after(() => fs.rm(missingProject, { recursive: true, force: true }));
+  const uninitialized = await run(["jobs", "tidy", "--corpus-context", "project", "--project-root-path", missingProject]);
+  assert.equal(uninitialized.code, 3, uninitialized.stderr);
+  assert.equal(JSON.parse(uninitialized.stderr).error, "NOT_INITIALIZED");
+});
+
+test("tidy preserves unsafe-path and lock-contention errors", async (t) => {
+  const root = await project(t);
+  const jobs = path.join(root, ".agents", "data", "okf-engram", "jobs");
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "engram tidy outside "));
+  t.after(() => fs.rm(outside, { recursive: true, force: true }));
+  const args = ["jobs", "tidy", "--corpus-context", "project", "--project-root-path", root];
+
+  await fs.symlink(outside, jobs);
+  let result = await run(args);
+  assert.equal(result.code, 9, result.stderr);
+  assert.equal(JSON.parse(result.stderr).error, "UNSAFE_PATH");
+
+  await fs.unlink(jobs);
+  await fs.mkdir(jobs);
+  await fs.mkdir(path.join(jobs, ".worker.lock"));
+  result = await run(args);
+  assert.equal(result.code, 6, result.stderr);
+  assert.equal(JSON.parse(result.stderr).error, "LOCK_TIMEOUT");
 });
 
 test("M3a enqueue writes a bounded private capsule outside the OKF bundle and deduplicates active input", async (t) => {
