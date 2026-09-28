@@ -205,14 +205,14 @@ A named link lets the current project read an already-compiled local Engram
 project or bundle without copying it:
 
 ```text
-/engram link skill-development /path/to/skill-development
+/engram link runbooks /path/to/runbooks
 /engram links
-/engram @skill-development find command design
-/engram @P @skill-development recall how should this interface be structured?
+/engram @runbooks find incident response
+/engram @P @runbooks recall how should this incident be handled?
 /engram @A recall where is the relevant guidance?
 ```
 
-The link name becomes its address: `@skill-development` in this example. Repeated
+The link name becomes its address: `@runbooks` in this example. Repeated
 addresses select an explicit combination; `@L` selects every configured link, and
 `@A` selects the project, initialized global memory, and every configured link.
 The long forms of the built-in addresses are `@project`, `@global`, `@linked`, and
